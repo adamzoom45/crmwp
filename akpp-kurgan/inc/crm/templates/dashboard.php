@@ -1,165 +1,222 @@
 <?php
-if (!defined('ABSPATH')) exit;
+/**
+ * Шаблон панели управления CRM
+ * 
+ * @package AKPP45_CRM
+ */
+
+if (!defined('ABSPATH')) {
+    exit;
+}
 
 global $wpdb;
 
-// Получаем текущий месяц и год для фильтрации статистики
-$current_month = date('Y-m');
-$first_day_of_month = date('Y-m-01');
+// Статистика
+$deals_count = $wpdb->get_var("SELECT COUNT(*) FROM {$wpdb->prefix}akpp_deals");
+$leads_count = $wpdb->get_var("SELECT COUNT(*) FROM {$wpdb->prefix}akpp_leads WHERE status = 'new'");
+$employees_count = $wpdb->get_var("SELECT COUNT(*) FROM {$wpdb->prefix}akpp_employees WHERE is_active = 1");
 
-// ==========================================================================
-// 1. Сбор статистики
-// ==========================================================================
-
-// Общее количество активных сделок
-$total_deals = $wpdb->get_var("SELECT COUNT(*) FROM {$wpdb->prefix}akpp_deals WHERE status != 'cancelled' AND status != 'completed'");
-
-// Количество новых лидов за текущий месяц
-$leads_this_month = $wpdb->get_var($wpdb->prepare(
-    "SELECT COUNT(*) FROM {$wpdb->prefix}akpp_leads WHERE DATE(created_at) >= %s",
-    $first_day_of_month
-));
-
-// Выручка завершенных сделок за текущий месяц
-$revenue_this_month = $wpdb->get_var($wpdb->prepare(
-    "SELECT SUM(total_amount) FROM {$wpdb->prefix}akpp_deals WHERE status = 'completed' AND DATE(created_at) >= %s",
-    $first_day_of_month
-)) ?: 0;
-
-// Общая стоимость запчастей на складе (примерная)
-$warehouse_value = $wpdb->get_var("SELECT SUM(quantity * price) FROM {$wpdb->prefix}akpp_parts");
-
-// ==========================================================================
-// 2. Воронка продаж
-// ==========================================================================
-
-$funnel_stages = [
-    'lead'       => ['label' => 'Лиды', 'color' => 'info'],
-    'new'        => ['label' => 'Новые', 'color' => 'success'],
-    'diagnostic' => ['label' => 'Диагностика', 'color' => 'warning'],
-    'in_work'    => ['label' => 'В работе', 'color' => 'primary'],
-    'completed'  => ['label' => 'Завершены', 'color' => 'success']
+// Статистика по воронке
+$funnel_stats = [
+    'lead' => $wpdb->get_var("SELECT COUNT(*) FROM {$wpdb->prefix}akpp_leads WHERE status = 'new'"),
+    'new' => $wpdb->get_var("SELECT COUNT(*) FROM {$wpdb->prefix}akpp_deals WHERE status = 'new'"),
+    'diagnostic' => $wpdb->get_var("SELECT COUNT(*) FROM {$wpdb->prefix}akpp_deals WHERE status = 'diagnostic'"),
+    'in_work' => $wpdb->get_var("SELECT COUNT(*) FROM {$wpdb->prefix}akpp_deals WHERE status = 'in_work'"),
+    'completed' => $wpdb->get_var("SELECT COUNT(*) FROM {$wpdb->prefix}akpp_deals WHERE status = 'completed'")
 ];
 
-$funnel_data = [];
-foreach ($funnel_stages as $status => $info) {
-    $count = $wpdb->get_var($wpdb->prepare(
-        "SELECT COUNT(*) FROM {$wpdb->prefix}akpp_deals WHERE status = %s",
-        $status
-    ));
-    $funnel_data[$status] = [
-        'count' => $count ?: 0,
-        'label' => $info['label'],
-        'color' => $info['color']
-    ];
-}
+// Финансы
+$total_revenue = $wpdb->get_var("SELECT SUM(total_amount) FROM {$wpdb->prefix}akpp_deals WHERE status = 'completed'");
+$total_revenue = $total_revenue ?: 0;
 
-// ==========================================================================
-// 3. Последние сделки
-// ==========================================================================
-
+// Последние сделки (исправленный запрос)
 $recent_deals = $wpdb->get_results("
-    SELECT d.*, v.brand, v.model, e.full_name as employee_name 
+    SELECT d.*, 
+           v.make, v.model,
+           e.name as employee_name
     FROM {$wpdb->prefix}akpp_deals d
     LEFT JOIN {$wpdb->prefix}akpp_vehicles v ON d.vehicle_id = v.id
     LEFT JOIN {$wpdb->prefix}akpp_employees e ON d.employee_id = e.id
     ORDER BY d.created_at DESC 
     LIMIT 5
-", ARRAY_A);
+");
 
+// Склад (количество запчастей)
+$parts_total = $wpdb->get_var("SELECT SUM(quantity) FROM {$wpdb->prefix}akpp_parts");
+$parts_low = $wpdb->get_var("SELECT COUNT(*) FROM {$wpdb->prefix}akpp_parts WHERE quantity < 5");
 ?>
 
 <div class="wrap akpp-crm-wrap">
-    <h1 style="color: var(--akpp-accent); margin-bottom: 30px;">📊 Панель управления АКПП45</h1>
-
+    <h1>📊 Панель управления CRM</h1>
+    
     <!-- Карточки статистики -->
-    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 20px; margin-bottom: 30px;">
-        <div class="akpp-card" style="border-left: 4px solid var(--akpp-accent);">
-            <div style="font-size: 14px; color: var(--akpp-text-secondary); text-transform: uppercase;">Активные сделки</div>
-            <div style="font-size: 32px; font-weight: 700; color: var(--akpp-text-primary); margin-top: 10px;"><?php echo esc_html($total_deals); ?></div>
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-value"><?php echo intval($deals_count); ?></div>
+            <div class="stat-label">Всего сделок</div>
         </div>
-        <div class="akpp-card" style="border-left: 4px solid var(--akpp-info);">
-            <div style="font-size: 14px; color: var(--akpp-text-secondary); text-transform: uppercase;">Новые лиды (мес)</div>
-            <div style="font-size: 32px; font-weight: 700; color: var(--akpp-text-primary); margin-top: 10px;"><?php echo esc_html($leads_this_month); ?></div>
+        <div class="stat-card">
+            <div class="stat-value" style="color: #ffc107;"><?php echo intval($leads_count); ?></div>
+            <div class="stat-label">Новых лидов</div>
         </div>
-        <div class="akpp-card" style="border-left: 4px solid var(--akpp-success);">
-            <div style="font-size: 14px; color: var(--akpp-text-secondary); text-transform: uppercase;">Выручка (мес)</div>
-            <div style="font-size: 32px; font-weight: 700; color: var(--akpp-success); margin-top: 10px;"><?php echo number_format($revenue_this_month, 0, '.', ' '); ?> ₽</div>
+        <div class="stat-card">
+            <div class="stat-value" style="color: #28a745;"><?php echo number_format($total_revenue, 0, ',', ' '); ?> ₽</div>
+            <div class="stat-label">Выручка</div>
         </div>
-        <div class="akpp-card" style="border-left: 4px solid var(--akpp-warning);">
-            <div style="font-size: 14px; color: var(--akpp-text-secondary); text-transform: uppercase;">Стоимость склада</div>
-            <div style="font-size: 32px; font-weight: 700; color: var(--akpp-text-primary); margin-top: 10px;"><?php echo number_format($warehouse_value ?: 0, 0, '.', ' '); ?> ₽</div>
+        <div class="stat-card">
+            <div class="stat-value"><?php echo intval($employees_count); ?></div>
+            <div class="stat-label">Сотрудников</div>
         </div>
     </div>
-
+    
     <!-- Воронка продаж -->
-    <div class="akpp-card">
-        <div class="akpp-card-header">🌪️ Воронка продаж</div>
-        <div class="akpp-funnel">
-            <?php foreach ($funnel_data as $status => $data) : ?>
-                <a href="<?php echo esc_url(admin_url('admin.php?page=akpp-deals&status=' . $status)); ?>" style="text-decoration: none; color: inherit;">
-                    <div class="funnel-stage">
-                        <div class="label"><?php echo esc_html($data['label']); ?></div>
-                        <div class="count"><?php echo esc_html($data['count']); ?></div>
-                        <span class="akpp-badge akpp-badge-<?php echo esc_attr($data['color']); ?>">Этап</span>
-                    </div>
-                </a>
-            <?php endforeach; ?>
+    <div class="dashboard-section">
+        <h2>🔄 Воронка продаж</h2>
+        <div class="funnel-container">
+            <div class="funnel-stage">
+                <div class="funnel-stage-header" style="background: #6c5ce7;">Лиды</div>
+                <div class="funnel-stage-value"><?php echo $funnel_stats['lead']; ?></div>
+            </div>
+            <div class="funnel-stage">
+                <div class="funnel-stage-header" style="background: #0984e3;">Новые</div>
+                <div class="funnel-stage-value"><?php echo $funnel_stats['new']; ?></div>
+            </div>
+            <div class="funnel-stage">
+                <div class="funnel-stage-header" style="background: #fdcb6e;">Диагностика</div>
+                <div class="funnel-stage-value"><?php echo $funnel_stats['diagnostic']; ?></div>
+            </div>
+            <div class="funnel-stage">
+                <div class="funnel-stage-header" style="background: #00b894;">В работе</div>
+                <div class="funnel-stage-value"><?php echo $funnel_stats['in_work']; ?></div>
+            </div>
+            <div class="funnel-stage">
+                <div class="funnel-stage-header" style="background: #27ae60;">Выполнено</div>
+                <div class="funnel-stage-value"><?php echo $funnel_stats['completed']; ?></div>
+            </div>
         </div>
     </div>
-
+    
     <!-- Последние сделки -->
-    <div class="akpp-card">
-        <div class="akpp-card-header" style="display: flex; justify-content: space-between; align-items: center;">
-            <span>🕒 Последние сделки</span>
-            <a href="<?php echo esc_url(admin_url('admin.php?page=akpp-deals')); ?>" class="button button-secondary" style="font-size: 12px;">Все сделки →</a>
-        </div>
-        
-        <?php if (!empty($recent_deals)) : ?>
-            <table class="wp-list-table widefat fixed striped">
-                <thead>
-                    <tr>
-                        <th>№</th>
-                        <th>Клиент</th>
-                        <th>Автомобиль</th>
-                        <th>Мастер</th>
-                        <th>Сумма</th>
-                        <th>Статус</th>
-                        <th>Дата</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <?php foreach ($recent_deals as $deal) : 
-                        $badges = [
-                            'lead' => '<span class="akpp-badge akpp-badge-info">Лид</span>',
-                            'new' => '<span class="akpp-badge akpp-badge-success">Новая</span>',
-                            'diagnostic' => '<span class="akpp-badge akpp-badge-warning">Диагностика</span>',
-                            'in_work' => '<span class="akpp-badge akpp-badge-primary">В работе</span>',
-                            'completed' => '<span class="akpp-badge akpp-badge-success">Завершена</span>',
-                            'cancelled' => '<span class="akpp-badge akpp-badge-danger">Отменена</span>'
-                        ];
-                        $status_badge = $badges[$deal['status']] ?? $deal['status'];
-                        $vehicle_name = (!empty($deal['brand']) && !empty($deal['model'])) ? esc_html($deal['brand'] . ' ' . $deal['model']) : '<span class="akpp-text-muted">Не указано</span>';
-                    ?>
-                        <tr>
-                            <td><strong>#<?php echo esc_html($deal['id']); ?></strong></td>
-                            <td>
-                                <?php echo esc_html($deal['client_name']); ?><br>
-                                <small class="akpp-text-muted"><?php echo esc_html($deal['client_phone']); ?></small>
-                            </td>
-                            <td><?php echo $vehicle_name; ?></td>
-                            <td><?php echo esc_html($deal['employee_name'] ?: 'Не назначен'); ?></td>
-                            <td><strong><?php echo number_format($deal['total_amount'], 0, '.', ' '); ?> ₽</strong></td>
-                            <td><?php echo $status_badge; ?></td>
-                            <td class="akpp-text-muted"><?php echo date('d.m.Y', strtotime($deal['created_at'])); ?></td>
-                        </tr>
-                    <?php endforeach; ?>
-                </tbody>
-            </table>
-        <?php else : ?>
-            <div style="text-align: center; padding: 40px; color: var(--akpp-text-secondary);">
-                <p>Сделок пока нет. <a href="<?php echo esc_url(admin_url('admin.php?page=akpp-new-deal')); ?>">Создать первую сделку</a></p>
-            </div>
+    <div class="dashboard-section">
+        <h2>📋 Последние сделки</h2>
+        <?php if ($recent_deals): ?>
+        <table class="wp-list-table widefat fixed striped">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Клиент</th>
+                    <th>Автомобиль</th>
+                    <th>Сотрудник</th>
+                    <th>Сумма</th>
+                    <th>Статус</th>
+                    <th>Дата</th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php foreach ($recent_deals as $deal): ?>
+                <tr>
+                    <td>#<?php echo $deal->id; ?></td>
+                    <td><?php echo esc_html($deal->client_id); ?></td>
+                    <td><?php echo esc_html($deal->make . ' ' . $deal->model); ?></td>
+                    <td><?php echo esc_html($deal->employee_name ?: '—'); ?></td>
+                    <td><?php echo number_format($deal->total_amount, 0, ',', ' ') . ' ₽'; ?></td>
+                    <td><?php echo $deal->status; ?></td>
+                    <td><?php echo date_i18n('d.m.Y', strtotime($deal->created_at)); ?></td>
+                </tr>
+                <?php endforeach; ?>
+            </tbody>
+        </table>
+        <?php else: ?>
+        <p>Нет сделок для отображения</p>
         <?php endif; ?>
     </div>
+    
+    <!-- Склад -->
+    <div class="dashboard-section">
+        <h2>📦 Склад</h2>
+        <div class="stats-grid" style="grid-template-columns: repeat(2, 1fr);">
+            <div class="stat-card">
+                <div class="stat-value"><?php echo intval($parts_total); ?></div>
+                <div class="stat-label">Всего запчастей</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" style="color: #ffc107;"><?php echo intval($parts_low); ?></div>
+                <div class="stat-label">Требуют пополнения</div>
+            </div>
+        </div>
+    </div>
 </div>
+
+<style>
+.dashboard-section {
+    background: #fff;
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 25px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.dashboard-section h2 {
+    margin-top: 0;
+    margin-bottom: 20px;
+    font-size: 18px;
+    border-left: 4px solid #667eea;
+    padding-left: 12px;
+}
+
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 20px;
+    margin-bottom: 25px;
+}
+
+.stat-card {
+    background: #fff;
+    border-radius: 12px;
+    padding: 20px;
+    text-align: center;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.stat-value {
+    font-size: 32px;
+    font-weight: bold;
+    color: #333;
+}
+
+.stat-label {
+    font-size: 14px;
+    color: #666;
+    margin-top: 8px;
+}
+
+.funnel-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 15px;
+}
+
+.funnel-stage {
+    flex: 1;
+    min-width: 120px;
+    background: #fff;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.funnel-stage-header {
+    padding: 12px;
+    text-align: center;
+    color: #fff;
+    font-weight: 600;
+}
+
+.funnel-stage-value {
+    padding: 20px;
+    text-align: center;
+    font-size: 28px;
+    font-weight: bold;
+}
+</style>
