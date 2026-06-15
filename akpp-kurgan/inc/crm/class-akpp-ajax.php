@@ -83,6 +83,8 @@ class AKPP_AJAX {
         // VIN декодер
         add_action('wp_ajax_akpp_decode_vin', [$this, 'ajax_decode_vin']);
         add_action('wp_ajax_nopriv_akpp_decode_vin', [$this, 'ajax_decode_vin']);
+        add_action('wp_ajax_akpp_vin_suggestions', [$this, 'ajax_vin_suggestions']);
+        add_action('wp_ajax_akpp_clear_vin_cache', [$this, 'ajax_clear_vin_cache']);
         
         // Регистрация и авторизация
         add_action('wp_ajax_akpp_register', [$this, 'ajax_register']);
@@ -517,19 +519,100 @@ class AKPP_AJAX {
     // ==================== VIN ДЕКОДЕР ====================
     
     public function ajax_decode_vin() {
-        $vin = isset($_POST['vin']) ? sanitize_text_field($_POST['vin']) : '';
-        
-        if (empty($vin) || strlen($vin) < 17) {
-            wp_send_json_error('Неверный VIN код');
+        if (!check_ajax_referer('akpp_decode_vin_nonce', 'nonce', false)) {
+            wp_send_json_error('Неверный security токен');
             return;
         }
         
+        $vin = isset($_POST['vin']) ? sanitize_text_field($_POST['vin']) : '';
+        
+        if (empty($vin)) {
+            wp_send_json_error('VIN код не передан');
+            return;
+        }
+        
+        $vin = strtoupper(preg_replace('/[^A-Z0-9]/', '', $vin));
+        
+        if (strlen($vin) !== 17) {
+            wp_send_json_error('Неверный VIN код. Должен содержать 17 символов');
+            return;
+        }
+        
+        if (!class_exists('AKPP_VIN_Decoder')) {
+            require_once AKPP_CRM_PATH . 'decoders/class-vin-decoder.php';
+        }
+        
+        $decoder = AKPP_VIN_Decoder::get_instance();
+        $result = $decoder->decode_full($vin);
+        
+        if ($result) {
+            wp_send_json_success([
+                'vin' => $result['vin'],
+                'make' => $result['make'],
+                'model' => $result['model'],
+                'year' => $result['year'],
+                'manufacturer' => $result['manufacturer'],
+                'plant_country' => $result['plant_country'],
+                'body_class' => $result['body_class'],
+                'drive_type' => $result['drive_type'],
+                'engine_cylinders' => $result['engine_cylinders'],
+                'engine_model' => $result['engine_model'],
+                'fuel_type' => $result['fuel_type'],
+                'transmission_style' => $result['transmission_style'],
+                'market' => $result['market'],
+                'transmission_id' => $result['transmission_id'] ?? 0,
+                'transmission_code' => $result['transmission_code'] ?? '',
+                'transmission_type' => $result['transmission_type'] ?? ''
+            ]);
+        } else {
+            wp_send_json_error('Не удалось расшифровать VIN код. Проверьте правильность ввода');
+        }
+    }
+    
+    public function ajax_vin_suggestions() {
+        if (!check_ajax_referer('akpp_vin_suggestions_nonce', 'nonce', false)) {
+            wp_send_json_error('Неверный security токен');
+            return;
+        }
+        
+        $query = isset($_POST['query']) ? sanitize_text_field($_POST['query']) : '';
+        
+        if (strlen($query) < 3) {
+            wp_send_json_success([]);
+            return;
+        }
+        
+        if (!class_exists('AKPP_VIN_Decoder')) {
+            require_once AKPP_CRM_PATH . 'decoders/class-vin-decoder.php';
+        }
+        
+        $decoder = AKPP_VIN_Decoder::get_instance();
+        $suggestions = $decoder->get_suggestions($query);
+        
+        wp_send_json_success($suggestions);
+    }
+    
+    public function ajax_clear_vin_cache() {
+        if (!check_ajax_referer('akpp_clear_vin_cache_nonce', 'nonce', false)) {
+            wp_send_json_error('Неверный security токен');
+            return;
+        }
+        
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error('Недостаточно прав');
+            return;
+        }
+        
+        if (!class_exists('AKPP_VIN_Decoder')) {
+            require_once AKPP_CRM_PATH . 'decoders/class-vin-decoder.php';
+        }
+        
+        $decoder = AKPP_VIN_Decoder::get_instance();
+        $deleted = $decoder->clear_old_cache(0);
+        
         wp_send_json_success([
-            'brand' => 'Toyota',
-            'model' => 'Camry',
-            'year' => 2020,
-            'engine' => '2.5L',
-            'vin' => $vin
+            'message' => "Удалено {$deleted} записей из кэша VIN",
+            'deleted' => $deleted
         ]);
     }
     
