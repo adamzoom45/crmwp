@@ -31,10 +31,11 @@ class AKPP_Install {
         $charset_collate = $wpdb->get_charset_collate();
         
         $tables = [
+            $this->get_site_users_table_sql($charset_collate),
+            $this->get_employees_table_sql($charset_collate),
             $this->get_vehicles_table_sql($charset_collate),
             $this->get_transmissions_table_sql($charset_collate),
             $this->get_deals_table_sql($charset_collate),
-            $this->get_employees_table_sql($charset_collate),
             $this->get_leads_table_sql($charset_collate),
             $this->get_parts_table_sql($charset_collate),
             $this->get_oils_table_sql($charset_collate),
@@ -43,7 +44,6 @@ class AKPP_Install {
             $this->get_avito_dialogs_table_sql($charset_collate),
             $this->get_avito_messages_cache_table_sql($charset_collate),
             $this->get_chat_messages_table_sql($charset_collate),
-            $this->get_site_users_table_sql($charset_collate),
             $this->get_parser_items_table_sql($charset_collate),
             $this->get_vin_cache_table_sql($charset_collate),
             $this->get_push_tokens_table_sql($charset_collate)
@@ -55,106 +55,33 @@ class AKPP_Install {
             dbDelta($sql);
         }
         
-        $this->add_indexes();
-        $this->add_foreign_keys();
+        $this->add_test_data();
         
         update_option('akpp_crm_db_version', AKPP_CRM_VERSION);
     }
     
     /**
-     * Таблица: wp_akpp_vehicles (автомобили)
+     * Таблица: wp_akpp_site_users (пользователи сайта)
      */
-    private function get_vehicles_table_sql($charset) {
+    private function get_site_users_table_sql($charset) {
         global $wpdb;
-        $table_name = $wpdb->prefix . 'akpp_vehicles';
+        $table_name = $wpdb->prefix . 'akpp_site_users';
         
         return "CREATE TABLE IF NOT EXISTS {$table_name} (
             id bigint(20) NOT NULL AUTO_INCREMENT,
-            vin varchar(17) DEFAULT NULL,
-            make varchar(100) NOT NULL,
-            model varchar(100) NOT NULL,
-            year int(4) DEFAULT NULL,
-            engine varchar(50) DEFAULT NULL,
-            engine_cylinders varchar(10) DEFAULT NULL,
-            fuel_type varchar(50) DEFAULT NULL,
-            drive_type varchar(50) DEFAULT NULL,
-            transmission_style varchar(50) DEFAULT NULL,
-            body_class varchar(100) DEFAULT NULL,
-            manufacturer varchar(100) DEFAULT NULL,
-            plant_country varchar(100) DEFAULT NULL,
-            market varchar(20) DEFAULT NULL,
+            name varchar(100) NOT NULL,
+            email varchar(100) NOT NULL,
+            phone varchar(20) DEFAULT NULL,
+            password varchar(255) NOT NULL,
+            car_brand varchar(100) DEFAULT NULL,
+            role varchar(50) DEFAULT 'client',
+            status varchar(20) DEFAULT 'active',
+            avito_id varchar(100) DEFAULT NULL,
+            last_login datetime DEFAULT NULL,
             created_at datetime DEFAULT CURRENT_TIMESTAMP,
             updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             PRIMARY KEY (id),
-            UNIQUE KEY idx_vin (vin),
-            KEY idx_make_model (make, model),
-            KEY idx_year (year),
-            KEY idx_market (market)
-        ) {$charset};";
-    }
-    
-    /**
-     * Таблица: wp_akpp_transmissions (каталог АКПП)
-     */
-    private function get_transmissions_table_sql($charset) {
-        global $wpdb;
-        $table_name = $wpdb->prefix . 'akpp_transmissions';
-        
-        return "CREATE TABLE IF NOT EXISTS {$table_name} (
-            id bigint(20) NOT NULL AUTO_INCREMENT,
-            code varchar(50) NOT NULL,
-            type varchar(20) NOT NULL,
-            make varchar(100) DEFAULT NULL,
-            model varchar(100) DEFAULT NULL,
-            years varchar(50) DEFAULT NULL,
-            engine varchar(50) DEFAULT NULL,
-            common_problems text,
-            symptoms text,
-            repair_cost int(11) DEFAULT 0,
-            difficulty tinyint(1) DEFAULT 3,
-            source_url varchar(500) DEFAULT NULL,
-            created_at datetime DEFAULT CURRENT_TIMESTAMP,
-            PRIMARY KEY (id),
-            KEY idx_code (code),
-            KEY idx_type (type),
-            KEY idx_make_model (make, model)
-        ) {$charset};";
-    }
-    
-    /**
-     * Таблица: wp_akpp_deals (сделки)
-     */
-    private function get_deals_table_sql($charset) {
-        global $wpdb;
-        $table_name = $wpdb->prefix . 'akpp_deals';
-        
-        return "CREATE TABLE IF NOT EXISTS {$table_name} (
-            id bigint(20) NOT NULL AUTO_INCREMENT,
-            client_id bigint(20) NOT NULL,
-            employee_id bigint(20) DEFAULT NULL,
-            vehicle_id bigint(20) DEFAULT NULL,
-            vin varchar(17) DEFAULT NULL,
-            make varchar(100) DEFAULT NULL,
-            model varchar(100) DEFAULT NULL,
-            year int(4) DEFAULT NULL,
-            problem_description text,
-            status varchar(50) DEFAULT 'new',
-            work_cost decimal(12,2) DEFAULT 0,
-            work_hours decimal(8,2) DEFAULT 0,
-            standard_hours decimal(8,2) DEFAULT 1,
-            employee_percent decimal(5,2) DEFAULT 0,
-            payment_amount decimal(12,2) DEFAULT 0,
-            parts_total decimal(12,2) DEFAULT 0,
-            total_amount decimal(12,2) DEFAULT 0,
-            created_at datetime DEFAULT CURRENT_TIMESTAMP,
-            updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-            PRIMARY KEY (id),
-            KEY idx_client_id (client_id),
-            KEY idx_employee_id (employee_id),
-            KEY idx_vehicle_id (vehicle_id),
-            KEY idx_status (status),
-            KEY idx_created_at (created_at),
-            KEY idx_vin (vin)
+            UNIQUE KEY idx_email (email)
         ) {$charset};";
     }
     
@@ -178,10 +105,88 @@ class AKPP_Install {
             telegram_username varchar(100) DEFAULT NULL,
             created_at datetime DEFAULT CURRENT_TIMESTAMP,
             PRIMARY KEY (id),
-            UNIQUE KEY idx_email (email),
-            KEY idx_role (role),
-            KEY idx_telegram_id (telegram_id),
-            KEY idx_is_active (is_active)
+            UNIQUE KEY idx_email (email)
+        ) {$charset};";
+    }
+    
+    /**
+     * Таблица: wp_akpp_vehicles (автомобили)
+     */
+    private function get_vehicles_table_sql($charset) {
+        global $wpdb;
+        $table_name = $wpdb->prefix . 'akpp_vehicles';
+        
+        return "CREATE TABLE IF NOT EXISTS {$table_name} (
+            id bigint(20) NOT NULL AUTO_INCREMENT,
+            vin varchar(17) DEFAULT NULL,
+            make varchar(100) NOT NULL,
+            model varchar(100) NOT NULL,
+            year int(4) DEFAULT NULL,
+            engine varchar(50) DEFAULT NULL,
+            drive_type varchar(50) DEFAULT NULL,
+            market varchar(20) DEFAULT NULL,
+            created_at datetime DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (id),
+            UNIQUE KEY idx_vin (vin)
+        ) {$charset};";
+    }
+    
+    /**
+     * Таблица: wp_akpp_transmissions (каталог АКПП)
+     */
+    private function get_transmissions_table_sql($charset) {
+        global $wpdb;
+        $table_name = $wpdb->prefix . 'akpp_transmissions';
+        
+        return "CREATE TABLE IF NOT EXISTS {$table_name} (
+            id bigint(20) NOT NULL AUTO_INCREMENT,
+            code varchar(50) NOT NULL,
+            type varchar(20) NOT NULL,
+            make varchar(100) DEFAULT NULL,
+            model varchar(100) DEFAULT NULL,
+            years varchar(50) DEFAULT NULL,
+            engine varchar(50) DEFAULT NULL,
+            common_problems text,
+            symptoms text,
+            repair_cost int(11) DEFAULT 0,
+            difficulty tinyint(1) DEFAULT 3,
+            created_at datetime DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (id),
+            KEY idx_code (code)
+        ) {$charset};";
+    }
+    
+    /**
+     * Таблица: wp_akpp_deals (сделки)
+     */
+    private function get_deals_table_sql($charset) {
+        global $wpdb;
+        $table_name = $wpdb->prefix . 'akpp_deals';
+        
+        return "CREATE TABLE IF NOT EXISTS {$table_name} (
+            id bigint(20) NOT NULL AUTO_INCREMENT,
+            client_id bigint(20) DEFAULT 0,
+            employee_id bigint(20) DEFAULT 0,
+            vehicle_id bigint(20) DEFAULT 0,
+            vin varchar(17) DEFAULT NULL,
+            make varchar(100) DEFAULT NULL,
+            model varchar(100) DEFAULT NULL,
+            year int(4) DEFAULT NULL,
+            problem_description text,
+            status varchar(50) DEFAULT 'new',
+            work_cost decimal(12,2) DEFAULT 0,
+            work_hours decimal(8,2) DEFAULT 0,
+            standard_hours decimal(8,2) DEFAULT 1,
+            employee_percent decimal(5,2) DEFAULT 0,
+            payment_amount decimal(12,2) DEFAULT 0,
+            parts_total decimal(12,2) DEFAULT 0,
+            total_amount decimal(12,2) DEFAULT 0,
+            created_at datetime DEFAULT CURRENT_TIMESTAMP,
+            updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            PRIMARY KEY (id),
+            KEY idx_client_id (client_id),
+            KEY idx_employee_id (employee_id),
+            KEY idx_status (status)
         ) {$charset};";
     }
     
@@ -206,14 +211,10 @@ class AKPP_Install {
             avito_dialog_id varchar(100) DEFAULT NULL,
             deal_id bigint(20) DEFAULT NULL,
             created_at datetime DEFAULT CURRENT_TIMESTAMP,
-            updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             PRIMARY KEY (id),
             KEY idx_client_id (client_id),
             KEY idx_guide_id (guide_id),
-            KEY idx_status (status),
-            KEY idx_source (source),
-            KEY idx_created_at (created_at),
-            KEY idx_avito_dialog (avito_dialog_id)
+            KEY idx_status (status)
         ) {$charset};";
     }
     
@@ -233,14 +234,10 @@ class AKPP_Install {
             quantity int(11) DEFAULT 0,
             price decimal(12,2) DEFAULT 0,
             compatible_transmissions text,
-            source_url varchar(500) DEFAULT NULL,
             created_at datetime DEFAULT CURRENT_TIMESTAMP,
-            updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             PRIMARY KEY (id),
-            UNIQUE KEY idx_sku (sku),
-            KEY idx_name (name(100)),
-            KEY idx_category (category),
-            KEY idx_quantity (quantity)
+            KEY idx_sku (sku),
+            KEY idx_category (category)
         ) {$charset};";
     }
     
@@ -260,11 +257,8 @@ class AKPP_Install {
             compatible_transmissions text,
             fill_volume decimal(8,2) DEFAULT 0,
             price_per_liter decimal(10,2) DEFAULT 0,
-            source_url varchar(500) DEFAULT NULL,
             created_at datetime DEFAULT CURRENT_TIMESTAMP,
-            PRIMARY KEY (id),
-            KEY idx_type (type),
-            KEY idx_name (name(100))
+            PRIMARY KEY (id)
         ) {$charset};";
     }
     
@@ -304,8 +298,7 @@ class AKPP_Install {
             expires_in int(11) NOT NULL,
             created_at datetime DEFAULT CURRENT_TIMESTAMP,
             is_active tinyint(1) DEFAULT 1,
-            PRIMARY KEY (id),
-            KEY idx_is_active (is_active)
+            PRIMARY KEY (id)
         ) {$charset};";
     }
     
@@ -329,9 +322,7 @@ class AKPP_Install {
             created_at datetime DEFAULT CURRENT_TIMESTAMP,
             updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             PRIMARY KEY (id),
-            UNIQUE KEY idx_dialog_id (dialog_id),
-            KEY idx_assigned_guide (assigned_guide_id),
-            KEY idx_is_active (is_active)
+            UNIQUE KEY idx_dialog_id (dialog_id)
         ) {$charset};";
     }
     
@@ -352,16 +343,14 @@ class AKPP_Install {
             is_incoming tinyint(1) DEFAULT 1,
             is_sent tinyint(1) DEFAULT 0,
             created_at datetime DEFAULT CURRENT_TIMESTAMP,
-            synced_at datetime DEFAULT NULL,
             PRIMARY KEY (id),
             UNIQUE KEY idx_message_id (message_id),
-            KEY idx_dialog_id (dialog_id),
-            KEY idx_created_at (created_at)
+            KEY idx_dialog_id (dialog_id)
         ) {$charset};";
     }
     
     /**
-     * Таблица: wp_akpp_chat_messages (сообщения чата CRM)
+     * Таблица: wp_akpp_chat_messages (сообщения чата)
      */
     private function get_chat_messages_table_sql($charset) {
         global $wpdb;
@@ -378,42 +367,12 @@ class AKPP_Install {
             created_at datetime DEFAULT CURRENT_TIMESTAMP,
             PRIMARY KEY (id),
             KEY idx_sender_id (sender_id),
-            KEY idx_receiver_id (receiver_id),
-            KEY idx_is_read (is_read),
-            KEY idx_created_at (created_at),
-            KEY idx_dialog_id (dialog_id)
+            KEY idx_receiver_id (receiver_id)
         ) {$charset};";
     }
     
     /**
-     * Таблица: wp_akpp_site_users (пользователи сайта)
-     */
-    private function get_site_users_table_sql($charset) {
-        global $wpdb;
-        $table_name = $wpdb->prefix . 'akpp_site_users';
-        
-        return "CREATE TABLE IF NOT EXISTS {$table_name} (
-            id bigint(20) NOT NULL AUTO_INCREMENT,
-            name varchar(100) NOT NULL,
-            email varchar(100) NOT NULL,
-            phone varchar(20) DEFAULT NULL,
-            password varchar(255) NOT NULL,
-            car_brand varchar(100) DEFAULT NULL,
-            role varchar(50) DEFAULT 'client',
-            status varchar(20) DEFAULT 'active',
-            avito_id varchar(100) DEFAULT NULL,
-            last_login datetime DEFAULT NULL,
-            created_at datetime DEFAULT CURRENT_TIMESTAMP,
-            updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-            PRIMARY KEY (id),
-            UNIQUE KEY idx_email (email),
-            KEY idx_role (role),
-            KEY idx_status (status)
-        ) {$charset};";
-    }
-    
-    /**
-     * Таблица: wp_akpp_parser_items (результаты парсинга)
+     * Таблица: wp_akpp_parser_items (парсер)
      */
     private function get_parser_items_table_sql($charset) {
         global $wpdb;
@@ -431,15 +390,13 @@ class AKPP_Install {
             created_at datetime DEFAULT CURRENT_TIMESTAMP,
             updated_at datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             PRIMARY KEY (id),
-            KEY idx_url (url(191)),
             KEY idx_status (status),
-            KEY idx_content_type (content_type),
-            KEY idx_created_at (created_at)
+            KEY idx_content_type (content_type)
         ) {$charset};";
     }
     
     /**
-     * Таблица: wp_akpp_vin_cache (кэш VIN-декодера)
+     * Таблица: wp_akpp_vin_cache (кэш VIN)
      */
     private function get_vin_cache_table_sql($charset) {
         global $wpdb;
@@ -451,13 +408,12 @@ class AKPP_Install {
             decoded_data longtext NOT NULL,
             created_at datetime DEFAULT CURRENT_TIMESTAMP,
             PRIMARY KEY (id),
-            UNIQUE KEY idx_vin (vin),
-            KEY idx_created_at (created_at)
+            UNIQUE KEY idx_vin (vin)
         ) {$charset};";
     }
     
     /**
-     * Таблица: wp_akpp_push_tokens (Push-токены FCM)
+     * Таблица: wp_akpp_push_tokens (Push токены)
      */
     private function get_push_tokens_table_sql($charset) {
         global $wpdb;
@@ -470,53 +426,65 @@ class AKPP_Install {
             device_type varchar(20) DEFAULT 'web',
             created_at datetime DEFAULT CURRENT_TIMESTAMP,
             PRIMARY KEY (id),
-            KEY idx_user_id (user_id),
-            KEY idx_device_type (device_type)
+            KEY idx_user_id (user_id)
         ) {$charset};";
     }
     
     /**
-     * Добавление дополнительных индексов
+     * Добавление тестовых данных
      */
-    private function add_indexes() {
+    private function add_test_data() {
         global $wpdb;
         
-        $indexes = [
-            "{$wpdb->prefix}akpp_deals" => "ALTER TABLE {$wpdb->prefix}akpp_deals ADD INDEX idx_status_created (status, created_at)",
-            "{$wpdb->prefix}akpp_leads" => "ALTER TABLE {$wpdb->prefix}akpp_leads ADD INDEX idx_status_created (status, created_at)",
-            "{$wpdb->prefix}akpp_chat_messages" => "ALTER TABLE {$wpdb->prefix}akpp_chat_messages ADD INDEX idx_sender_receiver (sender_id, receiver_id, created_at)",
-            "{$wpdb->prefix}akpp_parts" => "ALTER TABLE {$wpdb->prefix}akpp_parts ADD INDEX idx_name_sku (name, sku)",
-        ];
+        // Добавляем сотрудников
+        $table_employees = $wpdb->prefix . 'akpp_employees';
+        $count = $wpdb->get_var("SELECT COUNT(*) FROM {$table_employees}");
         
-        foreach ($indexes as $table => $sql) {
-            $wpdb->query($sql);
+        if ($count == 0) {
+            $wpdb->insert($table_employees, [
+                'name' => 'Администратор',
+                'email' => 'admin@akpp45.ru',
+                'phone' => '+7 (999) 123-45-67',
+                'role' => 'admin',
+                'percent' => 50,
+                'is_active' => 1
+            ]);
+            
+            $wpdb->insert($table_employees, [
+                'name' => 'Гид',
+                'email' => 'guide@akpp45.ru',
+                'phone' => '+7 (999) 234-56-78',
+                'role' => 'guide',
+                'percent' => 40,
+                'is_active' => 1
+            ]);
+            
+            $wpdb->insert($table_employees, [
+                'name' => 'Мастер',
+                'email' => 'master@akpp45.ru',
+                'phone' => '+7 (999) 345-67-89',
+                'role' => 'master',
+                'percent' => 45,
+                'is_active' => 1
+            ]);
         }
-    }
-    
-    /**
-     * Добавление внешних ключей
-     */
-    private function add_foreign_keys() {
-        global $wpdb;
         
-        // Проверяем поддержку InnoDB
-        $engine = $wpdb->get_var("SELECT ENGINE FROM information_schema.TABLES WHERE TABLE_NAME = '{$wpdb->prefix}akpp_deals'");
+        // Добавляем запчасти
+        $table_parts = $wpdb->prefix . 'akpp_parts';
+        $parts_count = $wpdb->get_var("SELECT COUNT(*) FROM {$table_parts}");
         
-        if ($engine !== 'InnoDB') {
-            return;
-        }
-        
-        $foreign_keys = [
-            "ALTER TABLE {$wpdb->prefix}akpp_deals ADD CONSTRAINT fk_deals_client FOREIGN KEY (client_id) REFERENCES {$wpdb->prefix}akpp_site_users(id) ON DELETE CASCADE",
-            "ALTER TABLE {$wpdb->prefix}akpp_deals ADD CONSTRAINT fk_deals_employee FOREIGN KEY (employee_id) REFERENCES {$wpdb->prefix}akpp_employees(id) ON DELETE SET NULL",
-            "ALTER TABLE {$wpdb->prefix}akpp_deals ADD CONSTRAINT fk_deals_vehicle FOREIGN KEY (vehicle_id) REFERENCES {$wpdb->prefix}akpp_vehicles(id) ON DELETE SET NULL",
-            "ALTER TABLE {$wpdb->prefix}akpp_deal_parts ADD CONSTRAINT fk_deal_parts_deal FOREIGN KEY (deal_id) REFERENCES {$wpdb->prefix}akpp_deals(id) ON DELETE CASCADE",
-            "ALTER TABLE {$wpdb->prefix}akpp_deal_parts ADD CONSTRAINT fk_deal_parts_part FOREIGN KEY (part_id) REFERENCES {$wpdb->prefix}akpp_parts(id) ON DELETE CASCADE",
-            "ALTER TABLE {$wpdb->prefix}akpp_leads ADD CONSTRAINT fk_leads_guide FOREIGN KEY (guide_id) REFERENCES {$wpdb->prefix}akpp_employees(id) ON DELETE SET NULL",
-        ];
-        
-        foreach ($foreign_keys as $sql) {
-            $wpdb->query($sql);
+        if ($parts_count == 0) {
+            $test_parts = [
+                ['name' => 'Ремкомплект АКПП A750E', 'sku' => 'RC-A750E-001', 'category' => 'Ремкомплекты', 'price' => 8500, 'quantity' => 10],
+                ['name' => 'Фрикционы A750E (комплект)', 'sku' => 'FR-A750E-001', 'category' => 'Фрикционы', 'price' => 12500, 'quantity' => 5],
+                ['name' => 'Масло ATF WS 4л', 'sku' => 'OIL-ATF-WS-4L', 'category' => 'Масла ATF', 'price' => 3200, 'quantity' => 20],
+                ['name' => 'Фильтр АКПП A750E', 'sku' => 'FIL-A750E-001', 'category' => 'Фильтры', 'price' => 850, 'quantity' => 15],
+                ['name' => 'Соленоид Shift Solenoid', 'sku' => 'SOL-SHIFT-001', 'category' => 'Соленоиды', 'price' => 3200, 'quantity' => 8],
+            ];
+            
+            foreach ($test_parts as $part) {
+                $wpdb->insert($table_parts, $part);
+            }
         }
     }
 }
