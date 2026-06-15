@@ -13,7 +13,7 @@ class AKPP_VIN_Decoder {
     
     private static $instance = null;
     private $api_url = 'https://vpic.nhtsa.dot.gov/api/vehicles/';
-    private $cache_time = 2592000; // 30 дней в секундах
+    private $cache_time = 2592000; // 30 дней
     
     public static function get_instance() {
         if (self::$instance === null) {
@@ -22,30 +22,103 @@ class AKPP_VIN_Decoder {
         return self::$instance;
     }
     
-    private function __construct() {}
+    private function __construct() {
+        add_action('wp_ajax_akpp_decode_vin', [$this, 'ajax_decode_vin']);
+        add_action('wp_ajax_nopriv_akpp_decode_vin', [$this, 'ajax_decode_vin']);
+        add_action('wp_ajax_akpp_vin_suggestions', [$this, 'ajax_vin_suggestions']);
+        add_action('wp_ajax_akpp_clear_vin_cache', [$this, 'ajax_clear_vin_cache']);
+    }
     
     /**
-     * Декодирование VIN кода
-     * 
-     * @param string $vin VIN код (17 символов)
-     * @return array|false Данные автомобиля или false при ошибке
+     * AJAX: Декодирование VIN
+     */
+    public function ajax_decode_vin() {
+        if (!check_ajax_referer('akpp_decode_vin_nonce', 'nonce', false)) {
+            wp_send_json_error('Неверный security токен');
+            return;
+        }
+        
+        $vin = isset($_POST['vin']) ? sanitize_text_field($_POST['vin']) : '';
+        
+        if (empty($vin)) {
+            wp_send_json_error('VIN код не передан');
+            return;
+        }
+        
+        $vin = strtoupper(preg_replace('/[^A-Z0-9]/', '', $vin));
+        
+        if (strlen($vin) !== 17) {
+            wp_send_json_error('Неверный VIN код. Должен содержать 17 символов');
+            return;
+        }
+        
+        $result = $this->decode($vin);
+        
+        if ($result) {
+            wp_send_json_success($result);
+        } else {
+            wp_send_json_error('Не удалось расшифровать VIN код');
+        }
+    }
+    
+    /**
+     * AJAX: Подсказки VIN
+     */
+    public function ajax_vin_suggestions() {
+        if (!check_ajax_referer('akpp_vin_suggestions_nonce', 'nonce', false)) {
+            wp_send_json_error('Неверный security токен');
+            return;
+        }
+        
+        $query = isset($_POST['query']) ? sanitize_text_field($_POST['query']) : '';
+        
+        if (strlen($query) < 3) {
+            wp_send_json_success([]);
+            return;
+        }
+        
+        $suggestions = $this->get_suggestions($query);
+        wp_send_json_success($suggestions);
+    }
+    
+    /**
+     * AJAX: Очистка кэша VIN
+     */
+    public function ajax_clear_vin_cache() {
+        if (!check_ajax_referer('akpp_clear_vin_cache_nonce', 'nonce', false)) {
+            wp_send_json_error('Неверный security токен');
+            return;
+        }
+        
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error('Недостаточно прав');
+            return;
+        }
+        
+        $deleted = $this->clear_cache(0);
+        
+        wp_send_json_success([
+            'message' => "Удалено {$deleted} записей из кэша VIN"
+        ]);
+    }
+    
+    /**
+     * Декодирование VIN
      */
     public function decode($vin) {
         $vin = strtoupper(preg_replace('/[^A-Z0-9]/', '', $vin));
         
         if (strlen($vin) !== 17) {
-            $this->log_error("Неверная длина VIN: " . strlen($vin));
             return false;
         }
         
         // Проверяем кэш
         $cached = $this->get_from_cache($vin);
         if ($cached) {
-            $this->log_event("VIN {$vin} получен из кэша");
             return $cached;
         }
         
-        // Запрос к NHTSA API
+        // Запрашиваем API
         $data = $this->fetch_from_api($vin);
         
         if ($data) {
@@ -57,15 +130,15 @@ class AKPP_VIN_Decoder {
     }
     
     /**
-     * Получение данных из кэша
+     * Получение из кэша
      */
     private function get_from_cache($vin) {
         global $wpdb;
-        
         $table_cache = $wpdb->prefix . 'akpp_vin_cache';
         
         $cached = $wpdb->get_row($wpdb->prepare(
-            "SELECT * FROM {$table_cache} WHERE vin = %s AND created_at > DATE_SUB(NOW(), INTERVAL %d SECOND)",
+            "SELECT decoded_data FROM {$table_cache} 
+            WHERE vin = %s AND created_at > DATE_SUB(NOW(), INTERVAL %d SECOND)",
             $vin,
             $this->cache_time
         ));
@@ -78,17 +151,14 @@ class AKPP_VIN_Decoder {
     }
     
     /**
-     * Сохранение данных в кэш
+     * Сохранение в кэш
      */
     private function save_to_cache($vin, $data) {
         global $wpdb;
-        
         $table_cache = $wpdb->prefix . 'akpp_vin_cache';
         
-        // Удаляем старый кэш
         $wpdb->delete($table_cache, ['vin' => $vin]);
         
-        // Сохраняем новый
         $wpdb->insert(
             $table_cache,
             [
@@ -109,22 +179,20 @@ class AKPP_VIN_Decoder {
         $args = [
             'method' => 'GET',
             'timeout' => 15,
-            'headers' => [
-                'User-Agent' => 'AKPP45 CRM/4.2'
-            ]
+            'headers' => ['User-Agent' => 'AKPP45 CRM/4.2']
         ];
         
         $response = wp_remote_get($url, $args);
         
         if (is_wp_error($response)) {
-            $this->log_error('Ошибка API NHTSA: ' . $response->get_error_message());
+            $this->log_error('Ошибка API: ' . $response->get_error_message());
             return false;
         }
         
         $status_code = wp_remote_retrieve_response_code($response);
         
         if ($status_code !== 200) {
-            $this->log_error("Ошибка API NHTSA. Статус: {$status_code}");
+            $this->log_error("HTTP ошибка: {$status_code}");
             return false;
         }
         
@@ -132,25 +200,22 @@ class AKPP_VIN_Decoder {
         $data = json_decode($body, true);
         
         if (!$data || !isset($data['Results']) || empty($data['Results'])) {
-            $this->log_error("Пустой ответ от API для VIN: {$vin}");
             return false;
         }
         
         $result = $data['Results'][0];
         
-        // Проверяем валидность ответа
         if (isset($result['ErrorCode']) && $result['ErrorCode'] !== '0') {
-            $this->log_error("Ошибка декодирования VIN {$vin}: " . ($result['ErrorText'] ?? 'Unknown error'));
             return false;
         }
         
-        return $this->parse_api_response($result);
+        return $this->parse_response($result);
     }
     
     /**
      * Парсинг ответа API
      */
-    private function parse_api_response($result) {
+    private function parse_response($result) {
         $vehicle = [
             'vin' => $result['VIN'] ?? '',
             'make' => $this->clean_value($result['Make'] ?? ''),
@@ -165,56 +230,36 @@ class AKPP_VIN_Decoder {
             'engine_model' => $this->clean_value($result['EngineModel'] ?? ''),
             'fuel_type' => $this->clean_value($result['FuelTypePrimary'] ?? ''),
             'transmission_style' => $this->clean_value($result['TransmissionStyle'] ?? ''),
-            'transmission_speeds' => $this->clean_value($result['TransmissionSpeeds'] ?? ''),
-            'gross_vehicle_weight_rating' => $this->clean_value($result['GrossVehicleWeightRating'] ?? ''),
+            'market' => $this->determine_market($result['Make'] ?? '', $result['PlantCountry'] ?? '')
         ];
-        
-        // Определяем рынок
-        $vehicle['market'] = $this->determine_market($vehicle['make'], $vehicle['plant_country']);
         
         return $vehicle;
     }
     
     /**
-     * Определение рынка автомобиля
+     * Определение рынка
      */
     private function determine_market($make, $plant_country) {
-        $japanese_brands = ['TOYOTA', 'HONDA', 'NISSAN', 'MAZDA', 'MITSUBISHI', 'SUBARU', 'SUZUKI', 'LEXUS', 'ACURA', 'INFINITI'];
-        $korean_brands = ['HYUNDAI', 'KIA', 'GENESIS'];
-        $european_brands = ['BMW', 'MERCEDES-BENZ', 'MERCEDES', 'AUDI', 'VOLKSWAGEN', 'VW', 'PORSCHE', 'VOLVO', 'RENAULT', 'PEUGEOT', 'CITROEN', 'FIAT', 'JAGUAR', 'LAND ROVER'];
+        $japanese = ['TOYOTA', 'HONDA', 'NISSAN', 'MAZDA', 'MITSUBISHI', 'SUBARU', 'SUZUKI', 'LEXUS', 'ACURA', 'INFINITI'];
+        $korean = ['HYUNDAI', 'KIA', 'GENESIS'];
+        $european = ['BMW', 'MERCEDES-BENZ', 'MERCEDES', 'AUDI', 'VOLKSWAGEN', 'VW', 'PORSCHE', 'VOLVO', 'RENAULT', 'PEUGEOT', 'CITROEN', 'FIAT', 'JAGUAR', 'LAND ROVER'];
         
         $make_upper = strtoupper($make);
         
-        if (in_array($make_upper, $japanese_brands)) {
-            return 'japan';
-        }
-        
-        if (in_array($make_upper, $korean_brands)) {
-            return 'asia';
-        }
-        
-        if (in_array($make_upper, $european_brands)) {
-            return 'europe';
-        }
-        
-        if (strtoupper($plant_country) === 'UNITED STATES' || strtoupper($plant_country) === 'USA') {
-            return 'usa';
-        }
+        if (in_array($make_upper, $japanese)) return 'japan';
+        if (in_array($make_upper, $korean)) return 'asia';
+        if (in_array($make_upper, $european)) return 'europe';
+        if (strtoupper($plant_country) === 'UNITED STATES') return 'usa';
         
         return 'europe';
     }
     
     /**
-     * Извлечение года из разных форматов
+     * Извлечение года
      */
     private function extract_year($year_field) {
-        if (empty($year_field)) {
-            return 0;
-        }
-        
-        if (is_numeric($year_field)) {
-            return intval($year_field);
-        }
+        if (empty($year_field)) return 0;
+        if (is_numeric($year_field)) return intval($year_field);
         
         preg_match('/\d{4}/', $year_field, $matches);
         return !empty($matches) ? intval($matches[0]) : 0;
@@ -231,49 +276,14 @@ class AKPP_VIN_Decoder {
     }
     
     /**
-     * Декодирование VIN с получением полной информации
-     */
-    public function decode_full($vin) {
-        $basic = $this->decode($vin);
-        
-        if (!$basic) {
-            return false;
-        }
-        
-        // Добавляем информацию о АКПП (если есть в базе)
-        global $wpdb;
-        $table_transmissions = $wpdb->prefix . 'akpp_transmissions';
-        
-        $transmission = $wpdb->get_row($wpdb->prepare(
-            "SELECT * FROM {$table_transmissions} 
-            WHERE make = %s AND model LIKE %s 
-            LIMIT 1",
-            $basic['make'],
-            '%' . $basic['model'] . '%'
-        ));
-        
-        if ($transmission) {
-            $basic['transmission_id'] = $transmission->id;
-            $basic['transmission_code'] = $transmission->code;
-            $basic['transmission_type'] = $transmission->type;
-        }
-        
-        return $basic;
-    }
-    
-    /**
-     * Получение списка популярных VIN (для автозаполнения)
+     * Получение подсказок VIN
      */
     public function get_suggestions($query) {
         global $wpdb;
-        
         $table_cache = $wpdb->prefix . 'akpp_vin_cache';
         
         $results = $wpdb->get_results($wpdb->prepare(
-            "SELECT vin FROM {$table_cache} 
-            WHERE vin LIKE '%%%s%%' 
-            ORDER BY created_at DESC 
-            LIMIT 10",
+            "SELECT vin FROM {$table_cache} WHERE vin LIKE '%%%s%%' ORDER BY created_at DESC LIMIT 10",
             $query
         ));
         
@@ -281,32 +291,27 @@ class AKPP_VIN_Decoder {
     }
     
     /**
-     * Очистка старого кэша
+     * Очистка кэша
      */
-    public function clear_old_cache($days = 30) {
+    public function clear_cache($days = 30) {
         global $wpdb;
-        
         $table_cache = $wpdb->prefix . 'akpp_vin_cache';
         
-        $deleted = $wpdb->query($wpdb->prepare(
-            "DELETE FROM {$table_cache} WHERE created_at < DATE_SUB(NOW(), INTERVAL %d DAY)",
-            $days
-        ));
-        
-        $this->log_event("Удалено {$deleted} записей из кэша VIN");
+        if ($days === 0) {
+            $deleted = $wpdb->query("DELETE FROM {$table_cache}");
+        } else {
+            $deleted = $wpdb->query($wpdb->prepare(
+                "DELETE FROM {$table_cache} WHERE created_at < DATE_SUB(NOW(), INTERVAL %d DAY)",
+                $days
+            ));
+        }
         
         return $deleted;
     }
     
     private function log_error($message) {
         if (defined('WP_DEBUG_LOG') && WP_DEBUG_LOG) {
-            error_log('[AKPP_VIN_DECODER] ОШИБКА: ' . $message);
-        }
-    }
-    
-    private function log_event($message) {
-        if (defined('WP_DEBUG_LOG') && WP_DEBUG_LOG) {
-            error_log('[AKPP_VIN_DECODER] СОБЫТИЕ: ' . $message);
+            error_log('[AKPP_VIN] ОШИБКА: ' . $message);
         }
     }
 }
