@@ -65,6 +65,10 @@ class AKPP_Parser_Table extends WP_List_Table {
         
         $where_clause = !empty($where) ? "WHERE " . implode(" AND ", $where) : "";
         
+        // Сортировка
+        $orderby = isset($_GET['orderby']) ? sanitize_sql_orderby($_GET['orderby']) : 'created_at';
+        $order = isset($_GET['order']) && strtoupper($_GET['order']) === 'ASC' ? 'ASC' : 'DESC';
+        
         // Получение общего количества
         $count_query = "SELECT COUNT(*) FROM {$this->table_name} {$where_clause}";
         if (!empty($params)) {
@@ -73,12 +77,18 @@ class AKPP_Parser_Table extends WP_List_Table {
         $total_items = $wpdb->get_var($count_query);
         
         // Получение данных
-        $query = "SELECT * FROM {$this->table_name} {$where_clause} ORDER BY created_at DESC LIMIT %d OFFSET %d";
+        $query = "SELECT * FROM {$this->table_name} {$where_clause} ORDER BY {$orderby} {$order} LIMIT %d OFFSET %d";
         $params[] = $per_page;
         $params[] = $offset;
         
         $query = $wpdb->prepare($query, $params);
         $this->items = $wpdb->get_results($query);
+        
+        // Декодируем JSON поля
+        foreach ($this->items as $item) {
+            $item->images = json_decode($item->images, true);
+            $item->ai_analysis = json_decode($item->ai_analysis, true);
+        }
         
         // Настройка пагинации
         $this->set_pagination_args([
@@ -101,7 +111,7 @@ class AKPP_Parser_Table extends WP_List_Table {
             'content_type' => 'Тип',
             'status' => 'Статус',
             'ai_confidence' => 'Уверенность AI',
-            'created_at' => 'Дата создания',
+            'created_at' => 'Дата',
             'actions' => 'Действия'
         ];
     }
@@ -112,8 +122,9 @@ class AKPP_Parser_Table extends WP_List_Table {
     public function get_sortable_columns() {
         return [
             'id' => ['id', false],
-            'created_at' => ['created_at', true],
-            'content_type' => ['content_type', false]
+            'title' => ['title', false],
+            'content_type' => ['content_type', false],
+            'created_at' => ['created_at', true]
         ];
     }
     
@@ -196,9 +207,9 @@ class AKPP_Parser_Table extends WP_List_Table {
         
         $wpdb->update(
             $this->table_name,
-            ['status' => 'approved'],
+            ['status' => 'approved', 'updated_at' => current_time('mysql')],
             ['id' => $item_id],
-            ['%s'],
+            ['%s', '%s'],
             ['%d']
         );
     }
@@ -213,9 +224,10 @@ class AKPP_Parser_Table extends WP_List_Table {
         $wpdb->insert(
             $table,
             [
+                'code' => $data['code'] ?? '',
+                'type' => $data['type'] ?? '',
                 'make' => $data['make'] ?? '',
                 'model' => $data['model'] ?? '',
-                'type' => $data['type'] ?? '',
                 'years' => $data['years'] ?? '',
                 'common_problems' => is_array($data['problems'] ?? null) ? json_encode($data['problems']) : '',
                 'symptoms' => is_array($data['symptoms'] ?? null) ? json_encode($data['symptoms']) : '',
@@ -224,7 +236,7 @@ class AKPP_Parser_Table extends WP_List_Table {
                 'source_url' => $item->url,
                 'created_at' => current_time('mysql')
             ],
-            ['%s', '%s', '%s', '%s', '%s', '%s', '%d', '%d', '%s', '%s']
+            ['%s', '%s', '%s', '%s', '%s', '%s', '%s', '%d', '%d', '%s', '%s']
         );
     }
     
@@ -276,7 +288,7 @@ class AKPP_Parser_Table extends WP_List_Table {
     }
     
     /**
-     * Отображение колонки cb (чекбокс)
+     * Отображение колонки cb
      */
     protected function column_cb($item) {
         return sprintf('<input type="checkbox" name="parser_item[]" value="%s" />', $item->id);
@@ -297,7 +309,7 @@ class AKPP_Parser_Table extends WP_List_Table {
         $url = esc_url($item->url);
         
         return sprintf(
-            '<a href="%s" target="_blank"><strong>%s</strong></a><br><small style="color:#999;">%s</small>',
+            '<a href="%s" target="_blank"><strong>%s</strong></a><br><small>%s</small>',
             $url,
             $title,
             substr($url, 0, 60)
@@ -305,7 +317,7 @@ class AKPP_Parser_Table extends WP_List_Table {
     }
     
     /**
-     * Отображение колонки типа контента
+     * Отображение колонки типа
      */
     protected function column_content_type($item) {
         $types = [
@@ -316,7 +328,7 @@ class AKPP_Parser_Table extends WP_List_Table {
         ];
         
         $type_name = $types[$item->content_type] ?? $item->content_type;
-        return '<span class="content-type-badge content-type-' . esc_attr($item->content_type) . '">' . $type_name . '</span>';
+        return '<span class="content-type-badge">' . $type_name . '</span>';
     }
     
     /**
@@ -332,15 +344,14 @@ class AKPP_Parser_Table extends WP_List_Table {
         ];
         
         $status_name = $statuses[$item->status] ?? $item->status;
-        return '<span class="status-badge status-' . esc_attr($item->status) . '">' . $status_name . '</span>';
+        return '<span class="status-badge">' . $status_name . '</span>';
     }
     
     /**
      * Отображение колонки уверенности AI
      */
     protected function column_ai_confidence($item) {
-        $ai_analysis = json_decode($item->ai_analysis, true);
-        $confidence = $ai_analysis['confidence'] ?? 0;
+        $confidence = $item->ai_analysis['confidence'] ?? 0;
         
         if ($confidence === 0) return '—';
         
@@ -349,7 +360,7 @@ class AKPP_Parser_Table extends WP_List_Table {
         return sprintf(
             '<div style="display: flex; align-items: center; gap: 8px;">
                 <div style="width: 80px; height: 6px; background: #e9ecef; border-radius: 3px; overflow: hidden;">
-                    <div style="width: %d%%; height: 100%; background: %s;"></div>
+                    <div style="width: %d%%; height: 100%%; background: %s;"></div>
                 </div>
                 <span>%d%%</span>
             </div>',
@@ -406,7 +417,7 @@ class AKPP_Parser_Table extends WP_List_Table {
         <div class="alignleft actions">
             <select name="status_filter">
                 <option value="all" <?php selected($status_filter, 'all'); ?>>Все статусы</option>
-                <option value="pending" <?php selected($status_filter, 'pending'); ?>>Ожидает парсинга</option>
+                <option value="pending" <?php selected($status_filter, 'pending'); ?>>Ожидает</option>
                 <option value="parsed" <?php selected($status_filter, 'parsed'); ?>>Распаршено</option>
                 <option value="ai_processed" <?php selected($status_filter, 'ai_processed'); ?>>AI обработан</option>
                 <option value="approved" <?php selected($status_filter, 'approved'); ?>>Одобрено</option>
