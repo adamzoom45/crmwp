@@ -20,33 +20,74 @@ class AKPP_Deal_Calculator {
         return self::$instance;
     }
     
-    private function __construct() {}
+    private function __construct() {
+        add_action('wp_ajax_akpp_calculate_payment', [$this, 'ajax_calculate_payment']);
+        add_action('wp_ajax_akpp_get_employee_percent', [$this, 'ajax_get_employee_percent']);
+    }
+    
+    /**
+     * AJAX: Расчет оплаты
+     */
+    public function ajax_calculate_payment() {
+        if (!check_ajax_referer('akpp_calculate_payment_nonce', 'nonce', false)) {
+            wp_send_json_error('Неверный security токен');
+            return;
+        }
+        
+        $work_cost = isset($_POST['work_cost']) ? floatval($_POST['work_cost']) : 0;
+        $work_hours = isset($_POST['work_hours']) ? floatval($_POST['work_hours']) : 0;
+        $standard_hours = isset($_POST['standard_hours']) ? floatval($_POST['standard_hours']) : 1;
+        $percent = isset($_POST['percent']) ? floatval($_POST['percent']) : 0;
+        
+        $result = $this->calculate($work_cost, $work_hours, $standard_hours, $percent);
+        
+        wp_send_json_success($result);
+    }
+    
+    /**
+     * AJAX: Получение процента сотрудника
+     */
+    public function ajax_get_employee_percent() {
+        if (!check_ajax_referer('akpp_get_employee_percent_nonce', 'nonce', false)) {
+            wp_send_json_error('Неверный security токен');
+            return;
+        }
+        
+        $employee_id = isset($_POST['employee_id']) ? intval($_POST['employee_id']) : 0;
+        
+        if (!$employee_id) {
+            wp_send_json_error('ID сотрудника не передан');
+            return;
+        }
+        
+        global $wpdb;
+        $table_employees = $wpdb->prefix . 'akpp_employees';
+        
+        $employee = $wpdb->get_row($wpdb->prepare(
+            "SELECT percent FROM {$table_employees} WHERE id = %d",
+            $employee_id
+        ));
+        
+        if ($employee) {
+            wp_send_json_success(['percent' => $employee->percent]);
+        } else {
+            wp_send_json_success(['percent' => 0]);
+        }
+    }
     
     /**
      * Расчет оплаты сотрудника
      * 
      * Формула: Оплата = work_cost × (work_hours / standard_hours) × (percent / 100)
-     * 
-     * @param float $work_cost Стоимость работ
-     * @param float $work_hours Фактические часы работы
-     * @param float $standard_hours Нормативные часы
-     * @param float $percent Процент сотрудника
-     * @return array Массив с результатами расчета
      */
     public function calculate($work_cost, $work_hours, $standard_hours, $percent) {
-        // Приведение типов и защита от деления на ноль
         $work_cost = floatval($work_cost);
         $work_hours = floatval($work_hours);
         $standard_hours = floatval($standard_hours) > 0 ? floatval($standard_hours) : 1;
         $percent = floatval($percent);
         
-        // Коэффициент выполнения нормы
         $completion_ratio = $work_hours / $standard_hours;
-        
-        // Коэффициент процента
         $percent_ratio = $percent / 100;
-        
-        // Итоговая оплата
         $payment = $work_cost * $completion_ratio * $percent_ratio;
         $payment = round($payment, 2);
         
@@ -63,7 +104,7 @@ class AKPP_Deal_Calculator {
     }
     
     /**
-     * Расчет с детальным разбором
+     * Детальный расчет с пояснением
      */
     public function calculate_detailed($work_cost, $work_hours, $standard_hours, $percent) {
         $result = $this->calculate($work_cost, $work_hours, $standard_hours, $percent);
@@ -80,19 +121,14 @@ class AKPP_Deal_Calculator {
     }
     
     /**
-     * Расчет оплаты для нескольких сотрудников по одной сделке
+     * Расчет для нескольких сотрудников
      */
-    public function calculate_multi_employee($work_cost, $work_hours, $standard_hours, $employees) {
+    public function calculate_multi($work_cost, $work_hours, $standard_hours, $employees) {
         $results = [];
         $total_payment = 0;
         
         foreach ($employees as $employee) {
-            $result = $this->calculate(
-                $work_cost,
-                $work_hours,
-                $standard_hours,
-                $employee['percent']
-            );
+            $result = $this->calculate($work_cost, $work_hours, $standard_hours, $employee['percent']);
             
             $results[$employee['id']] = [
                 'name' => $employee['name'],
@@ -112,9 +148,9 @@ class AKPP_Deal_Calculator {
     }
     
     /**
-     * Расчет эффективности сотрудника (за месяц)
+     * Расчет эффективности сотрудника за месяц
      */
-    public function calculate_employee_efficiency($employee_id, $month, $year) {
+    public function employee_efficiency($employee_id, $month, $year) {
         global $wpdb;
         $table_deals = $wpdb->prefix . 'akpp_deals';
         
@@ -166,15 +202,13 @@ class AKPP_Deal_Calculator {
     }
     
     /**
-     * Прогнозирование оплаты по сделке
+     * Прогнозирование оплаты
      */
     public function predict_payment($work_cost, $standard_hours, $percent) {
         $scenarios = [];
+        $factors = [0.5, 0.75, 1.0, 1.25, 1.5];
         
-        // Сценарии выполнения: 50%, 75%, 100%, 125%, 150%
-        $scenario_factors = [0.5, 0.75, 1.0, 1.25, 1.5];
-        
-        foreach ($scenario_factors as $factor) {
+        foreach ($factors as $factor) {
             $work_hours = $standard_hours * $factor;
             $result = $this->calculate($work_cost, $work_hours, $standard_hours, $percent);
             
@@ -192,7 +226,7 @@ class AKPP_Deal_Calculator {
     /**
      * Расчет рентабельности сделки
      */
-    public function calculate_profitability($deal_id) {
+    public function profitability($deal_id) {
         global $wpdb;
         $table_deals = $wpdb->prefix . 'akpp_deals';
         $table_deal_parts = $wpdb->prefix . 'akpp_deal_parts';
@@ -206,14 +240,11 @@ class AKPP_Deal_Calculator {
             return false;
         }
         
-        $parts = $wpdb->get_results($wpdb->prepare(
-            "SELECT SUM(total) as parts_total FROM {$table_deal_parts} WHERE deal_id = %d",
+        $parts_total = $wpdb->get_var($wpdb->prepare(
+            "SELECT SUM(total) FROM {$table_deal_parts} WHERE deal_id = %d",
             $deal_id
-        ));
+        )) ?: 0;
         
-        $parts_total = $parts[0]->parts_total ?? 0;
-        
-        // Расчет оплаты сотрудника
         $payment_result = $this->calculate(
             $deal->work_cost,
             $deal->work_hours,
@@ -245,24 +276,13 @@ class AKPP_Deal_Calculator {
     /**
      * Валидация входных данных
      */
-    public function validate_inputs($work_cost, $work_hours, $standard_hours, $percent) {
+    public function validate($work_cost, $work_hours, $standard_hours, $percent) {
         $errors = [];
         
-        if ($work_cost < 0) {
-            $errors[] = 'Стоимость работ не может быть отрицательной';
-        }
-        
-        if ($work_hours < 0) {
-            $errors[] = 'Фактические часы не могут быть отрицательными';
-        }
-        
-        if ($standard_hours <= 0) {
-            $errors[] = 'Нормативные часы должны быть больше нуля';
-        }
-        
-        if ($percent < 0 || $percent > 100) {
-            $errors[] = 'Процент сотрудника должен быть от 0 до 100';
-        }
+        if ($work_cost < 0) $errors[] = 'Стоимость работ не может быть отрицательной';
+        if ($work_hours < 0) $errors[] = 'Фактические часы не могут быть отрицательными';
+        if ($standard_hours <= 0) $errors[] = 'Нормативные часы должны быть больше нуля';
+        if ($percent < 0 || $percent > 100) $errors[] = 'Процент должен быть от 0 до 100';
         
         return [
             'valid' => empty($errors),
@@ -271,10 +291,10 @@ class AKPP_Deal_Calculator {
     }
     
     /**
-     * Получение рекомендуемого процента для сотрудника
+     * Рекомендуемый процент для сотрудника
      */
     public function get_recommended_percent($role, $experience_years) {
-        $base_percent = [
+        $base = [
             'master' => 40,
             'senior_master' => 50,
             'lead_master' => 60,
@@ -282,14 +302,10 @@ class AKPP_Deal_Calculator {
             'assistant' => 20
         ];
         
-        $percent = $base_percent[$role] ?? 40;
+        $percent = $base[$role] ?? 40;
         
-        // Добавляем бонус за опыт
-        if ($experience_years >= 5) {
-            $percent += 10;
-        } elseif ($experience_years >= 3) {
-            $percent += 5;
-        }
+        if ($experience_years >= 5) $percent += 10;
+        elseif ($experience_years >= 3) $percent += 5;
         
         return min($percent, 70);
     }
