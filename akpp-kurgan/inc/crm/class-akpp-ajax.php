@@ -80,7 +80,7 @@ class AKPP_AJAX {
         add_action('wp_ajax_akpp_decode_vin', [$this, 'ajax_decode_vin']);
         add_action('wp_ajax_nopriv_akpp_decode_vin', [$this, 'ajax_decode_vin']);
         
-        // Регистрация
+        // Регистрация и авторизация (доступны неавторизованным)
         add_action('wp_ajax_akpp_register', [$this, 'ajax_register']);
         add_action('wp_ajax_nopriv_akpp_register', [$this, 'ajax_register']);
         add_action('wp_ajax_akpp_login', [$this, 'ajax_login']);
@@ -100,6 +100,8 @@ class AKPP_AJAX {
         add_action('wp_ajax_akpp_send_avito_message', [$this, 'ajax_send_avito_message']);
     }
     
+    // ==================== СДЕЛКИ ====================
+    
     public function ajax_save_deal() {
         wp_send_json_success(['message' => 'Сделка сохранена']);
     }
@@ -116,6 +118,8 @@ class AKPP_AJAX {
         wp_send_json_success(['message' => 'Статус обновлен']);
     }
     
+    // ==================== СОТРУДНИКИ ====================
+    
     public function ajax_save_employee() {
         wp_send_json_success(['message' => 'Сотрудник сохранен']);
     }
@@ -127,6 +131,8 @@ class AKPP_AJAX {
     public function ajax_delete_employee() {
         wp_send_json_success(['message' => 'Сотрудник удален']);
     }
+    
+    // ==================== АВТО ====================
     
     public function ajax_save_vehicle() {
         wp_send_json_success(['message' => 'Авто сохранено']);
@@ -140,6 +146,8 @@ class AKPP_AJAX {
         wp_send_json_success(['message' => 'Авто удалено']);
     }
     
+    // ==================== АКПП ====================
+    
     public function ajax_save_transmission() {
         wp_send_json_success(['message' => 'АКПП сохранена']);
     }
@@ -151,6 +159,8 @@ class AKPP_AJAX {
     public function ajax_delete_transmission() {
         wp_send_json_success(['message' => 'АКПП удалена']);
     }
+    
+    // ==================== СКЛАД ====================
     
     public function ajax_save_part() {
         wp_send_json_success(['message' => 'Запчасть сохранена']);
@@ -190,6 +200,8 @@ class AKPP_AJAX {
         wp_send_json_success($results);
     }
     
+    // ==================== МАСЛА ====================
+    
     public function ajax_save_oil() {
         wp_send_json_success(['message' => 'Масло сохранено']);
     }
@@ -201,6 +213,8 @@ class AKPP_AJAX {
     public function ajax_delete_oil() {
         wp_send_json_success(['message' => 'Масло удалено']);
     }
+    
+    // ==================== ЛИДЫ ====================
     
     public function ajax_save_lead() {
         wp_send_json_success(['message' => 'Лид сохранен']);
@@ -218,6 +232,8 @@ class AKPP_AJAX {
         wp_send_json_success(['message' => 'Статус лида обновлен']);
     }
     
+    // ==================== ПОЛЬЗОВАТЕЛИ ====================
+    
     public function ajax_save_site_user() {
         wp_send_json_success(['message' => 'Пользователь сохранен']);
     }
@@ -229,6 +245,8 @@ class AKPP_AJAX {
     public function ajax_delete_site_user() {
         wp_send_json_success(['message' => 'Пользователь удален']);
     }
+    
+    // ==================== ЧАТ ====================
     
     public function ajax_send_chat_message() {
         global $wpdb;
@@ -293,6 +311,8 @@ class AKPP_AJAX {
         wp_send_json_success($results);
     }
     
+    // ==================== ПАРСЕР ====================
+    
     public function ajax_parse_url() {
         $url = isset($_POST['url']) ? esc_url_raw($_POST['url']) : '';
         
@@ -319,6 +339,8 @@ class AKPP_AJAX {
         wp_send_json_success(['message' => 'Элемент одобрен']);
     }
     
+    // ==================== VIN ДЕКОДЕР ====================
+    
     public function ajax_decode_vin() {
         $vin = isset($_POST['vin']) ? sanitize_text_field($_POST['vin']) : '';
         
@@ -336,32 +358,165 @@ class AKPP_AJAX {
         ]);
     }
     
+    // ==================== РЕГИСТРАЦИЯ И АВТОРИЗАЦИЯ ====================
+    
     public function ajax_register() {
+        if (!check_ajax_referer('akpp_client_register_nonce', 'nonce', false)) {
+            wp_send_json_error('Неверный security токен');
+            return;
+        }
+        
         $name = isset($_POST['name']) ? sanitize_text_field($_POST['name']) : '';
         $phone = isset($_POST['phone']) ? sanitize_text_field($_POST['phone']) : '';
         $email = isset($_POST['email']) ? sanitize_email($_POST['email']) : '';
         $car_brand = isset($_POST['car_brand']) ? sanitize_text_field($_POST['car_brand']) : '';
         $problem = isset($_POST['problem']) ? sanitize_textarea_field($_POST['problem']) : '';
         
-        if (empty($name) || empty($phone) || empty($email)) {
-            wp_send_json_error('Заполните все обязательные поля');
+        if (empty($name)) {
+            wp_send_json_error('Введите ФИО');
             return;
         }
         
-        wp_send_json_success(['message' => 'Регистрация успешна! Пароль отправлен на email']);
+        if (empty($phone)) {
+            wp_send_json_error('Введите номер телефона');
+            return;
+        }
+        
+        if (empty($email) || !is_email($email)) {
+            wp_send_json_error('Введите корректный email');
+            return;
+        }
+        
+        global $wpdb;
+        $table_users = $wpdb->prefix . 'akpp_site_users';
+        $table_leads = $wpdb->prefix . 'akpp_leads';
+        $table_employees = $wpdb->prefix . 'akpp_employees';
+        
+        $existing = $wpdb->get_var($wpdb->prepare(
+            "SELECT id FROM {$table_users} WHERE email = %s",
+            $email
+        ));
+        
+        if ($existing) {
+            wp_send_json_error('Пользователь с таким email уже зарегистрирован');
+            return;
+        }
+        
+        $password = wp_generate_password(12, true, true);
+        $hashed_password = wp_hash_password($password);
+        
+        $wpdb->insert(
+            $table_users,
+            [
+                'name' => $name,
+                'email' => $email,
+                'phone' => $phone,
+                'password' => $hashed_password,
+                'car_brand' => $car_brand,
+                'role' => 'client',
+                'status' => 'active',
+                'created_at' => current_time('mysql')
+            ],
+            ['%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s']
+        );
+        
+        $user_id = $wpdb->insert_id;
+        
+        if (!$user_id) {
+            wp_send_json_error('Ошибка создания пользователя');
+            return;
+        }
+        
+        $guide = $wpdb->get_row(
+            "SELECT id FROM {$table_employees} 
+            WHERE role = 'guide' AND is_active = 1 
+            ORDER BY id ASC LIMIT 1"
+        );
+        $guide_id = $guide ? $guide->id : 0;
+        
+        $wpdb->insert(
+            $table_leads,
+            [
+                'client_id' => $user_id,
+                'client_name' => $name,
+                'client_phone' => $phone,
+                'client_email' => $email,
+                'car_brand' => $car_brand,
+                'problem' => $problem,
+                'guide_id' => $guide_id,
+                'status' => 'new',
+                'source' => 'site_form',
+                'created_at' => current_time('mysql')
+            ],
+            ['%d', '%s', '%s', '%s', '%s', '%s', '%d', '%s', '%s', '%s']
+        );
+        
+        $this->send_welcome_email($email, $name, $password);
+        
+        if ($guide_id) {
+            $this->notify_guide_new_lead($guide_id, $name, $phone);
+        }
+        
+        $this->log_event("Зарегистрирован новый клиент: {$name} ({$email})");
+        
+        wp_send_json_success([
+            'message' => 'Регистрация успешна! Пароль отправлен на email.'
+        ]);
     }
     
     public function ajax_login() {
+        if (!check_ajax_referer('akpp_client_login_nonce', 'nonce', false)) {
+            wp_send_json_error('Неверный security токен');
+            return;
+        }
+        
         $email = isset($_POST['email']) ? sanitize_email($_POST['email']) : '';
         $password = isset($_POST['password']) ? $_POST['password'] : '';
+        $remember = isset($_POST['remember']) ? (int)$_POST['remember'] : 0;
         
         if (empty($email) || empty($password)) {
             wp_send_json_error('Введите email и пароль');
             return;
         }
         
-        wp_send_json_success(['message' => 'Вход выполнен']);
+        global $wpdb;
+        $table_users = $wpdb->prefix . 'akpp_site_users';
+        
+        $user = $wpdb->get_row($wpdb->prepare(
+            "SELECT * FROM {$table_users} WHERE email = %s AND status = 'active'",
+            $email
+        ));
+        
+        if (!$user) {
+            wp_send_json_error('Пользователь не найден');
+            return;
+        }
+        
+        if (!wp_check_password($password, $user->password)) {
+            wp_send_json_error('Неверный пароль');
+            return;
+        }
+        
+        wp_set_current_user($user->id);
+        wp_set_auth_cookie($user->id, $remember);
+        
+        $wpdb->update(
+            $table_users,
+            ['last_login' => current_time('mysql')],
+            ['id' => $user->id],
+            ['%s'],
+            ['%d']
+        );
+        
+        $this->log_event("Вход в систему: {$user->name} ({$email})");
+        
+        wp_send_json_success([
+            'message' => 'Вход выполнен успешно',
+            'redirect_url' => home_url('/crm-profile')
+        ]);
     }
+    
+    // ==================== PUSH УВЕДОМЛЕНИЯ ====================
     
     public function ajax_save_push_token() {
         global $wpdb;
@@ -390,6 +545,8 @@ class AKPP_AJAX {
         wp_send_json_success(['message' => 'Push токен сохранен']);
     }
     
+    // ==================== TELEGRAM ====================
+    
     public function ajax_save_telegram_settings() {
         $bot_token = isset($_POST['bot_token']) ? sanitize_text_field($_POST['bot_token']) : '';
         $chat_id = isset($_POST['chat_id']) ? sanitize_text_field($_POST['chat_id']) : '';
@@ -411,6 +568,8 @@ class AKPP_AJAX {
         
         wp_send_json_success(['message' => 'Тестовое сообщение отправлено']);
     }
+    
+    // ==================== АВИТО ====================
     
     public function ajax_save_avito_settings() {
         if (!check_ajax_referer('akpp_avito_settings_nonce', 'akpp_avito_nonce', false)) {
@@ -517,6 +676,47 @@ class AKPP_AJAX {
             wp_send_json_success(['message' => 'Сообщение отправлено в Авито']);
         } else {
             wp_send_json_error('Ошибка отправки сообщения');
+        }
+    }
+    
+    // ==================== ВСПОМОГАТЕЛЬНЫЕ МЕТОДЫ ====================
+    
+    private function send_welcome_email($email, $name, $password) {
+        $subject = 'Добро пожаловать в АКПП45 CRM';
+        
+        $message = '<html><body style="font-family: Arial, sans-serif;">';
+        $message .= '<h2 style="color: #667eea;">Уважаемый(ая) ' . esc_html($name) . '!</h2>';
+        $message .= '<p>Ваш аккаунт в системе АКПП45 CRM успешно создан.</p>';
+        $message .= '<h3>📋 Ваши данные для входа:</h3>';
+        $message .= '<ul>';
+        $message .= '<li><strong>Email:</strong> ' . esc_html($email) . '</li>';
+        $message .= '<li><strong>Пароль:</strong> <code style="background: #f4f4f4; padding: 4px 8px;">' . esc_html($password) . '</code></li>';
+        $message .= '</ul>';
+        $message .= '<p>🔗 <a href="' . home_url('/crm-login') . '" style="color: #667eea;">Войти в CRM</a></p>';
+        $message .= '<p style="margin-top: 30px; font-size: 12px; color: #999;">С уважением, команда АКПП45</p>';
+        $message .= '</body></html>';
+        
+        $headers = ['Content-Type: text/html; charset=UTF-8'];
+        
+        wp_mail($email, $subject, $message, $headers);
+    }
+    
+    private function notify_guide_new_lead($guide_id, $client_name, $client_phone) {
+        if (class_exists('AKPP_Push')) {
+            $push = AKPP_Push::get_instance();
+            if (method_exists($push, 'send_to_employee')) {
+                $push->send_to_employee(
+                    $guide_id,
+                    '🆕 Новый лид в CRM!',
+                    "{$client_name}, {$client_phone} - ожидает обработки"
+                );
+            }
+        }
+    }
+    
+    private function log_event($message) {
+        if (defined('WP_DEBUG_LOG') && WP_DEBUG_LOG) {
+            error_log('[AKPP_AJAX] ' . $message);
         }
     }
 }
