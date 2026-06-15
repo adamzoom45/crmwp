@@ -1,267 +1,236 @@
 <?php
-if (!defined('ABSPATH')) exit;
+/**
+ * Класс для интеграции с API Авито
+ * 
+ * @package AKPP45_CRM
+ */
+
+if (!defined('ABSPATH')) {
+    exit;
+}
 
 class AKPP_Avito {
     
-    private $client_id;
-    private $client_secret;
-    private $api_base = 'https://api.avito.ru';
-    private $token_data = null;
-
-    public function __construct() {
+    /**
+     * Экземпляр класса (Singleton)
+     */
+    private static $instance = null;
+    
+    /**
+     * API URL
+     */
+    private $api_url = 'https://api.avito.ru';
+    
+    /**
+     * Client ID из настроек
+     */
+    private $client_id = '';
+    
+    /**
+     * Client Secret из настроек
+     */
+    private $client_secret = '';
+    
+    /**
+     * Получить экземпляр класса
+     */
+    public static function get_instance() {
+        if (self::$instance === null) {
+            self::$instance = new self();
+        }
+        return self::$instance;
+    }
+    
+    /**
+     * Конструктор
+     */
+    private function __construct() {
+        $this->load_settings();
+    }
+    
+    /**
+     * Загрузка настроек из базы данных
+     */
+    private function load_settings() {
         $this->client_id = get_option('akpp_avito_client_id', '');
         $this->client_secret = get_option('akpp_avito_client_secret', '');
-        
-        // Хуки для AJAX запросов из админки
-        add_action('wp_ajax_akpp_avito_auth', [$this, 'ajax_auth']);
-        add_action('wp_ajax_akpp_get_avito_dialogs', [$this, 'ajax_get_dialogs']);
-        add_action('wp_ajax_akpp_get_avito_messages', [$this, 'ajax_get_messages']);
     }
-
+    
     /**
-     * Получение или обновление токена доступа
+     * Получение OAuth токена
+     * 
+     * @return array|false Массив с токеном или false при ошибке
      */
-    private function get_access_token() {
-        // Проверяем, есть ли сохраненный валидный токен в БД
-        global $wpdb;
-        $table = $wpdb->prefix . 'akpp_avito_tokens';
-        $this->token_data = $wpdb->get_row("SELECT * FROM $table ORDER BY id DESC LIMIT 1");
-
-        $now = time();
-        if ($this->token_data && $this->token_data->expires_at > $now) {
-            return $this->token_data->access_token;
+    public function get_oauth_token() {
+        if (empty($this->client_id) || empty($this->client_secret)) {
+            $this->log_error('Client ID или Client Secret не настроены');
+            return false;
         }
-
-        // Если токена нет или он истек, получаем новый
-        return $this->refresh_or_get_new_token();
-    }
-
-    /**
-     * Запрос нового токена или обновление по refresh_token
-     */
-    private function refresh_or_get_new_token() {
+        
+        $url = 'https://api.avito.ru/token';
+        
         $body = [
             'client_id' => $this->client_id,
             'client_secret' => $this->client_secret,
-            'grant_type' => 'client_credentials' // Для сервер-сервер взаимодействия
+            'grant_type' => 'client_credentials'
         ];
-
-        // Если есть refresh_token, можно использовать grant_type=refresh_token
-        if (!empty($this->token_data->refresh_token)) {
-            $body['grant_type'] = 'refresh_token';
-            $body['refresh_token'] = $this->token_data->refresh_token;
-        }
-
-        $response = wp_remote_post($this->api_base . '/token', [
-            'body' => $body,
-            'headers' => ['Content-Type' => 'application/x-www-form-urlencoded']
-        ]);
-
-        if (is_wp_error($response)) {
-            error_log('Avito API Token Error: ' . $response->get_error_message());
-            return false;
-        }
-
-        $data = json_decode(wp_remote_retrieve_body($response), true);
-
-        if (isset($data['access_token'])) {
-            global $wpdb;
-            $table = $wpdb->prefix . 'akpp_avito_tokens';
-            
-            $expires_in = isset($data['expires_in']) ? $data['expires_in'] : 3600;
-            $expires_at = time() + $expires_in - 60; // Запас 60 секунд
-
-            $wpdb->insert($table, [
-                'access_token' => $data['access_token'],
-                'refresh_token' => $data['refresh_token'] ?? ($this->token_data->refresh_token ?? ''),
-                'expires_at' => $expires_at
-            ]);
-
-            return $data['access_token'];
-        }
-
-        error_log('Avito API Token Response: ' . print_r($data, true));
-        return false;
-    }
-
-    /**
-     * Получение списка диалогов
-     */
-    public function get_dialogs() {
-        $token = $this->get_access_token();
-        if (!$token) return ['error' => 'Не удалось получить токен авторизации'];
-
-        $response = wp_remote_get($this->api_base . '/messenger/v1/accounts/self/dialogs', [
-            'headers' => [
-                'Authorization' => 'Bearer ' . $token,
-                'Content-Type' => 'application/json'
-            ]
-        ]);
-
-        if (is_wp_error($response)) {
-            return ['error' => $response->get_error_message()];
-        }
-
-        $body = json_decode(wp_remote_retrieve_body($response), true);
         
-        // Сохраняем диалоги в локальный кэш для быстрого доступа
-        if (isset($body['dialogs']) && is_array($body['dialogs'])) {
-            $this->cache_dialogs($body['dialogs']);
-        }
-
-        return $body;
-    }
-
-    /**
-     * Получение сообщений конкретного диалога
-     */
-    public function get_messages($dialog_id) {
-        $token = $this->get_access_token();
-        if (!$token) return ['error' => 'Не удалось получить токен авторизации'];
-
-        $response = wp_remote_get($this->api_base . '/messenger/v1/accounts/self/dialogs/' . urlencode($dialog_id) . '/messages', [
+        $args = [
+            'method' => 'POST',
+            'timeout' => 30,
             'headers' => [
-                'Authorization' => 'Bearer ' . $token,
-                'Content-Type' => 'application/json'
-            ]
-        ]);
-
-        if (is_wp_error($response)) {
-            return ['error' => $response->get_error_message()];
-        }
-
-        $body = json_decode(wp_remote_retrieve_body($response), true);
-        
-        // Кэшируем сообщения
-        if (isset($body['messages']) && is_array($body['messages'])) {
-            $this->cache_messages($dialog_id, $body['messages']);
-        }
-
-        return $body;
-    }
-
-    /**
-     * Отправка сообщения в диалог
-     */
-    public function send_message($dialog_id, $text) {
-        $token = $this->get_access_token();
-        if (!$token) return false;
-
-        $response = wp_remote_post($this->api_base . '/messenger/v1/accounts/self/dialogs/' . urlencode($dialog_id) . '/messages', [
-            'headers' => [
-                'Authorization' => 'Bearer ' . $token,
-                'Content-Type' => 'application/json'
+                'Content-Type' => 'application/x-www-form-urlencoded'
             ],
-            'body' => json_encode([
-                'text' => $text,
-                'type' => 'text'
-            ])
-        ]);
-
+            'body' => http_build_query($body)
+        ];
+        
+        $response = wp_remote_post($url, $args);
+        
         if (is_wp_error($response)) {
-            error_log('Avito Send Message Error: ' . $response->get_error_message());
+            $this->log_error('Ошибка запроса токена: ' . $response->get_error_message());
             return false;
         }
-
-        $body = json_decode(wp_remote_retrieve_body($response), true);
-        return isset($body['message_id']);
+        
+        $body = wp_remote_retrieve_body($response);
+        $data = json_decode($body, true);
+        
+        $status_code = wp_remote_retrieve_response_code($response);
+        
+        if ($status_code !== 200) {
+            $this->log_error('Ошибка получения токена. Статус: ' . $status_code . ', Ответ: ' . $body);
+            return false;
+        }
+        
+        if (!isset($data['access_token']) || !isset($data['expires_in'])) {
+            $this->log_error('Неверный ответ от API: ' . $body);
+            return false;
+        }
+        
+        // Сохраняем токен в базу данных
+        $this->save_token($data['access_token'], $data['expires_in']);
+        
+        return [
+            'access_token' => $data['access_token'],
+            'expires_in' => $data['expires_in'],
+            'token_type' => $data['token_type'] ?? 'bearer'
+        ];
     }
-
+    
     /**
-     * Кэширование диалогов в БД
+     * Сохранение токена в таблицу wp_akpp_avito_tokens
+     * 
+     * @param string $access_token Токен доступа
+     * @param int $expires_in Время жизни в секундах
      */
-    private function cache_dialogs($dialogs) {
+    private function save_token($access_token, $expires_in) {
         global $wpdb;
-        $table = $wpdb->prefix . 'akpp_avito_dialogs';
-
-        foreach ($dialogs as $dialog) {
-            $dialog_id = $dialog['id'] ?? '';
-            $item_id = $dialog['item_id'] ?? '';
-            $user_name = $dialog['user']['name'] ?? 'Неизвестно';
-            $last_message = $dialog['last_message']['text'] ?? '';
-            $last_message_at = isset($dialog['last_message']['created']) ? date('Y-m-d H:i:s', strtotime($dialog['last_message']['created'])) : current_time('mysql');
-
-            $wpdb->replace($table, [
-                'dialog_id' => $dialog_id,
-                'item_id' => $item_id,
-                'user_name' => $user_name,
-                'last_message' => $last_message,
-                'last_message_at' => $last_message_at,
-                'is_read' => 0
-            ]);
-        }
+        
+        $table_name = $wpdb->prefix . 'akpp_avito_tokens';
+        
+        // Удаляем старые токены
+        $wpdb->delete($table_name, ['is_active' => 1]);
+        
+        // Сохраняем новый токен
+        $wpdb->insert(
+            $table_name,
+            [
+                'access_token' => $access_token,
+                'expires_in' => $expires_in,
+                'created_at' => current_time('mysql'),
+                'is_active' => 1
+            ],
+            ['%s', '%d', '%s', '%d']
+        );
+        
+        $this->log_event('Новый токен сохранен. Истекает через ' . $expires_in . ' секунд');
     }
-
+    
     /**
-     * Кэширование сообщений в БД
+     * Получение активного токена из базы
+     * 
+     * @return string|false Токен или false
      */
-    private function cache_messages($dialog_id, $messages) {
+    public function get_active_token() {
         global $wpdb;
-        $table = $wpdb->prefix . 'akpp_avito_messages_cache';
-
-        foreach ($messages as $msg) {
-            $message_id = $msg['id'] ?? '';
-            $author = ($msg['author'] === 'user') ? 'client' : 'manager';
-            $text = $msg['text'] ?? '';
-            $created_at = isset($msg['created']) ? date('Y-m-d H:i:s', strtotime($msg['created'])) : current_time('mysql');
-
-            // Используем replace, чтобы не дублировать сообщения при повторной синхронизации
-            // Для этого нужен UNIQUE KEY по message_id (создан в install.php)
-            $wpdb->replace($table, [
-                'dialog_id' => $dialog_id,
-                'message_id' => $message_id,
-                'author' => $author,
-                'text' => $text,
-                'created_at' => $created_at
-            ]);
+        
+        $table_name = $wpdb->prefix . 'akpp_avito_tokens';
+        
+        $token = $wpdb->get_row(
+            "SELECT access_token, created_at, expires_in FROM {$table_name} WHERE is_active = 1 LIMIT 1"
+        );
+        
+        if (!$token) {
+            // Нет токена - пробуем получить новый
+            $result = $this->get_oauth_token();
+            if ($result && isset($result['access_token'])) {
+                return $result['access_token'];
+            }
+            return false;
+        }
+        
+        // Проверяем, не истек ли токен
+        $created_timestamp = strtotime($token->created_at);
+        $expires_timestamp = $created_timestamp + $token->expires_in;
+        
+        // Если до истечения меньше 1 часа (3600 секунд) - обновляем
+        if (($expires_timestamp - time()) < 3600) {
+            $this->log_event('Токен истекает, обновляем...');
+            $result = $this->get_oauth_token();
+            if ($result && isset($result['access_token'])) {
+                return $result['access_token'];
+            }
+        }
+        
+        return $token->access_token;
+    }
+    
+    /**
+     * Обновление токена (публичный метод для cron)
+     * 
+     * @return bool
+     */
+    public function refresh_token() {
+        $result = $this->get_oauth_token();
+        return ($result !== false);
+    }
+    
+    /**
+     * Сохранение настроек Client ID и Client Secret
+     * 
+     * @param string $client_id
+     * @param string $client_secret
+     * @return bool
+     */
+    public function save_settings($client_id, $client_secret) {
+        if (empty($client_id) || empty($client_secret)) {
+            return false;
+        }
+        
+        update_option('akpp_avito_client_id', sanitize_text_field($client_id));
+        update_option('akpp_avito_client_secret', sanitize_text_field($client_secret));
+        
+        $this->client_id = $client_id;
+        $this->client_secret = $client_secret;
+        
+        // Пробуем получить токен
+        return $this->get_oauth_token();
+    }
+    
+    /**
+     * Логирование ошибок
+     */
+    private function log_error($message) {
+        if (defined('WP_DEBUG_LOG') && WP_DEBUG_LOG) {
+            error_log('[AKPP_AVITO] ОШИБКА: ' . $message);
         }
     }
-
-    // --- AJAX ОБРАБОТЧИКИ ---
-
-    public function ajax_auth() {
-        check_ajax_referer('akpp_crm_nonce', 'nonce');
-        if (!current_user_can('manage_options')) {
-            wp_send_json_error(['message' => 'Недостаточно прав']);
-        }
-
-        $this->client_id = sanitize_text_field($_POST['client_id']);
-        $this->client_secret = sanitize_text_field($_POST['client_secret']);
-        
-        update_option('akpp_avito_client_id', $this->client_id);
-        update_option('akpp_avito_client_secret', $this->client_secret);
-
-        $token = $this->get_access_token();
-        if ($token) {
-            wp_send_json_success(['message' => 'Авторизация успешна! Токен получен.']);
-        } else {
-            wp_send_json_error(['message' => 'Ошибка авторизации. Проверьте Client ID и Secret.']);
-        }
-    }
-
-    public function ajax_get_dialogs() {
-        check_ajax_referer('akpp_crm_nonce', 'nonce');
-        $result = $this->get_dialogs();
-        
-        if (isset($result['error'])) {
-            wp_send_json_error(['message' => $result['error']]);
-        } else {
-            wp_send_json_success(['dialogs' => $result]);
-        }
-    }
-
-    public function ajax_get_messages() {
-        check_ajax_referer('akpp_crm_nonce', 'nonce');
-        $dialog_id = sanitize_text_field($_POST['dialog_id']);
-        $result = $this->get_messages($dialog_id);
-        
-        if (isset($result['error'])) {
-            wp_send_json_error(['message' => $result['error']]);
-        } else {
-            wp_send_json_success(['messages' => $result]);
+    
+    /**
+     * Логирование событий
+     */
+    private function log_event($message) {
+        if (defined('WP_DEBUG_LOG') && WP_DEBUG_LOG) {
+            error_log('[AKPP_AVITO] СОБЫТИЕ: ' . $message);
         }
     }
 }
-
-// Инициализация
-new AKPP_Avito();
