@@ -1,5 +1,5 @@
 /**
- * Калькулятор сделок и управление запчастями для CRM АКПП45
+ * CRM АКПП45 - Калькулятор сделок и управление запчастями
  * 
  * @package AKPP45_CRM
  */
@@ -7,23 +7,28 @@
 (function($) {
     'use strict';
     
-    var DealCalculator = {
-        // Выбранные запчасти
+    var AKPP_DealCalculator = {
+        
         selectedParts: [],
         
-        // Инициализация
+        /**
+         * Инициализация
+         */
         init: function() {
             this.bindEvents();
             this.loadSelectedParts();
             this.initSearchAutocomplete();
+            this.calculatePayment();
         },
         
-        // Привязка событий
+        /**
+         * Привязка событий
+         */
         bindEvents: function() {
             var self = this;
             
             // Поиск запчастей
-            $(document).on('keyup', '#parts-search', function(e) {
+            $('#parts-search').on('keyup', function() {
                 var query = $(this).val();
                 if (query.length >= 2) {
                     self.searchParts(query);
@@ -48,7 +53,7 @@
                 self.removePart(partId);
             });
             
-            // Изменение количества запчасти
+            // Изменение количества
             $(document).on('change', '.part-quantity', function() {
                 var partId = $(this).data('id');
                 var quantity = parseInt($(this).val());
@@ -56,26 +61,27 @@
             });
             
             // Изменение полей калькулятора
-            $(document).on('change keyup', '#work-cost, #work-hours, #standard-hours, #percent', function() {
+            $('#work-cost, #work-hours, #standard-hours, #percent').on('change keyup', function() {
                 self.calculatePayment();
             });
             
             // Выбор сотрудника
-            $(document).on('change', '#employee-id', function() {
+            $('#employee-id').on('change', function() {
                 self.loadEmployeePercent($(this).val());
             });
             
             // Сохранение сделки
-            $(document).on('click', '#save-deal-btn', function(e) {
+            $('#save-deal-btn').on('click', function(e) {
                 e.preventDefault();
                 self.saveDeal();
             });
         },
         
-        // Поиск запчастей
+        /**
+         * Поиск запчастей
+         */
         searchParts: function(query) {
             var self = this;
-            var resultsDiv = $('#parts-search-results');
             
             $.ajax({
                 url: ajaxurl,
@@ -90,18 +96,21 @@
                     if (response.success && response.data.length > 0) {
                         self.displaySearchResults(response.data);
                     } else {
-                        resultsDiv.html('<div class="no-results">🔍 Запчасти не найдены</div>').show();
+                        $('#parts-search-results').html('<div class="no-results">🔍 Запчасти не найдены</div>').show();
                     }
                 },
                 error: function() {
-                    resultsDiv.html('<div class="error">❌ Ошибка поиска</div>').show();
+                    $('#parts-search-results').html('<div class="error">❌ Ошибка поиска</div>').show();
                 }
             });
         },
         
-        // Отображение результатов поиска
+        /**
+         * Отображение результатов поиска
+         */
         displaySearchResults: function(parts) {
             var html = '<div class="search-results-list">';
+            
             for (var i = 0; i < parts.length; i++) {
                 var part = parts[i];
                 var inStock = part.quantity > 0;
@@ -110,38 +119,37 @@
                 
                 html += '<div class="search-result-item ' + stockClass + '">';
                 html += '<div class="part-info">';
-                html += '<div class="part-name">' + escapeHtml(part.name) + '</div>';
-                html += '<div class="part-sku">' + escapeHtml(part.sku) + '</div>';
+                html += '<div class="part-name">' + this.escapeHtml(part.name) + '</div>';
+                html += '<div class="part-sku">' + this.escapeHtml(part.sku) + '</div>';
                 html += '<div class="part-details">';
-                html += '<span>💰 ' + formatNumber(part.price) + ' ₽</span>';
+                html += '<span>💰 ' + this.formatNumber(part.price) + ' ₽</span>';
                 html += '<span>📦 ' + stockText + '</span>';
                 html += '</div>';
                 html += '</div>';
                 
                 if (inStock) {
-                    html += '<button type="button" class="add-part-btn" data-id="' + part.id + '" data-name="' + escapeHtml(part.name) + '" data-sku="' + escapeHtml(part.sku) + '" data-price="' + part.price + '" data-quantity="' + part.quantity + '">➕ Добавить</button>';
+                    html += '<button type="button" class="add-part-btn" data-id="' + part.id + '" data-name="' + this.escapeHtml(part.name) + '" data-sku="' + this.escapeHtml(part.sku) + '" data-price="' + part.price + '" data-quantity="' + part.quantity + '">➕ Добавить</button>';
                 } else {
                     html += '<button type="button" class="add-part-btn disabled" disabled>❌ Нет в наличии</button>';
                 }
                 html += '</div>';
             }
-            html += '</div>';
             
+            html += '</div>';
             $('#parts-search-results').html(html).show();
         },
         
-        // Добавление запчасти
+        /**
+         * Добавление запчасти
+         */
         addPart: function(id, name, sku, price, maxQuantity) {
-            var self = this;
-            
-            // Проверяем, не добавлена ли уже
             var existing = this.selectedParts.find(function(p) { return p.id == id; });
+            
             if (existing) {
                 this.showMessage('Эта запчасть уже добавлена', 'warning');
                 return;
             }
             
-            // Добавляем в массив
             this.selectedParts.push({
                 id: id,
                 name: name,
@@ -156,16 +164,15 @@
             this.calculateTotal();
             this.showMessage('Запчасть добавлена: ' + name, 'success');
             
-            // Очищаем поиск
             $('#parts-search').val('');
             $('#parts-search-results').empty().hide();
         },
         
-        // Удаление запчасти
+        /**
+         * Удаление запчасти
+         */
         removePart: function(id) {
-            var self = this;
             var part = this.selectedParts.find(function(p) { return p.id == id; });
-            
             this.selectedParts = this.selectedParts.filter(function(p) { return p.id != id; });
             this.renderPartsList();
             this.calculateTotal();
@@ -175,9 +182,12 @@
             }
         },
         
-        // Обновление количества запчасти
+        /**
+         * Обновление количества запчасти
+         */
         updatePartQuantity: function(id, quantity) {
             var part = this.selectedParts.find(function(p) { return p.id == id; });
+            
             if (part) {
                 if (quantity < 1) quantity = 1;
                 if (quantity > part.maxQuantity) quantity = part.maxQuantity;
@@ -189,7 +199,9 @@
             }
         },
         
-        // Отрисовка списка запчастей
+        /**
+         * Отрисовка списка запчастей
+         */
         renderPartsList: function() {
             var container = $('#selected-parts-list');
             var html = '';
@@ -209,24 +221,26 @@
                 for (var i = 0; i < this.selectedParts.length; i++) {
                     var part = this.selectedParts[i];
                     html += '<tr>';
-                    html += '<td>' + escapeHtml(part.name) + '</td>';
-                    html += '<td>' + escapeHtml(part.sku) + '</td>';
-                    html += '<td>' + formatNumber(part.price) + ' ₽</td>';
+                    html += '<td>' + this.escapeHtml(part.name) + '</td>';
+                    html += '<td>' + this.escapeHtml(part.sku) + '</td>';
+                    html += '<td>' + this.formatNumber(part.price) + ' ₽</td>';
                     html += '<td><input type="number" class="part-quantity" data-id="' + part.id + '" value="' + part.quantity + '" min="1" max="' + part.maxQuantity + '" style="width: 70px;"></td>';
-                    html += '<td>' + formatNumber(part.total) + ' ₽</td>';
+                    html += '<td>' + this.formatNumber(part.total) + ' ₽</td>';
                     html += '<td><button type="button" class="remove-part button-link" data-id="' + part.id + '">🗑️</button></td>';
                     html += '</tr>';
                 }
                 
                 html += '<tr class="total-row"><td colspan="4"><strong>Итого запчасти:</strong></td>';
-                html += '<td colspan="2"><strong>' + formatNumber(this.getPartsTotal()) + ' ₽</strong></td></tr>';
+                html += '<td colspan="2"><strong>' + this.formatNumber(this.getPartsTotal()) + ' ₽</strong></td></tr>';
                 html += '</tbody></table>';
             }
             
             container.html(html);
         },
         
-        // Получение суммы запчастей
+        /**
+         * Получение суммы запчастей
+         */
         getPartsTotal: function() {
             var total = 0;
             for (var i = 0; i < this.selectedParts.length; i++) {
@@ -235,15 +249,18 @@
             return total;
         },
         
-        // Расчет общей суммы и оплаты сотрудника
+        /**
+         * Расчет общей суммы
+         */
         calculateTotal: function() {
             var partsTotal = this.getPartsTotal();
-            $('#parts-total').val(formatNumber(partsTotal) + ' ₽');
-            
+            $('#parts-total').text(this.formatNumber(partsTotal) + ' ₽');
             this.calculatePayment();
         },
         
-        // Расчет оплаты сотрудника
+        /**
+         * Расчет оплаты сотрудника
+         */
         calculatePayment: function() {
             var workCost = parseFloat($('#work-cost').val()) || 0;
             var workHours = parseFloat($('#work-hours').val()) || 0;
@@ -254,19 +271,21 @@
             var payment = workCost * (workHours / standardHours) * (percent / 100);
             payment = Math.round(payment);
             
-            $('#payment-amount').val(formatNumber(payment) + ' ₽');
-            
-            // Обновляем скрытое поле
+            $('#payment-amount').val(this.formatNumber(payment) + ' ₽');
             $('#deal-payment-amount').val(payment);
             
-            // Обновляем итоговую сумму сделки
             var partsTotal = this.getPartsTotal();
             var totalAmount = partsTotal + workCost;
-            $('#deal-total-amount').val(formatNumber(totalAmount) + ' ₽');
+            $('#deal-total-amount').text(this.formatNumber(totalAmount) + ' ₽');
             $('#deal-total').val(totalAmount);
+            
+            // Обновляем отображение стоимости работ
+            $('#work-cost-display').text(this.formatNumber(workCost) + ' ₽');
         },
         
-        // Загрузка процента сотрудника
+        /**
+         * Загрузка процента сотрудника
+         */
         loadEmployeePercent: function(employeeId) {
             if (!employeeId) return;
             
@@ -288,7 +307,9 @@
             });
         },
         
-        // Загрузка сохраненных запчастей (при редактировании)
+        /**
+         * Загрузка сохраненных запчастей
+         */
         loadSelectedParts: function() {
             var savedParts = $('#saved-parts-data').val();
             if (savedParts) {
@@ -300,13 +321,14 @@
             }
         },
         
-        // Сохранение сделки
+        /**
+         * Сохранение сделки
+         */
         saveDeal: function() {
             var self = this;
             var saveBtn = $('#save-deal-btn');
             var formData = $('#deal-form').serializeArray();
             
-            // Добавляем запчасти
             formData.push({
                 name: 'parts',
                 value: JSON.stringify(this.selectedParts)
@@ -317,10 +339,7 @@
             $.ajax({
                 url: ajaxurl,
                 type: 'POST',
-                data: formData.concat([
-                    {name: 'action', value: 'akpp_save_deal'},
-                    {name: 'nonce', value: akpp_deal.nonce}
-                ]),
+                data: $.param(formData) + '&action=akpp_save_deal&nonce=' + akpp_deal.nonce,
                 dataType: 'json',
                 success: function(response) {
                     if (response.success) {
@@ -340,13 +359,16 @@
             });
         },
         
-        // Инициализация автокомплита для поиска
+        /**
+         * Инициализация автокомплита
+         */
         initSearchAutocomplete: function() {
-            // Дополнительная настройка для поиска
             $('#parts-search').attr('autocomplete', 'off');
         },
         
-        // Показать сообщение
+        /**
+         * Показать сообщение
+         */
         showMessage: function(message, type) {
             var messageDiv = $('#deal-message');
             if (!messageDiv.length) {
@@ -360,28 +382,33 @@
             setTimeout(function() {
                 messageDiv.fadeOut();
             }, 3000);
+        },
+        
+        /**
+         * Escape HTML
+         */
+        escapeHtml: function(text) {
+            if (!text) return '';
+            var div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        },
+        
+        /**
+         * Форматирование числа
+         */
+        formatNumber: function(num) {
+            return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
         }
     };
     
-    // Вспомогательные функции
-    function escapeHtml(text) {
-        if (!text) return '';
-        var div = document.createElement('div');
-        div.textContent = text;
-        return div.innerHTML;
-    }
-    
-    function formatNumber(num) {
-        return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
-    }
-    
-    // Инициализация
+    // Инициализация при загрузке
     $(document).ready(function() {
-        if ($('#deal-form').length) {
-            DealCalculator.init();
+        if ($('#deal-form').length && typeof akpp_deal !== 'undefined') {
+            AKPP_DealCalculator.init();
         }
     });
     
-    window.DealCalculator = DealCalculator;
+    window.AKPP_DealCalculator = AKPP_DealCalculator;
     
 })(jQuery);
