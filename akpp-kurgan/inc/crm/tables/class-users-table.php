@@ -1,313 +1,376 @@
 <?php
 /**
- * АКПП45 CRM - Таблица пользователей сайта (клиентов)
- * WP_List_Table для управления зарегистрированными клиентами.
- *
- * @package AKPP_CRM
- * @version 4.2
+ * Класс для таблицы пользователей сайта в админке
+ * 
+ * @package AKPP45_CRM
  */
 
-if (!defined('ABSPATH')) exit;
+if (!defined('ABSPATH')) {
+    exit;
+}
 
 if (!class_exists('WP_List_Table')) {
-    require_once(ABSPATH . 'wp-admin/includes/class-wp-list-table.php');
+    require_once ABSPATH . 'wp-admin/includes/class-wp-list-table.php';
 }
 
 class AKPP_Users_Table extends WP_List_Table {
-
-    /**
-     * Конструктор таблицы
-     */
+    
+    private $table_name;
+    
     public function __construct() {
         parent::__construct([
-            'singular' => __('Пользователь', 'akpp-crm'),
-            'plural'   => __('Пользователи', 'akpp-crm'),
-            'ajax'     => false
+            'singular' => 'user',
+            'plural' => 'users',
+            'ajax' => false
         ]);
-    }
-
-    /**
-     * Получение данных пользователей из БД с учётом фильтров и поиска
-     */
-    public function get_users() {
+        
         global $wpdb;
-        $site_users_table  = $wpdb->prefix . 'akpp_site_users';
-        $wp_users_table    = $wpdb->users;
-
-        // Параметры пагинации
-        $per_page     = $this->get_items_per_page('users_per_page', 20);
-        $current_page = $this->get_pagenum();
-
-        // Параметры поиска и сортировки
-        $search  = isset($_REQUEST['s']) ? sanitize_text_field($_REQUEST['s']) : '';
-        $orderby = isset($_REQUEST['orderby']) ? sanitize_sql_orderby($_REQUEST['orderby']) : 'su.id';
-        $order   = isset($_REQUEST['order']) && $_REQUEST['order'] === 'asc' ? 'ASC' : 'DESC';
-
-        // Построение условий WHERE
-        $where_clauses = ["1=1"];
-        $prepare_args  = [];
-
-        if (!empty($search)) {
-            $search_like = '%' . $wpdb->esc_like($search) . '%';
-            $where_clauses[] = "(su.full_name LIKE %s OR su.phone LIKE %s OR su.car_info LIKE %s OR u.user_email LIKE %s)";
-            $prepare_args[] = $search_like;
-            $prepare_args[] = $search_like;
-            $prepare_args[] = $search_like;
-            $prepare_args[] = $search_like;
-        }
-
-        $where_sql = implode(' AND ', $where_clauses);
-
-        // Общее количество записей
-        $count_query = "
-            SELECT COUNT(*)
-            FROM $site_users_table su
-            LEFT JOIN $wp_users_table u ON su.wp_user_id = u.ID
-            WHERE $where_sql
-        ";
-        $total_items = empty($prepare_args)
-            ? $wpdb->get_var($count_query)
-            : $wpdb->get_var($wpdb->prepare($count_query, $prepare_args));
-
-        // Данные для текущей страницы
-        $offset = ($current_page - 1) * $per_page;
-        $prepare_args[] = $per_page;
-        $prepare_args[] = $offset;
-
-        $query = "
-            SELECT
-                su.id,
-                su.wp_user_id,
-                su.full_name,
-                su.phone,
-                su.car_info,
-                u.user_email,
-                u.user_registered
-            FROM $site_users_table su
-            LEFT JOIN $wp_users_table u ON su.wp_user_id = u.ID
-            WHERE $where_sql
-            ORDER BY $orderby $order
-            LIMIT %d OFFSET %d
-        ";
-        $data = $wpdb->get_results($wpdb->prepare($query, $prepare_args), ARRAY_A);
-
-        $this->set_pagination_args([
-            'total_items' => $total_items,
-            'per_page'    => $per_page,
-            'total_pages' => ceil($total_items / $per_page)
-        ]);
-
-        return $data;
+        $this->table_name = $wpdb->prefix . 'akpp_site_users';
     }
-
+    
     /**
-     * Подготовка элементов для вывода
+     * Получение данных для таблицы
      */
     public function prepare_items() {
-        $columns = $this->get_columns();
-        $hidden  = [];
-        $sortable = $this->get_sortable_columns();
-
-        $this->_column_headers = [$columns, $hidden, $sortable];
-
-        // Обработка массовых действий
+        global $wpdb;
+        
+        $per_page = 20;
+        $current_page = $this->get_pagenum();
+        $offset = ($current_page - 1) * $per_page;
+        
+        // Фильтры
+        $role_filter = isset($_GET['role_filter']) ? sanitize_text_field($_GET['role_filter']) : 'all';
+        $status_filter = isset($_GET['status_filter']) ? sanitize_text_field($_GET['status_filter']) : 'all';
+        $search = isset($_GET['s']) ? sanitize_text_field($_GET['s']) : '';
+        
+        // Построение WHERE
+        $where = [];
+        $params = [];
+        
+        if ($role_filter !== 'all') {
+            $where[] = "role = %s";
+            $params[] = $role_filter;
+        }
+        
+        if ($status_filter !== 'all') {
+            $where[] = "status = %s";
+            $params[] = $status_filter;
+        }
+        
+        if (!empty($search)) {
+            $where[] = "(name LIKE '%%%s%%' OR email LIKE '%%%s%%' OR phone LIKE '%%%s%%')";
+            $params[] = $search;
+            $params[] = $search;
+            $params[] = $search;
+        }
+        
+        $where_clause = !empty($where) ? "WHERE " . implode(" AND ", $where) : "";
+        
+        // Сортировка
+        $orderby = isset($_GET['orderby']) ? sanitize_sql_orderby($_GET['orderby']) : 'created_at';
+        $order = isset($_GET['order']) && strtoupper($_GET['order']) === 'ASC' ? 'ASC' : 'DESC';
+        
+        // Получение общего количества
+        $count_query = "SELECT COUNT(*) FROM {$this->table_name} {$where_clause}";
+        if (!empty($params)) {
+            $count_query = $wpdb->prepare($count_query, $params);
+        }
+        $total_items = $wpdb->get_var($count_query);
+        
+        // Получение данных
+        $query = "SELECT * FROM {$this->table_name} {$where_clause} ORDER BY {$orderby} {$order} LIMIT %d OFFSET %d";
+        $params[] = $per_page;
+        $params[] = $offset;
+        
+        $query = $wpdb->prepare($query, $params);
+        $this->items = $wpdb->get_results($query);
+        
+        // Настройка пагинации
+        $this->set_pagination_args([
+            'total_items' => $total_items,
+            'per_page' => $per_page,
+            'total_pages' => ceil($total_items / $per_page)
+        ]);
+        
         $this->process_bulk_action();
-
-        $this->items = $this->get_users();
     }
-
+    
     /**
-     * Определение колонок таблицы
+     * Определение колонок
      */
     public function get_columns() {
         return [
-            'cb'        => '<input type="checkbox" />',
-            'id'        => __('ID', 'akpp-crm'),
-            'full_name' => __('ФИО', 'akpp-crm'),
-            'email'     => __('Email', 'akpp-crm'),
-            'phone'     => __('Телефон', 'akpp-crm'),
-            'car_info'  => __('Автомобиль', 'akpp-crm'),
-            'registered'=> __('Дата регистрации', 'akpp-crm'),
-            'actions'   => __('Действия', 'akpp-crm')
+            'cb' => '<input type="checkbox" />',
+            'id' => 'ID',
+            'name' => 'ФИО',
+            'contact' => 'Контакты',
+            'car_brand' => 'Автомобиль',
+            'role' => 'Роль',
+            'status' => 'Статус',
+            'last_login' => 'Последний вход',
+            'created_at' => 'Дата регистрации',
+            'actions' => 'Действия'
         ];
     }
-
+    
     /**
      * Сортируемые колонки
      */
     public function get_sortable_columns() {
         return [
-            'id'         => ['su.id', true],
-            'full_name'  => ['su.full_name', false],
-            'registered' => ['u.user_registered', false]
+            'id' => ['id', false],
+            'name' => ['name', true],
+            'created_at' => ['created_at', true],
+            'last_login' => ['last_login', false],
+            'status' => ['status', false]
         ];
     }
-
-    /**
-     * Колонка с чекбоксом для массовых действий
-     */
-    public function column_cb($item) {
-        return sprintf('<input type="checkbox" name="user[]" value="%s" />', $item['id']);
-    }
-
-    /**
-     * Колонка ID
-     */
-    public function column_id($item) {
-        return '<strong>#' . esc_html($item['id']) . '</strong>';
-    }
-
-    /**
-     * Колонка ФИО (с быстрыми действиями)
-     */
-    public function column_full_name($item) {
-        $name = !empty($item['full_name']) ? esc_html($item['full_name']) : '—';
-
-        $edit_url = add_query_arg([
-            'page'    => 'akpp-users',
-            'action'  => 'edit',
-            'id'      => $item['id'],
-            '_wpnonce' => wp_create_nonce('akpp_edit_user_' . $item['id'])
-        ], admin_url('admin.php'));
-
-        $actions = [
-            'edit' => sprintf('<a href="%s">Редактировать</a>', esc_url($edit_url)),
-            'wp_profile' => sprintf(
-                '<a href="%s" target="_blank">Профиль WP</a>',
-                esc_url(get_edit_user_link($item['wp_user_id']))
-            )
-        ];
-
-        return sprintf('<strong>%1$s</strong> %2$s', $name, $this->row_actions($actions));
-    }
-
-    /**
-     * Колонка Email
-     */
-    public function column_email($item) {
-        if (!empty($item['user_email'])) {
-            return '<a href="mailto:' . esc_attr($item['user_email']) . '">' . esc_html($item['user_email']) . '</a>';
-        }
-        return '—';
-    }
-
-    /**
-     * Колонка Телефон
-     */
-    public function column_phone($item) {
-        if (!empty($item['phone'])) {
-            return '<a href="tel:' . esc_attr($item['phone']) . '">' . esc_html($item['phone']) . '</a>';
-        }
-        return '—';
-    }
-
-    /**
-     * Колонка Автомобиль
-     */
-    public function column_car_info($item) {
-        return !empty($item['car_info']) ? esc_html($item['car_info']) : '—';
-    }
-
-    /**
-     * Колонка Дата регистрации
-     */
-    public function column_registered($item) {
-        if (!empty($item['user_registered'])) {
-            return date('d.m.Y H:i', strtotime($item['user_registered']));
-        }
-        return '—';
-    }
-
-    /**
-     * Колонка Действия
-     */
-    public function column_actions($item) {
-        $delete_url = wp_nonce_url(
-            add_query_arg([
-                'page'   => 'akpp-users',
-                'action' => 'delete',
-                'id'     => $item['id']
-            ], admin_url('admin.php')),
-            'akpp_delete_user_' . $item['id']
-        );
-
-        return sprintf(
-            '<a href="%s" class="button button-small" target="_blank">Профиль</a> ' .
-            '<a href="%s" class="button button-small button-link-delete" onclick="return confirm(\'Удалить пользователя?\');">Удалить</a>',
-            esc_url(get_author_posts_url($item['wp_user_id'])),
-            esc_url($delete_url)
-        );
-    }
-
-    /**
-     * Значение по умолчанию для колонок
-     */
-    public function column_default($item, $column_name) {
-        return isset($item[$column_name]) ? esc_html($item[$column_name]) : '—';
-    }
-
+    
     /**
      * Массовые действия
      */
     public function get_bulk_actions() {
         return [
-            'delete' => __('Удалить', 'akpp-crm')
+            'activate' => 'Активировать',
+            'deactivate' => 'Деактивировать',
+            'delete' => 'Удалить',
+            'export' => 'Экспорт в CSV'
         ];
     }
-
+    
     /**
-     * Обработка массовых и одиночных действий
+     * Обработка массовых действий
      */
     public function process_bulk_action() {
         global $wpdb;
-        $table_name = $wpdb->prefix . 'akpp_site_users';
-
-        // Одиночное удаление
-        if ('delete' === $this->current_action() && isset($_GET['id'])) {
-            $id = intval($_GET['id']);
-            check_admin_referer('akpp_delete_user_' . $id);
-
-            // Получаем wp_user_id для удаления связанного пользователя WP
-            $wp_user_id = $wpdb->get_var($wpdb->prepare(
-                "SELECT wp_user_id FROM $table_name WHERE id = %d", $id
-            ));
-
-            // Удаляем из таблицы site_users
-            $wpdb->delete($table_name, ['id' => $id]);
-
-            // Опционально: удалить пользователя WP (раскомментируйте если нужно)
-            // if ($wp_user_id && function_exists('wp_delete_user')) {
-            //     require_once(ABSPATH . 'wp-admin/includes/user.php');
-            //     wp_delete_user($wp_user_id);
-            // }
-
-            wp_redirect(add_query_arg([
-                'page'    => 'akpp-users',
-                'deleted' => '1'
-            ], admin_url('admin.php')));
-            exit;
-        }
-
-        // Массовое удаление
-        if ('delete' === $this->current_action() && isset($_POST['user']) && is_array($_POST['user'])) {
-            check_admin_referer('bulk-' . $this->_args['plural']);
-            $ids = array_map('intval', $_POST['user']);
-            $ids_str = implode(',', $ids);
-
-            $wpdb->query("DELETE FROM $table_name WHERE id IN ($ids_str)");
-
-            wp_redirect(add_query_arg([
-                'page'    => 'akpp-users',
-                'deleted' => count($ids)
-            ], admin_url('admin.php')));
-            exit;
+        
+        if (!$this->current_action()) return;
+        
+        $user_ids = isset($_GET['user']) ? array_map('intval', $_GET['user']) : [];
+        
+        if (empty($user_ids)) return;
+        
+        $ids_placeholder = implode(',', array_fill(0, count($user_ids), '%d'));
+        
+        switch ($this->current_action()) {
+            case 'activate':
+                $wpdb->query($wpdb->prepare(
+                    "UPDATE {$this->table_name} SET status = 'active' WHERE id IN ({$ids_placeholder})",
+                    $user_ids
+                ));
+                echo '<div class="notice notice-success"><p>Пользователи активированы</p></div>';
+                break;
+                
+            case 'deactivate':
+                $wpdb->query($wpdb->prepare(
+                    "UPDATE {$this->table_name} SET status = 'inactive' WHERE id IN ({$ids_placeholder})",
+                    $user_ids
+                ));
+                echo '<div class="notice notice-success"><p>Пользователи деактивированы</p></div>';
+                break;
+                
+            case 'delete':
+                $wpdb->query($wpdb->prepare(
+                    "DELETE FROM {$this->table_name} WHERE id IN ({$ids_placeholder})",
+                    $user_ids
+                ));
+                echo '<div class="notice notice-success"><p>Пользователи удалены</p></div>';
+                break;
+                
+            case 'export':
+                $this->export_to_csv($user_ids);
+                break;
         }
     }
-
+    
     /**
-     * Сообщение при отсутствии данных
+     * Экспорт в CSV
+     */
+    private function export_to_csv($ids) {
+        global $wpdb;
+        
+        $ids_placeholder = implode(',', array_fill(0, count($ids), '%d'));
+        $users = $wpdb->get_results($wpdb->prepare(
+            "SELECT * FROM {$this->table_name} WHERE id IN ({$ids_placeholder})",
+            $ids
+        ));
+        
+        header('Content-Type: text/csv; charset=utf-8');
+        header('Content-Disposition: attachment; filename="users_export_' . date('Y-m-d') . '.csv"');
+        
+        $output = fopen('php://output', 'w');
+        fputcsv($output, ['ID', 'ФИО', 'Email', 'Телефон', 'Автомобиль', 'Роль', 'Статус', 'Дата регистрации']);
+        
+        foreach ($users as $user) {
+            fputcsv($output, [
+                $user->id,
+                $user->name,
+                $user->email,
+                $user->phone,
+                $user->car_brand,
+                $user->role,
+                $user->status,
+                $user->created_at
+            ]);
+        }
+        
+        fclose($output);
+        exit;
+    }
+    
+    /**
+     * Отображение колонки cb (чекбокс)
+     */
+    protected function column_cb($item) {
+        return sprintf('<input type="checkbox" name="user[]" value="%s" />', $item->id);
+    }
+    
+    /**
+     * Отображение колонки ID
+     */
+    protected function column_id($item) {
+        return $item->id;
+    }
+    
+    /**
+     * Отображение колонки имени
+     */
+    protected function column_name($item) {
+        return '<strong>' . esc_html($item->name) . '</strong>';
+    }
+    
+    /**
+     * Отображение колонки контактов
+     */
+    protected function column_contact($item) {
+        $contact = '';
+        
+        if ($item->email) {
+            $contact .= '<div>✉️ ' . esc_html($item->email) . '</div>';
+        }
+        if ($item->phone) {
+            $contact .= '<div>📞 ' . esc_html($item->phone) . '</div>';
+        }
+        
+        return !empty($contact) ? $contact : '—';
+    }
+    
+    /**
+     * Отображение колонки автомобиля
+     */
+    protected function column_car_brand($item) {
+        return !empty($item->car_brand) ? esc_html($item->car_brand) : '—';
+    }
+    
+    /**
+     * Отображение колонки роли
+     */
+    protected function column_role($item) {
+        $roles = [
+            'client' => '👤 Клиент',
+            'admin' => '👑 Администратор',
+            'manager' => '📋 Менеджер'
+        ];
+        
+        return $roles[$item->role] ?? $item->role;
+    }
+    
+    /**
+     * Отображение колонки статуса
+     */
+    protected function column_status($item) {
+        if ($item->status === 'active') {
+            return '<span class="status-badge status-active">🟢 Активен</span>';
+        } else {
+            return '<span class="status-badge status-inactive">🔴 Неактивен</span>';
+        }
+    }
+    
+    /**
+     * Отображение колонки последнего входа
+     */
+    protected function column_last_login($item) {
+        if ($item->last_login) {
+            return date_i18n(get_option('date_format') . ' ' . get_option('time_format'), strtotime($item->last_login));
+        }
+        return '—';
+    }
+    
+    /**
+     * Отображение колонки даты регистрации
+     */
+    protected function column_created_at($item) {
+        return date_i18n(get_option('date_format'), strtotime($item->created_at));
+    }
+    
+    /**
+     * Отображение колонки действий
+     */
+    protected function column_actions($item) {
+        $actions = sprintf(
+            '<a href="?page=akpp-crm-users&action=edit&id=%d" class="button button-small">✏️ Ред.</a> ',
+            $item->id
+        );
+        
+        if ($item->status === 'active') {
+            $actions .= sprintf(
+                '<button class="button button-small deactivate-user" data-id="%d">🔴 Деакт.</button> ',
+                $item->id
+            );
+        } else {
+            $actions .= sprintf(
+                '<button class="button button-small activate-user" data-id="%d">🟢 Акт.</button> ',
+                $item->id
+            );
+        }
+        
+        $actions .= sprintf(
+            '<button class="button button-small delete-user" data-id="%d">🗑️</button>',
+            $item->id
+        );
+        
+        return $actions;
+    }
+    
+    /**
+     * Отображение по умолчанию для неизвестных колонок
+     */
+    protected function column_default($item, $column_name) {
+        return isset($item->$column_name) ? esc_html($item->$column_name) : '—';
+    }
+    
+    /**
+     * Фильтры над таблицей
+     */
+    protected function extra_tablenav($which) {
+        if ($which !== 'top') return;
+        
+        $role_filter = isset($_GET['role_filter']) ? sanitize_text_field($_GET['role_filter']) : 'all';
+        $status_filter = isset($_GET['status_filter']) ? sanitize_text_field($_GET['status_filter']) : 'all';
+        ?>
+        <div class="alignleft actions">
+            <select name="role_filter">
+                <option value="all" <?php selected($role_filter, 'all'); ?>>Все роли</option>
+                <option value="client" <?php selected($role_filter, 'client'); ?>>👤 Клиенты</option>
+                <option value="admin" <?php selected($role_filter, 'admin'); ?>>👑 Администраторы</option>
+                <option value="manager" <?php selected($role_filter, 'manager'); ?>>📋 Менеджеры</option>
+            </select>
+            
+            <select name="status_filter">
+                <option value="all" <?php selected($status_filter, 'all'); ?>>Все статусы</option>
+                <option value="active" <?php selected($status_filter, 'active'); ?>>Активные</option>
+                <option value="inactive" <?php selected($status_filter, 'inactive'); ?>>Неактивные</option>
+            </select>
+            
+            <input type="submit" name="filter_action" class="button" value="Фильтровать">
+        </div>
+        <?php
+    }
+    
+    /**
+     * Отображение, если нет данных
      */
     public function no_items() {
-        _e('Зарегистрированных клиентов пока нет.', 'akpp-crm');
+        echo 'Нет пользователей для отображения';
     }
 }
