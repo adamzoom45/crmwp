@@ -80,15 +80,17 @@ class AKPP_AJAX {
         add_action('wp_ajax_akpp_decode_vin', [$this, 'ajax_decode_vin']);
         add_action('wp_ajax_nopriv_akpp_decode_vin', [$this, 'ajax_decode_vin']);
         
-        // Регистрация и авторизация (доступны неавторизованным)
+        // Регистрация и авторизация
         add_action('wp_ajax_akpp_register', [$this, 'ajax_register']);
         add_action('wp_ajax_nopriv_akpp_register', [$this, 'ajax_register']);
         add_action('wp_ajax_akpp_login', [$this, 'ajax_login']);
         add_action('wp_ajax_nopriv_akpp_login', [$this, 'ajax_login']);
         
-        // Push
+        // Push уведомления
         add_action('wp_ajax_akpp_save_push_token', [$this, 'ajax_save_push_token']);
         add_action('wp_ajax_nopriv_akpp_save_push_token', [$this, 'ajax_save_push_token']);
+        add_action('wp_ajax_akpp_delete_push_token', [$this, 'ajax_delete_push_token']);
+        add_action('wp_ajax_nopriv_akpp_delete_push_token', [$this, 'ajax_delete_push_token']);
         
         // Telegram
         add_action('wp_ajax_akpp_save_telegram_settings', [$this, 'ajax_save_telegram_settings']);
@@ -274,6 +276,9 @@ class AKPP_AJAX {
             ['%d', '%d', '%s', '%d', '%s']
         );
         
+        // Отправляем push уведомление получателю
+        $this->notify_new_message($receiver_id, $user_id, $message);
+        
         wp_send_json_success(['message' => 'Сообщение отправлено']);
     }
     
@@ -305,6 +310,21 @@ class AKPP_AJAX {
                     LIMIT 50",
                     $user_id, $with_user, $with_user, $user_id
                 )
+            );
+        }
+        
+        // Отмечаем сообщения как прочитанные
+        if ($with_user > 0) {
+            $wpdb->update(
+                $table_chat,
+                ['is_read' => 1],
+                [
+                    'sender_id' => $with_user,
+                    'receiver_id' => $user_id,
+                    'is_read' => 0
+                ],
+                ['%d'],
+                ['%d', '%d', '%d']
             );
         }
         
@@ -519,30 +539,65 @@ class AKPP_AJAX {
     // ==================== PUSH УВЕДОМЛЕНИЯ ====================
     
     public function ajax_save_push_token() {
-        global $wpdb;
+        if (!check_ajax_referer('akpp_save_push_token_nonce', 'nonce', false)) {
+            wp_send_json_error('Неверный security токен');
+            return;
+        }
+        
+        $token = isset($_POST['token']) ? sanitize_text_field($_POST['token']) : '';
+        $device_type = isset($_POST['device_type']) ? sanitize_text_field($_POST['device_type']) : 'web';
+        $user_id = get_current_user_id();
+        
+        if (empty($token)) {
+            wp_send_json_error('Token не передан');
+            return;
+        }
+        
+        if (!$user_id) {
+            wp_send_json_error('Пользователь не авторизован');
+            return;
+        }
+        
+        if (!class_exists('AKPP_Push')) {
+            require_once AKPP_CRM_PATH . 'class-akpp-push.php';
+        }
+        
+        $push = AKPP_Push::get_instance();
+        $result = $push->save_token($user_id, $token, $device_type);
+        
+        if ($result) {
+            wp_send_json_success(['message' => 'Push токен сохранен']);
+        } else {
+            wp_send_json_error('Ошибка сохранения токена');
+        }
+    }
+    
+    public function ajax_delete_push_token() {
+        if (!check_ajax_referer('akpp_delete_push_token_nonce', 'nonce', false)) {
+            wp_send_json_error('Неверный security токен');
+            return;
+        }
         
         $token = isset($_POST['token']) ? sanitize_text_field($_POST['token']) : '';
         $user_id = get_current_user_id();
         
-        if (empty($token) || !$user_id) {
-            wp_send_json_error('Неверные данные');
+        if (empty($token)) {
+            wp_send_json_error('Token не передан');
             return;
         }
         
-        $table_tokens = $wpdb->prefix . 'akpp_push_tokens';
+        if (!class_exists('AKPP_Push')) {
+            require_once AKPP_CRM_PATH . 'class-akpp-push.php';
+        }
         
-        $wpdb->replace(
-            $table_tokens,
-            [
-                'user_id' => $user_id,
-                'token' => $token,
-                'device_type' => 'web',
-                'created_at' => current_time('mysql')
-            ],
-            ['%d', '%s', '%s', '%s']
-        );
+        $push = AKPP_Push::get_instance();
+        $result = $push->delete_token($user_id, $token);
         
-        wp_send_json_success(['message' => 'Push токен сохранен']);
+        if ($result) {
+            wp_send_json_success(['message' => 'Push токен удален']);
+        } else {
+            wp_send_json_error('Ошибка удаления токена');
+        }
     }
     
     // ==================== TELEGRAM ====================
@@ -702,15 +757,60 @@ class AKPP_AJAX {
     }
     
     private function notify_guide_new_lead($guide_id, $client_name, $client_phone) {
-        if (class_exists('AKPP_Push')) {
-            $push = AKPP_Push::get_instance();
-            if (method_exists($push, 'send_to_employee')) {
-                $push->send_to_employee(
-                    $guide_id,
-                    '🆕 Новый лид в CRM!',
-                    "{$client_name}, {$client_phone} - ожидает обработки"
-                );
-            }
+        if (!class_exists('AKPP_Push')) {
+            require_once AKPP_CRM_PATH . 'class-akpp-push.php';
+        }
+        
+        $push = AKPP_Push::get_instance();
+        
+        $push->send_to_employee(
+            $guide_id,
+            '🆕 Новый лид в CRM!',
+            "{$client_name}, {$client_phone} - ожидает обработки",
+            ['type' => 'lead', 'action' => 'view_lead']
+        );
+        
+        $this->log_event("Push уведомление отправлено гиду {$guide_id} по лиду {$client_name}");
+    }
+    
+    private function notify_new_message($receiver_id, $sender_id, $message) {
+        global $wpdb;
+        
+        $table_users = $wpdb->prefix . 'akpp_site_users';
+        
+        $sender = $wpdb->get_row($wpdb->prepare(
+            "SELECT name FROM {$table_users} WHERE id = %d",
+            $sender_id
+        ));
+        
+        $sender_name = $sender ? $sender->name : 'Пользователь';
+        $message_preview = mb_substr($message, 0, 50) . (mb_strlen($message) > 50 ? '...' : '');
+        
+        if (!class_exists('AKPP_Push')) {
+            require_once AKPP_CRM_PATH . 'class-akpp-push.php';
+        }
+        
+        $push = AKPP_Push::get_instance();
+        
+        $user = $wpdb->get_row($wpdb->prepare(
+            "SELECT role FROM {$table_users} WHERE id = %d",
+            $receiver_id
+        ));
+        
+        if ($user && $user->role === 'client') {
+            $push->send_to_client(
+                $receiver_id,
+                '📩 Новое сообщение от ' . $sender_name,
+                $message_preview,
+                ['type' => 'chat', 'action' => 'open_chat', 'sender_id' => $sender_id]
+            );
+        } else {
+            $push->send_to_employee(
+                $receiver_id,
+                '📩 Новое сообщение от ' . $sender_name,
+                $message_preview,
+                ['type' => 'chat', 'action' => 'open_chat', 'sender_id' => $sender_id]
+            );
         }
     }
     
