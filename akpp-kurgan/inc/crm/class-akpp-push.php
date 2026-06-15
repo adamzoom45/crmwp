@@ -1,220 +1,418 @@
 <?php
-if (!defined('ABSPATH')) exit;
+/**
+ * Класс для управления Push уведомлениями (FCM)
+ * 
+ * @package AKPP45_CRM
+ */
+
+if (!defined('ABSPATH')) {
+    exit;
+}
 
 class AKPP_Push {
     
-    private $server_key;
-
-    public function __construct() {
-        // Загружаем Server Key из настроек WordPress
-        $this->server_key = get_option('akpp_fcm_server_key', '');
-
-        // AJAX хуки
-        add_action('wp_ajax_akpp_save_push_token', [$this, 'ajax_save_push_token']);
-        add_action('wp_ajax_nopriv_akpp_save_push_token', [$this, 'ajax_save_push_token']); // Для неавторизованных (если нужно)
-        add_action('wp_ajax_akpp_send_push_notification', [$this, 'ajax_send_push_notification']);
+    private static $instance = null;
+    private $fcm_server_key = '';
+    private $fcm_api_url = 'https://fcm.googleapis.com/v1/projects/';
+    private $project_id = '';
+    
+    public static function get_instance() {
+        if (self::$instance === null) {
+            self::$instance = new self();
+        }
+        return self::$instance;
     }
-
+    
+    private function __construct() {
+        $this->load_settings();
+    }
+    
+    private function load_settings() {
+        $this->fcm_server_key = get_option('akpp_fcm_server_key', '');
+        $this->project_id = get_option('akpp_fcm_project_id', '');
+    }
+    
     /**
-     * Сохранение FCM токена устройства в базу данных
+     * Сохранение настроек FCM
      */
-    public function save_push_token($token, $device_type = 'android') {
-        if (empty($token)) {
+    public function save_settings($server_key, $project_id) {
+        update_option('akpp_fcm_server_key', sanitize_text_field($server_key));
+        update_option('akpp_fcm_project_id', sanitize_text_field($project_id));
+        $this->fcm_server_key = $server_key;
+        $this->project_id = $project_id;
+        return true;
+    }
+    
+    /**
+     * Сохранение push токена пользователя
+     */
+    public function save_token($user_id, $token, $device_type = 'web') {
+        global $wpdb;
+        
+        $table_tokens = $wpdb->prefix . 'akpp_push_tokens';
+        
+        $wpdb->replace(
+            $table_tokens,
+            [
+                'user_id' => $user_id,
+                'token' => $token,
+                'device_type' => $device_type,
+                'created_at' => current_time('mysql')
+            ],
+            ['%d', '%s', '%s', '%s']
+        );
+        
+        $this->log_event("Push токен сохранен для пользователя {$user_id}");
+        return true;
+    }
+    
+    /**
+     * Удаление токена пользователя
+     */
+    public function delete_token($user_id, $token) {
+        global $wpdb;
+        
+        $table_tokens = $wpdb->prefix . 'akpp_push_tokens';
+        
+        $wpdb->delete(
+            $table_tokens,
+            [
+                'user_id' => $user_id,
+                'token' => $token
+            ],
+            ['%d', '%s']
+        );
+        
+        return true;
+    }
+    
+    /**
+     * Отправка уведомления сотруднику
+     */
+    public function send_to_employee($employee_id, $title, $body, $data = []) {
+        global $wpdb;
+        
+        $table_tokens = $wpdb->prefix . 'akpp_push_tokens';
+        
+        $tokens = $wpdb->get_col($wpdb->prepare(
+            "SELECT token FROM {$table_tokens} WHERE user_id = %d",
+            $employee_id
+        ));
+        
+        if (empty($tokens)) {
+            $this->log_event("Нет push токенов для сотрудника {$employee_id}");
             return false;
         }
-
-        global $wpdb;
-        $table = $wpdb->prefix . 'akpp_push_tokens';
-        $user_id = get_current_user_id();
-
-        // Проверяем, есть ли уже такой токен
-        $exists = $wpdb->get_var($wpdb->prepare(
-            "SELECT id FROM $table WHERE token = %s",
-            $token
-        ));
-
-        if ($exists) {
-            // Обновляем привязку к пользователю, если он вошел в систему
-            $wpdb->update(
-                $table,
-                ['user_id' => $user_id],
-                ['token' => $token]
-            );
-            return true;
-        } else {
-            // Добавляем новый токен
-            $wpdb->insert(
-                $table,
-                [
-                    'user_id' => $user_id,
-                    'token' => sanitize_text_field($token),
-                    'device_type' => sanitize_text_field($device_type)
-                ],
-                ['%d', '%s', '%s']
-            );
-            return true;
-        }
+        
+        return $this->send_notification($tokens, $title, $body, $data);
     }
-
+    
     /**
-     * Отправка push-уведомления через FCM API
-     *
-     * @param array $tokens Массив FCM токенов
-     * @param string $title Заголовок уведомления
-     * @param string $body Текст уведомления
-     * @param array $data Дополнительные данные (например, ID сделки для глубокой ссылки)
-     * @return array Результат отправки
+     * Отправка уведомления клиенту
+     */
+    public function send_to_client($client_id, $title, $body, $data = []) {
+        global $wpdb;
+        
+        $table_tokens = $wpdb->prefix . 'akpp_push_tokens';
+        
+        $tokens = $wpdb->get_col($wpdb->prepare(
+            "SELECT token FROM {$table_tokens} WHERE user_id = %d",
+            $client_id
+        ));
+        
+        if (empty($tokens)) {
+            $this->log_event("Нет push токенов для клиента {$client_id}");
+            return false;
+        }
+        
+        return $this->send_notification($tokens, $title, $body, $data);
+    }
+    
+    /**
+     * Отправка уведомления всем пользователям с ролью
+     */
+    public function send_to_role($role, $title, $body, $data = []) {
+        global $wpdb;
+        
+        $table_users = $wpdb->prefix . 'akpp_site_users';
+        $table_tokens = $wpdb->prefix . 'akpp_push_tokens';
+        
+        $users = $wpdb->get_col($wpdb->prepare(
+            "SELECT u.id FROM {$table_users} u 
+            WHERE u.role = %s AND u.status = 'active'",
+            $role
+        ));
+        
+        if (empty($users)) {
+            return false;
+        }
+        
+        $tokens = $wpdb->get_col(
+            "SELECT token FROM {$table_tokens} 
+            WHERE user_id IN (" . implode(',', array_map('intval', $users)) . ")"
+        );
+        
+        if (empty($tokens)) {
+            return false;
+        }
+        
+        return $this->send_notification($tokens, $title, $body, $data);
+    }
+    
+    /**
+     * Отправка уведомления через FCM (Legacy API)
      */
     public function send_notification($tokens, $title, $body, $data = []) {
-        if (empty($this->server_key)) {
-            return ['error' => 'FCM Server Key не настроен в админке'];
+        if (empty($this->fcm_server_key)) {
+            $this->log_error('FCM Server Key не настроен');
+            return false;
         }
-
+        
         if (empty($tokens)) {
-            return ['error' => 'Список токенов пуст'];
+            return false;
         }
-
-        // Ограничение FCM: максимум 1000 токенов за один запрос
-        $tokens = array_slice($tokens, 0, 1000);
-
+        
+        $tokens = (array)$tokens;
+        
         $payload = [
             'registration_ids' => $tokens,
             'notification' => [
                 'title' => $title,
                 'body' => $body,
-                'sound' => 'default',
-                'color' => '#00ff88' // Цвет иконки для Android
+                'icon' => 'https://akpp45.ru/favicon.ico',
+                'click_action' => isset($data['url']) ? $data['url'] : home_url('/crm-profile')
             ],
-            'data' => $data, // Скрытые данные для приложения (например, 'deal_id' => 123)
+            'data' => array_merge($data, [
+                'title' => $title,
+                'body' => $body,
+                'click_action' => isset($data['url']) ? $data['url'] : home_url('/crm-profile')
+            ]),
             'priority' => 'high'
         ];
-
-        $response = wp_remote_post('https://fcm.googleapis.com/fcm/send', [
+        
+        $args = [
+            'method' => 'POST',
+            'timeout' => 30,
             'headers' => [
-                'Authorization' => 'key=' . $this->server_key,
+                'Authorization' => 'key=' . $this->fcm_server_key,
                 'Content-Type' => 'application/json'
             ],
-            'body' => json_encode($payload),
-            'timeout' => 15
-        ]);
-
-        if (is_wp_error($response)) {
-            return ['error' => 'Ошибка соединения с FCM: ' . $response->get_error_message()];
-        }
-
-        $result = json_decode(wp_remote_retrieve_body($response), true);
-
-        if (isset($result['error'])) {
-            return ['error' => 'FCM API Error: ' . $result['error']];
-        }
-
-        // Очистка невалидных токенов из базы (опционально, но полезно)
-        if (isset($result['results']) && is_array($result['results'])) {
-            $this->cleanup_invalid_tokens($tokens, $result['results']);
-        }
-
-        return [
-            'success' => true,
-            'success_count' => $result['success'] ?? 0,
-            'failure_count' => $result['failure'] ?? 0,
-            'details' => $result
+            'body' => json_encode($payload)
         ];
-    }
-
-    /**
-     * Отправка уведомления конкретному пользователю по его WP User ID
-     */
-    public function notify_user($user_id, $title, $body, $data = []) {
-        global $wpdb;
-        $table = $wpdb->prefix . 'akpp_push_tokens';
         
-        $tokens = $wpdb->get_col($wpdb->prepare(
-            "SELECT token FROM $table WHERE user_id = %d",
-            $user_id
-        ));
-
-        if (!empty($tokens)) {
-            return $this->send_notification($tokens, $title, $body, $data);
+        $response = wp_remote_post('https://fcm.googleapis.com/fcm/send', $args);
+        
+        if (is_wp_error($response)) {
+            $this->log_error('Ошибка отправки push: ' . $response->get_error_message());
+            return false;
         }
-
-        return ['error' => 'У пользователя нет сохраненных push-токенов'];
-    }
-
-    /**
-     * Массовая рассылка всем активным устройствам
-     */
-    public function broadcast_notification($title, $body, $data = []) {
-        global $wpdb;
-        $table = $wpdb->prefix . 'akpp_push_tokens';
         
-        $tokens = $wpdb->get_col("SELECT token FROM $table");
+        $body = wp_remote_retrieve_body($response);
+        $result = json_decode($body, true);
         
-        if (!empty($tokens)) {
-            return $this->send_notification($tokens, $title, $body, $data);
+        if (isset($result['failure']) && $result['failure'] > 0) {
+            $this->handle_failed_tokens($tokens, $result);
         }
-
-        return ['error' => 'Нет сохраненных токенов для рассылки'];
+        
+        $this->log_event("Push отправлен: {$title} - {$body}");
+        return true;
     }
-
+    
     /**
-     * Очистка базы от невалидных токенов (например, "NotRegistered" или "InvalidRegistration")
+     * Отправка через FCM v1 API (более новый)
      */
-    private function cleanup_invalid_tokens($sent_tokens, $results) {
+    public function send_notification_v1($token, $title, $body, $data = []) {
+        if (empty($this->project_id)) {
+            $this->log_error('FCM Project ID не настроен');
+            return false;
+        }
+        
+        $access_token = $this->get_fcm_access_token();
+        if (!$access_token) {
+            return false;
+        }
+        
+        $url = $this->fcm_api_url . $this->project_id . '/messages:send';
+        
+        $payload = [
+            'message' => [
+                'token' => $token,
+                'notification' => [
+                    'title' => $title,
+                    'body' => $body
+                ],
+                'data' => $data,
+                'android' => [
+                    'priority' => 'high'
+                ],
+                'apns' => [
+                    'headers' => [
+                        'apns-priority' => '10'
+                    ]
+                ]
+            ]
+        ];
+        
+        $args = [
+            'method' => 'POST',
+            'timeout' => 30,
+            'headers' => [
+                'Authorization' => 'Bearer ' . $access_token,
+                'Content-Type' => 'application/json'
+            ],
+            'body' => json_encode($payload)
+        ];
+        
+        $response = wp_remote_post($url, $args);
+        
+        if (is_wp_error($response)) {
+            $this->log_error('Ошибка отправки push v1: ' . $response->get_error_message());
+            return false;
+        }
+        
+        return true;
+    }
+    
+    /**
+     * Получение access token для FCM v1
+     */
+    private function get_fcm_access_token() {
+        $credentials_file = WP_CONTENT_DIR . '/fcm-credentials.json';
+        
+        if (!file_exists($credentials_file)) {
+            $this->log_error('Файл credentials.json не найден');
+            return false;
+        }
+        
+        $credentials = json_decode(file_get_contents($credentials_file), true);
+        
+        $jwt = $this->generate_jwt($credentials);
+        
+        $args = [
+            'method' => 'POST',
+            'timeout' => 30,
+            'headers' => [
+                'Content-Type' => 'application/x-www-form-urlencoded'
+            ],
+            'body' => http_build_query([
+                'grant_type' => 'urn:ietf:params:oauth:grant-type:jwt-bearer',
+                'assertion' => $jwt
+            ])
+        ];
+        
+        $response = wp_remote_post('https://oauth2.googleapis.com/token', $args);
+        
+        if (is_wp_error($response)) {
+            return false;
+        }
+        
+        $body = json_decode(wp_remote_retrieve_body($response), true);
+        
+        return isset($body['access_token']) ? $body['access_token'] : false;
+    }
+    
+    /**
+     * Генерация JWT для FCM v1
+     */
+    private function generate_jwt($credentials) {
+        $header = json_encode(['alg' => 'RS256', 'typ' => 'JWT']);
+        $claims = json_encode([
+            'iss' => $credentials['client_email'],
+            'scope' => 'https://www.googleapis.com/auth/firebase.messaging',
+            'aud' => 'https://oauth2.googleapis.com/token',
+            'exp' => time() + 3600,
+            'iat' => time()
+        ]);
+        
+        $base64_header = str_replace(['+', '/', '='], ['-', '_', ''], base64_encode($header));
+        $base64_claims = str_replace(['+', '/', '='], ['-', '_', ''], base64_encode($claims));
+        
+        $signature_input = $base64_header . '.' . $base64_claims;
+        
+        $private_key = openssl_get_privatekey($credentials['private_key']);
+        openssl_sign($signature_input, $signature, $private_key, 'SHA256');
+        
+        $base64_signature = str_replace(['+', '/', '='], ['-', '_', ''], base64_encode($signature));
+        
+        return $signature_input . '.' . $base64_signature;
+    }
+    
+    /**
+     * Обработка неудачных токенов (удаляем невалидные)
+     */
+    private function handle_failed_tokens($tokens, $result) {
         global $wpdb;
-        $table = $wpdb->prefix . 'akpp_push_tokens';
-
-        foreach ($results as $index => $result) {
-            if (isset($result['error']) && in_array($result['error'], ['NotRegistered', 'InvalidRegistration', 'MismatchSenderId'])) {
-                $invalid_token = $sent_tokens[$index];
-                $wpdb->delete($table, ['token' => $invalid_token]);
+        
+        $table_tokens = $wpdb->prefix . 'akpp_push_tokens';
+        
+        if (isset($result['results']) && is_array($result['results'])) {
+            foreach ($result['results'] as $index => $res) {
+                if (isset($res['error']) && isset($tokens[$index])) {
+                    $error = $res['error'];
+                    if ($error === 'NotRegistered' || $error === 'InvalidRegistration') {
+                        $wpdb->delete(
+                            $table_tokens,
+                            ['token' => $tokens[$index]],
+                            ['%s']
+                        );
+                        $this->log_event("Удален невалидный токен: {$tokens[$index]}");
+                    }
+                }
             }
         }
     }
-
-    // --- AJAX ОБРАБОТЧИКИ ---
-
-    public function ajax_save_push_token() {
-        // Для сохранения токена можно использовать упрощенную проверку или свой nonce
-        $token = sanitize_text_field($_POST['token'] ?? '');
-        $device_type = sanitize_text_field($_POST['device_type'] ?? 'android');
-
-        if ($this->save_push_token($token, $device_type)) {
-            wp_send_json_success(['message' => 'Токен успешно сохранен']);
-        } else {
-            wp_send_json_error(['message' => 'Ошибка сохранения токена']);
+    
+    /**
+     * Тестовое уведомление
+     */
+    public function test_notification($token) {
+        return $this->send_notification([$token], 'Тестовое уведомление', 'Если вы видите это сообщение, push уведомления работают корректно!');
+    }
+    
+    /**
+     * Уведомление о новом сообщении в чате
+     */
+    public function notify_new_message($user_id, $sender_name, $message_preview) {
+        return $this->send_to_client(
+            $user_id,
+            '📩 Новое сообщение от ' . $sender_name,
+            $message_preview,
+            ['type' => 'chat', 'action' => 'open_chat']
+        );
+    }
+    
+    /**
+     * Уведомление об изменении статуса сделки
+     */
+    public function notify_deal_status_change($client_id, $deal_id, $old_status, $new_status) {
+        $status_labels = [
+            'new' => 'Новая',
+            'diagnostic' => 'Диагностика',
+            'in_work' => 'В работе',
+            'completed' => 'Выполнена',
+            'rejected' => 'Отклонена'
+        ];
+        
+        $old_label = $status_labels[$old_status] ?? $old_status;
+        $new_label = $status_labels[$new_status] ?? $new_status;
+        
+        return $this->send_to_client(
+            $client_id,
+            '🔄 Статус заказа изменен',
+            "Статус вашей сделки №{$deal_id}: {$old_label} → {$new_label}",
+            ['type' => 'deal', 'deal_id' => $deal_id]
+        );
+    }
+    
+    private function log_error($message) {
+        if (defined('WP_DEBUG_LOG') && WP_DEBUG_LOG) {
+            error_log('[AKPP_PUSH] ОШИБКА: ' . $message);
         }
     }
-
-    public function ajax_send_push_notification() {
-        check_ajax_referer('akpp_crm_nonce', 'nonce');
-        
-        if (!current_user_can('manage_options')) {
-            wp_send_json_error(['message' => 'Недостаточно прав']);
-        }
-
-        $title = sanitize_text_field($_POST['title'] ?? 'Тестовое уведомление');
-        $body = sanitize_text_field($_POST['body'] ?? 'Это тестовое push-уведомление из АКПП45 CRM');
-        $target = sanitize_text_field($_POST['target'] ?? 'all'); // 'all' или 'user'
-        $user_id = intval($_POST['user_id'] ?? 0);
-
-        $data = ['screen' => 'dashboard', 'timestamp' => time()];
-
-        if ($target === 'user' && $user_id > 0) {
-            $result = $this->notify_user($user_id, $title, $body, $data);
-        } else {
-            $result = $this->broadcast_notification($title, $body, $data);
-        }
-
-        if (isset($result['error'])) {
-            wp_send_json_error(['message' => $result['error']]);
-        } else {
-            wp_send_json_success([
-                'message' => 'Уведомление отправлено',
-                'details' => $result
-            ]);
+    
+    private function log_event($message) {
+        if (defined('WP_DEBUG_LOG') && WP_DEBUG_LOG) {
+            error_log('[AKPP_PUSH] СОБЫТИЕ: ' . $message);
         }
     }
 }
-
-// Инициализация
-new AKPP_Push();
