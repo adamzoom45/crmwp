@@ -132,6 +132,15 @@ class AKPP_AJAX {
         add_action('wp_ajax_akpp_delete_parser_item', [$this, 'ajax_delete_parser_item']);
         add_action('wp_ajax_akpp_bulk_parse', [$this, 'ajax_bulk_parse']);
         add_action('wp_ajax_akpp_export_parser_items', [$this, 'ajax_export_parser_items']);
+
+        // AI анализ
+        add_action('wp_ajax_akpp_run_ai_analysis', [$this, 'ajax_run_ai_analysis']);
+        add_action('wp_ajax_akpp_bulk_ai_analysis', [$this, 'ajax_bulk_ai_analysis']);
+        add_action('wp_ajax_akpp_save_openai_settings', [$this, 'ajax_save_openai_settings']);
+        add_action('wp_ajax_akpp_check_openai_key', [$this, 'ajax_check_openai_key']);
+        add_action('wp_ajax_akpp_analyze_image', [$this, 'ajax_analyze_image']);
+        add_action('wp_ajax_akpp_get_ai_statistics', [$this, 'ajax_get_ai_statistics']);
+        add_action('wp_ajax_akpp_reject_parser_item', [$this, 'ajax_reject_parser_item']);
     }
     
     // ==================== СДЕЛКИ ====================
@@ -2463,5 +2472,428 @@ public function ajax_export_parser_items() {
         fclose($output);
         exit;
     }
+}
+    /**
+ * ДОПОЛНЕНИЕ К ФАЙЛУ class-akpp-ajax.php
+ * Методы для AI анализа
+ */
+
+/**
+ * Запуск AI анализа для элемента парсера
+ */
+public function ajax_run_ai_analysis() {
+    if (!check_ajax_referer('akpp_run_ai_analysis_nonce', 'nonce', false)) {
+        wp_send_json_error('Неверный security токен');
+        return;
+    }
+    
+    if (!current_user_can('manage_options')) {
+        wp_send_json_error('Недостаточно прав');
+        return;
+    }
+    
+    $item_id = isset($_POST['item_id']) ? intval($_POST['item_id']) : 0;
+    
+    if (!$item_id) {
+        wp_send_json_error('ID элемента не передан');
+        return;
+    }
+    
+    global $wpdb;
+    $table = $wpdb->prefix . 'akpp_parser_items';
+    
+    $item = $wpdb->get_row($wpdb->prepare(
+        "SELECT * FROM {$table} WHERE id = %d",
+        $item_id
+    ));
+    
+    if (!$item) {
+        wp_send_json_error('Элемент не найден');
+        return;
+    }
+    
+    if (!class_exists('AKPP_AI_Analyzer')) {
+        require_once AKPP_CRM_PATH . 'ai/class-ai-analyzer.php';
+    }
+    
+    $analyzer = AKPP_AI_Analyzer::get_instance();
+    $result = $analyzer->analyze($item->content, $item->content_type);
+    
+    // Сохраняем результат AI анализа
+    $wpdb->update(
+        $table,
+        [
+            'ai_analysis' => json_encode($result, JSON_UNESCAPED_UNICODE),
+            'status' => 'ai_processed',
+            'updated_at' => current_time('mysql')
+        ],
+        ['id' => $item_id],
+        ['%s', '%s', '%s'],
+        ['%d']
+    );
+    
+    $this->log_event("AI анализ выполнен для элемента #{$item_id}");
+    
+    wp_send_json_success([
+        'message' => 'AI анализ успешно выполнен',
+        'analysis' => $result
+    ]);
+}
+
+/**
+ * Массовый AI анализ (для всех pending элементов)
+ */
+public function ajax_bulk_ai_analysis() {
+    if (!check_ajax_referer('akpp_bulk_ai_nonce', 'nonce', false)) {
+        wp_send_json_error('Неверный security токен');
+        return;
+    }
+    
+    if (!current_user_can('manage_options')) {
+        wp_send_json_error('Недостаточно прав');
+        return;
+    }
+    
+    global $wpdb;
+    $table = $wpdb->prefix . 'akpp_parser_items';
+    
+    $items = $wpdb->get_results(
+        "SELECT * FROM {$table} 
+        WHERE status = 'pending' OR status = 'parsed'
+        ORDER BY created_at ASC 
+        LIMIT 20"
+    );
+    
+    if (empty($items)) {
+        wp_send_json_success(['message' => 'Нет элементов для анализа', 'processed' => 0]);
+        return;
+    }
+    
+    if (!class_exists('AKPP_AI_Analyzer')) {
+        require_once AKPP_CRM_PATH . 'ai/class-ai-analyzer.php';
+    }
+    
+    $analyzer = AKPP_AI_Analyzer::get_instance();
+    $processed = 0;
+    
+    foreach ($items as $item) {
+        $result = $analyzer->analyze($item->content, $item->content_type);
+        
+        $wpdb->update(
+            $table,
+            [
+                'ai_analysis' => json_encode($result, JSON_UNESCAPED_UNICODE),
+                'status' => 'ai_processed',
+                'updated_at' => current_time('mysql')
+            ],
+            ['id' => $item->id],
+            ['%s', '%s', '%s'],
+            ['%d']
+        );
+        
+        $processed++;
+        
+        // Небольшая задержка между запросами
+        usleep(500000);
+    }
+    
+    $this->log_event("Массовый AI анализ: обработано {$processed} элементов");
+    
+    wp_send_json_success([
+        'message' => "AI анализ выполнен для {$processed} элементов",
+        'processed' => $processed
+    ]);
+}
+
+/**
+ * Сохранение настроек OpenAI API
+ */
+public function ajax_save_openai_settings() {
+    if (!check_ajax_referer('akpp_openai_settings_nonce', 'nonce', false)) {
+        wp_send_json_error('Неверный security токен');
+        return;
+    }
+    
+    if (!current_user_can('manage_options')) {
+        wp_send_json_error('Недостаточно прав');
+        return;
+    }
+    
+    $api_key = isset($_POST['openai_api_key']) ? sanitize_text_field($_POST['openai_api_key']) : '';
+    
+    if (empty($api_key)) {
+        wp_send_json_error('API ключ не может быть пустым');
+        return;
+    }
+    
+    if (!class_exists('AKPP_AI_Analyzer')) {
+        require_once AKPP_CRM_PATH . 'ai/class-ai-analyzer.php';
+    }
+    
+    $analyzer = AKPP_AI_Analyzer::get_instance();
+    $analyzer->save_api_key($api_key);
+    
+    // Проверяем ключ
+    $status = $analyzer->check_api_key_status();
+    
+    if ($status['valid']) {
+        wp_send_json_success([
+            'message' => 'API ключ сохранен и действителен',
+            'status' => $status
+        ]);
+    } else {
+        wp_send_json_error([
+            'message' => 'API ключ сохранен, но не прошел проверку',
+            'status' => $status
+        ]);
+    }
+}
+
+/**
+ * Проверка статуса OpenAI API ключа
+ */
+public function ajax_check_openai_key() {
+    if (!check_ajax_referer('akpp_check_openai_nonce', 'nonce', false)) {
+        wp_send_json_error('Неверный security токен');
+        return;
+    }
+    
+    if (!class_exists('AKPP_AI_Analyzer')) {
+        require_once AKPP_CRM_PATH . 'ai/class-ai-analyzer.php';
+    }
+    
+    $analyzer = AKPP_AI_Analyzer::get_instance();
+    $status = $analyzer->check_api_key_status();
+    
+    wp_send_json_success($status);
+}
+
+/**
+ * Анализ изображения через AI
+ */
+public function ajax_analyze_image() {
+    if (!check_ajax_referer('akpp_analyze_image_nonce', 'nonce', false)) {
+        wp_send_json_error('Неверный security токен');
+        return;
+    }
+    
+    $image_url = isset($_POST['image_url']) ? esc_url_raw($_POST['image_url']) : '';
+    
+    if (empty($image_url)) {
+        wp_send_json_error('URL изображения не передан');
+        return;
+    }
+    
+    if (!class_exists('AKPP_AI_Analyzer')) {
+        require_once AKPP_CRM_PATH . 'ai/class-ai-analyzer.php';
+    }
+    
+    $analyzer = AKPP_AI_Analyzer::get_instance();
+    $result = $analyzer->analyze_image($image_url);
+    
+    wp_send_json_success($result);
+}
+
+/**
+ * Получение статистики AI анализов
+ */
+public function ajax_get_ai_statistics() {
+    if (!check_ajax_referer('akpp_ai_stats_nonce', 'nonce', false)) {
+        wp_send_json_error('Неверный security токен');
+        return;
+    }
+    
+    global $wpdb;
+    $table = $wpdb->prefix . 'akpp_parser_items';
+    
+    $stats = [
+        'total' => $wpdb->get_var("SELECT COUNT(*) FROM {$table}"),
+        'pending' => $wpdb->get_var("SELECT COUNT(*) FROM {$table} WHERE status = 'pending'"),
+        'ai_processed' => $wpdb->get_var("SELECT COUNT(*) FROM {$table} WHERE status = 'ai_processed'"),
+        'approved' => $wpdb->get_var("SELECT COUNT(*) FROM {$table} WHERE status = 'approved'"),
+        'rejected' => $wpdb->get_var("SELECT COUNT(*) FROM {$table} WHERE status = 'rejected'")
+    ];
+    
+    // Статистика по типам контента
+    $content_types = $wpdb->get_results(
+        "SELECT content_type, COUNT(*) as count 
+        FROM {$table} 
+        GROUP BY content_type"
+    );
+    
+    $stats['by_content_type'] = [];
+    foreach ($content_types as $type) {
+        $stats['by_content_type'][$type->content_type] = $type->count;
+    }
+    
+    wp_send_json_success($stats);
+}
+
+/**
+ * Одобрение результата AI анализа (сохранение в базу)
+ */
+public function ajax_approve_parser_item() {
+    if (!check_ajax_referer('akpp_approve_item_nonce', 'nonce', false)) {
+        wp_send_json_error('Неверный security токен');
+        return;
+    }
+    
+    if (!current_user_can('manage_options')) {
+        wp_send_json_error('Недостаточно прав');
+        return;
+    }
+    
+    $item_id = isset($_POST['item_id']) ? intval($_POST['item_id']) : 0;
+    
+    if (!$item_id) {
+        wp_send_json_error('ID элемента не передан');
+        return;
+    }
+    
+    global $wpdb;
+    $table = $wpdb->prefix . 'akpp_parser_items';
+    
+    $item = $wpdb->get_row($wpdb->prepare(
+        "SELECT * FROM {$table} WHERE id = %d",
+        $item_id
+    ));
+    
+    if (!$item) {
+        wp_send_json_error('Элемент не найден');
+        return;
+    }
+    
+    $ai_analysis = json_decode($item->ai_analysis, true);
+    
+    if (!$ai_analysis) {
+        wp_send_json_error('Нет данных AI анализа для одобрения');
+        return;
+    }
+    
+    // Сохраняем в соответствующую таблицу в зависимости от типа контента
+    $saved = $this->save_approved_content($item, $ai_analysis);
+    
+    if ($saved) {
+        $wpdb->update(
+            $table,
+            ['status' => 'approved', 'updated_at' => current_time('mysql')],
+            ['id' => $item_id],
+            ['%s', '%s'],
+            ['%d']
+        );
+        
+        $this->log_event("Элемент #{$item_id} одобрен и сохранен в базу");
+        
+        wp_send_json_success([
+            'message' => 'Элемент одобрен и сохранен в базу данных',
+            'saved_to' => $saved
+        ]);
+    } else {
+        wp_send_json_error('Ошибка сохранения данных');
+    }
+}
+
+/**
+ * Сохранение одобренного контента в БД
+ */
+private function save_approved_content($item, $ai_analysis) {
+    global $wpdb;
+    
+    $content_type = $item->content_type;
+    $saved_to = '';
+    
+    if ($content_type === 'transmission') {
+        $table = $wpdb->prefix . 'akpp_transmissions';
+        
+        $data = [
+            'make' => $ai_analysis['make'] ?? '',
+            'model' => $ai_analysis['model'] ?? '',
+            'type' => $ai_analysis['type'] ?? '',
+            'years' => $ai_analysis['years'] ?? '',
+            'common_problems' => is_array($ai_analysis['problems'] ?? '') ? json_encode($ai_analysis['problems']) : '',
+            'symptoms' => is_array($ai_analysis['symptoms'] ?? '') ? json_encode($ai_analysis['symptoms']) : '',
+            'repair_cost' => $ai_analysis['repair_cost'] ?? 0,
+            'difficulty' => $ai_analysis['difficulty'] ?? 3,
+            'source_url' => $item->url,
+            'created_at' => current_time('mysql')
+        ];
+        
+        $wpdb->insert($table, $data, ['%s', '%s', '%s', '%s', '%s', '%s', '%d', '%d', '%s', '%s']);
+        $saved_to = 'transmissions';
+        
+    } elseif ($content_type === 'part') {
+        $table = $wpdb->prefix . 'akpp_parts';
+        
+        $data = [
+            'name' => $ai_analysis['part_type'] ?? $item->title,
+            'sku' => $ai_analysis['part_number'] ?? '',
+            'category' => $ai_analysis['part_type'] ?? 'Запчасть АКПП',
+            'description' => $item->content,
+            'price' => $ai_analysis['avg_price'] ?? 0,
+            'compatible_transmissions' => is_array($ai_analysis['transmissions'] ?? '') ? json_encode($ai_analysis['transmissions']) : '',
+            'source_url' => $item->url,
+            'created_at' => current_time('mysql')
+        ];
+        
+        $wpdb->insert($table, $data, ['%s', '%s', '%s', '%s', '%d', '%s', '%s', '%s']);
+        $saved_to = 'parts';
+        
+    } elseif ($content_type === 'oil') {
+        $table = $wpdb->prefix . 'akpp_oils';
+        
+        $data = [
+            'name' => $ai_analysis['oil_type'] ?? $item->title,
+            'type' => $ai_analysis['oil_type'] ?? 'ATF',
+            'viscosity' => $ai_analysis['viscosity'] ?? '',
+            'specifications' => is_array($ai_analysis['specifications'] ?? '') ? json_encode($ai_analysis['specifications']) : '',
+            'compatible_transmissions' => is_array($ai_analysis['transmissions'] ?? '') ? json_encode($ai_analysis['transmissions']) : '',
+            'fill_volume' => $ai_analysis['fill_volume'] ?? 0,
+            'price_per_liter' => $ai_analysis['price_per_liter'] ?? 0,
+            'source_url' => $item->url,
+            'created_at' => current_time('mysql')
+        ];
+        
+        $wpdb->insert($table, $data, ['%s', '%s', '%s', '%s', '%s', '%d', '%d', '%s', '%s']);
+        $saved_to = 'oils';
+    }
+    
+    return $saved_to;
+}
+
+/**
+ * Отклонение элемента
+ */
+public function ajax_reject_parser_item() {
+    if (!check_ajax_referer('akpp_reject_item_nonce', 'nonce', false)) {
+        wp_send_json_error('Неверный security токен');
+        return;
+    }
+    
+    if (!current_user_can('manage_options')) {
+        wp_send_json_error('Недостаточно прав');
+        return;
+    }
+    
+    $item_id = isset($_POST['item_id']) ? intval($_POST['item_id']) : 0;
+    
+    if (!$item_id) {
+        wp_send_json_error('ID элемента не передан');
+        return;
+    }
+    
+    global $wpdb;
+    $table = $wpdb->prefix . 'akpp_parser_items';
+    
+    $wpdb->update(
+        $table,
+        ['status' => 'rejected', 'updated_at' => current_time('mysql')],
+        ['id' => $item_id],
+        ['%s', '%s'],
+        ['%d']
+    );
+    
+    $this->log_event("Элемент #{$item_id} отклонен");
+    
+    wp_send_json_success(['message' => 'Элемент отклонен']);
 }
 }
