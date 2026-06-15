@@ -1,107 +1,196 @@
 /**
- * АКПП45 CRM - VIN Decoder JavaScript
- * Автоматическое заполнение полей автомобиля при вводе VIN-номера.
+ * АКПП45 CRM - Декодер VIN-номеров
+ * Валидация формата, AJAX-запрос к серверу и автозаполнение полей формы сделки.
+ *
+ * @package AKPP_CRM
+ * @version 4.2
  */
 
-jQuery(document).ready(function($) {
+(function($) {
     'use strict';
 
-    const ajaxUrl = typeof akppCRM !== 'undefined' ? akppCRM.ajax_url : '/wp-admin/admin-ajax.php';
-    const nonce = typeof akppCRM !== 'undefined' ? akppCRM.nonce : '';
+    // Конфигурация селекторов (должны совпадать с ID полей в форме сделки)
+    const CONFIG = {
+        vinInput: '#deal-vin-number',
+        decodeBtn: '#deal-vin-decode-btn',
+        // Целевые поля для автозаполнения
+        targetMake: '#deal-car-make',
+        targetModel: '#deal-car-model',
+        targetYear: '#deal-car-year',
+        targetBodyNumber: '#deal-body-number', // Особенно важно для Toyota/Lexus
+        // Поле для вывода статуса/ошибки
+        statusMessage: '#deal-vin-status'
+    };
 
-    // Ищем поле ввода VIN на странице (может быть в форме добавления авто или в форме сделки)
-    const $vinInput = $('#akpp_vin_input, input[name="vin"]');
-    
-    if ($vinInput.length) {
-        // Поля, которые будем заполнять автоматически
-        const $brandInput = $('#akpp_brand_input, input[name="brand"]');
-        const $modelInput = $('#akpp_model_input, input[name="model"]');
-        const $yearInput = $('#akpp_year_input, input[name="year"]');
-        const $engineInput = $('#akpp_engine_input, input[name="engine"]');
-        
-        // Индикатор загрузки (можно добавить span с классом .akpp-loading рядом с полем VIN)
-        const $loadingIndicator = $vinInput.siblings('.akpp-vin-status');
+    // Регулярное выражение для валидации VIN (17 символов, без I, O, Q)
+    const VIN_REGEX = /^[A-HJ-NPR-Z0-9]{17}$/i;
 
-        let debounceTimer;
+    // Кэш для сохранения результатов декодирования в текущей сессии (избегаем лишних запросов)
+    const vinCache = {};
 
-        $vinInput.on('input', function() {
-            const vin = $(this).val().trim().toUpperCase();
-            
-            // Очищаем предыдущий таймер
-            clearTimeout(debounceTimer);
+    /**
+     * Валидация формата VIN
+     */
+    function isValidVin(vin) {
+        return VIN_REGEX.test(vin.trim().toUpperCase());
+    }
 
-            // Удаляем недопустимые символы (I, O, Q запрещены в VIN)
-            const cleanVin = vin.replace(/[^A-HJ-NPR-Z0-9]/g, '');
-            if (cleanVin !== vin) {
-                $(this).val(cleanVin);
-            }
+    /**
+     * Отображение статуса (загрузка, успех, ошибка)
+     */
+    function showStatus(message, type = 'info') {
+        const $status = $(CONFIG.statusMessage);
+        if (!$status.length) return;
 
-            // Запускаем декодирование только если введено ровно 17 символов
-            if (cleanVin.length === 17) {
-                debounceTimer = setTimeout(() => {
-                    decodeVin(cleanVin);
-                }, 800); // Задержка 800мс после окончания ввода
-            } else {
-                // Если символов меньше 17, очищаем индикатор и поля (опционально)
-                if ($loadingIndicator) {
-                    $loadingIndicator.html('').removeClass('akpp-text-success akpp-text-danger');
+        $status.removeClass('vin-status-info vin-status-success vin-status-error')
+               .addClass(`vin-status-${type}`)
+               .text(message)
+               .show();
+    }
+
+    /**
+     * Очистка целевых полей
+     */
+    function clearTargetFields() {
+        $(CONFIG.targetMake).val('');
+        $(CONFIG.targetModel).val('');
+        $(CONFIG.targetYear).val('');
+        $(CONFIG.targetBodyNumber).val('');
+    }
+
+    /**
+     * Автозаполнение полей данными из ответа сервера
+     */
+    function populateFields(data) {
+        if (data.make) $(CONFIG.targetMake).val(data.make).trigger('change');
+        if (data.model) $(CONFIG.targetModel).val(data.model).trigger('change');
+        if (data.year) $(CONFIG.targetYear).val(data.year).trigger('change');
+        if (data.body_number) $(CONFIG.targetBodyNumber).val(data.body_number).trigger('change');
+    }
+
+    /**
+     * Основная функция декодирования
+     */
+    function decodeVin() {
+        const vin = $(CONFIG.vinInput).val().trim().toUpperCase();
+
+        // 1. Валидация на стороне клиента
+        if (!vin) {
+            showStatus('Введите VIN-номер', 'info');
+            return;
+        }
+
+        if (!isValidVin(vin)) {
+            showStatus('Некорректный формат VIN (должно быть 17 символов, без букв I, O, Q)', 'error');
+            clearTargetFields();
+            return;
+        }
+
+        // 2. Проверка кэша
+        if (vinCache[vin]) {
+            showStatus('Данные загружены из кэша', 'success');
+            populateFields(vinCache[vin]);
+            return;
+        }
+
+        // 3. Проверка наличия конфигурации AJAX
+        if (typeof akpp_vin_decoder_config === 'undefined') {
+            console.error('AKPP VIN Decoder: Конфигурация akpp_vin_decoder_config не найдена.');
+            showStatus('Ошибка инициализации декодера', 'error');
+            return;
+        }
+
+        // 4. UI: Состояние загрузки
+        const $btn = $(CONFIG.decodeBtn);
+        const originalBtnText = $btn.html();
+        $btn.prop('disabled', true).html('<span class="spinner is-active" style="float:none; margin-right:5px;"></span> Поиск...');
+        showStatus('Декодирование VIN...', 'info');
+        clearTargetFields();
+
+        // 5. AJAX-запрос к серверу
+        $.ajax({
+            url: akpp_vin_decoder_config.ajax_url,
+            type: 'POST',
+            data: {
+                action: 'akpp_decode_vin',
+                nonce: akpp_vin_decoder_config.nonce,
+                vin: vin
+            },
+            success: function(response) {
+                if (response.success && response.data) {
+                    // Сохраняем в кэш
+                    vinCache[vin] = response.data;
+                    
+                    // Заполняем поля
+                    populateFields(response.data);
+                    showStatus('Автомобиль успешно идентифицирован!', 'success');
+                } else {
+                    const errorMsg = response.data && response.data.message 
+                        ? response.data.message 
+                        : 'Не удалось распознать VIN. Проверьте правильность ввода или заполните поля вручную.';
+                    showStatus(errorMsg, 'error');
                 }
+            },
+            error: function(xhr, status, error) {
+                console.error('AKPP VIN Decode Error:', status, error);
+                showStatus('Ошибка соединения с сервером декодирования.', 'error');
+            },
+            complete: function() {
+                // Возврат кнопки в исходное состояние
+                $btn.prop('disabled', false).html(originalBtnText);
+            }
+        });
+    }
+
+    /**
+     * Инициализация обработчиков событий
+     */
+    function init() {
+        const $vinInput = $(CONFIG.vinInput);
+        const $decodeBtn = $(CONFIG.decodeBtn);
+
+        // Если поля нет на странице, тихо выходим
+        if (!$vinInput.length) {
+            return;
+        }
+
+        // Декодирование по клику на кнопку
+        if ($decodeBtn.length) {
+            $decodeBtn.on('click', function(e) {
+                e.preventDefault();
+                decodeVin();
+            });
+        }
+
+        // Декодирование по потере фокуса (blur), если VIN валиден и поле было изменено
+        let vinChanged = false;
+        $vinInput.on('input', function() {
+            vinChanged = true;
+            // Скрываем сообщение об ошибке при начале нового ввода
+            $(CONFIG.statusMessage).hide();
+        });
+
+        $vinInput.on('blur', function() {
+            if (vinChanged && isValidVin($(this).val().trim())) {
+                decodeVin();
+                vinChanged = false;
             }
         });
 
-        function decodeVin(vin) {
-            if ($loadingIndicator) {
-                $loadingIndicator.html('<span class="akpp-loading"></span> Расшифровка...').removeClass('akpp-text-success akpp-text-danger');
+        // Декодирование по нажатию Enter в поле VIN
+        $vinInput.on('keypress', function(e) {
+            if (e.which === 13) { // Enter
+                e.preventDefault();
+                decodeVin();
             }
+        });
 
-            // Блокируем поля на время запроса
-            $brandInput.prop('readonly', true).css('opacity', '0.6');
-            $modelInput.prop('readonly', true).css('opacity', '0.6');
-            $yearInput.prop('readonly', true).css('opacity', '0.6');
-            $engineInput.prop('readonly', true).css('opacity', '0.6');
-
-            $.post(ajaxUrl, {
-                action: 'akpp_decode_vin',
-                nonce: nonce,
-                vin: vin
-            }, function(response) {
-                if (response.success && response.data.success) {
-                    const data = response.data.data;
-                    
-                    // Заполняем поля полученными данными
-                    if ($brandInput.length) $brandInput.val(data.brand);
-                    if ($modelInput.length) $modelInput.val(data.model);
-                    if ($yearInput.length) $yearInput.val(data.year);
-                    if ($engineInput.length) $engineInput.val(data.engine);
-
-                    // Показываем успешный статус
-                    if ($loadingIndicator) {
-                        const sourceText = response.data.source === 'cache' ? ' (из кэша)' : '';
-                        $loadingIndicator.html(`✅ Расшифровано успешно${sourceText}`).addClass('akpp-text-success').removeClass('akpp-text-danger');
-                    }
-                } else {
-                    // Обработка ошибки
-                    const errorMsg = response.data ? response.data.message : 'Не удалось расшифровать VIN';
-                    if ($loadingIndicator) {
-                        $loadingIndicator.html(`❌ ${errorMsg}`).addClass('akpp-text-danger').removeClass('akpp-text-success');
-                    }
-                    
-                    // Разблокируем поля для ручного ввода в случае ошибки
-                    $brandInput.prop('readonly', false).css('opacity', '1');
-                    $modelInput.prop('readonly', false).css('opacity', '1');
-                    $yearInput.prop('readonly', false).css('opacity', '1');
-                    $engineInput.prop('readonly', false).css('opacity', '1');
-                }
-            }).fail(function() {
-                if ($loadingIndicator) {
-                    $loadingIndicator.html('❌ Ошибка сети').addClass('akpp-text-danger').removeClass('akpp-text-success');
-                }
-                // Разблокируем поля
-                $brandInput.prop('readonly', false).css('opacity', '1');
-                $modelInput.prop('readonly', false).css('opacity', '1');
-                $yearInput.prop('readonly', false).css('opacity', '1');
-                $engineInput.prop('readonly', false).css('opacity', '1');
-            });
-        }
+        console.log('✅ АКПП CRM: VIN-декодер инициализирован.');
     }
-});
+
+    // Запуск после загрузки DOM
+    $(document).ready(function() {
+        init();
+    });
+
+})(jQuery);
