@@ -1,196 +1,152 @@
-/**
- * АКПП45 CRM - Декодер VIN-номеров
- * Валидация формата, AJAX-запрос к серверу и автозаполнение полей формы сделки.
- *
- * @package AKPP_CRM
- * @version 4.2
- */
+/* VIN декодер стили */
+.vin-decode-section {
+    background: #f8f9fa;
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 20px;
+}
 
-(function($) {
-    'use strict';
+.vin-input-group {
+    display: flex;
+    gap: 10px;
+    align-items: flex-end;
+}
 
-    // Конфигурация селекторов (должны совпадать с ID полей в форме сделки)
-    const CONFIG = {
-        vinInput: '#deal-vin-number',
-        decodeBtn: '#deal-vin-decode-btn',
-        // Целевые поля для автозаполнения
-        targetMake: '#deal-car-make',
-        targetModel: '#deal-car-model',
-        targetYear: '#deal-car-year',
-        targetBodyNumber: '#deal-body-number', // Особенно важно для Toyota/Lexus
-        // Поле для вывода статуса/ошибки
-        statusMessage: '#deal-vin-status'
-    };
+.vin-input-group .form-field {
+    flex: 1;
+}
 
-    // Регулярное выражение для валидации VIN (17 символов, без I, O, Q)
-    const VIN_REGEX = /^[A-HJ-NPR-Z0-9]{17}$/i;
+#decode-vin-btn {
+    height: 42px;
+    padding: 0 20px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 600;
+}
 
-    // Кэш для сохранения результатов декодирования в текущей сессии (избегаем лишних запросов)
-    const vinCache = {};
+#decode-vin-btn .spinner {
+    float: none;
+    margin-top: 0;
+    vertical-align: middle;
+}
 
-    /**
-     * Валидация формата VIN
-     */
-    function isValidVin(vin) {
-        return VIN_REGEX.test(vin.trim().toUpperCase());
-    }
+.vin-fields {
+    margin-top: 20px;
+    padding: 15px;
+    background: #fff;
+    border-radius: 8px;
+    border: 1px solid #e9ecef;
+}
 
-    /**
-     * Отображение статуса (загрузка, успех, ошибка)
-     */
-    function showStatus(message, type = 'info') {
-        const $status = $(CONFIG.statusMessage);
-        if (!$status.length) return;
+.vin-fields .row {
+    display: flex;
+    gap: 15px;
+    margin-bottom: 15px;
+    flex-wrap: wrap;
+}
 
-        $status.removeClass('vin-status-info vin-status-success vin-status-error')
-               .addClass(`vin-status-${type}`)
-               .text(message)
-               .show();
-    }
+.vin-fields .form-field {
+    flex: 1;
+    min-width: 150px;
+}
 
-    /**
-     * Очистка целевых полей
-     */
-    function clearTargetFields() {
-        $(CONFIG.targetMake).val('');
-        $(CONFIG.targetModel).val('');
-        $(CONFIG.targetYear).val('');
-        $(CONFIG.targetBodyNumber).val('');
-    }
+.vin-fields label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: 500;
+    font-size: 13px;
+    color: #495057;
+}
 
-    /**
-     * Автозаполнение полей данными из ответа сервера
-     */
-    function populateFields(data) {
-        if (data.make) $(CONFIG.targetMake).val(data.make).trigger('change');
-        if (data.model) $(CONFIG.targetModel).val(data.model).trigger('change');
-        if (data.year) $(CONFIG.targetYear).val(data.year).trigger('change');
-        if (data.body_number) $(CONFIG.targetBodyNumber).val(data.body_number).trigger('change');
-    }
+.vin-fields input,
+.vin-fields select {
+    width: 100%;
+    padding: 8px 12px;
+    border: 1px solid #ced4da;
+    border-radius: 4px;
+    font-size: 14px;
+}
 
-    /**
-     * Основная функция декодирования
-     */
-    function decodeVin() {
-        const vin = $(CONFIG.vinInput).val().trim().toUpperCase();
+.vin-fields input:focus,
+.vin-fields select:focus {
+    border-color: #667eea;
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
 
-        // 1. Валидация на стороне клиента
-        if (!vin) {
-            showStatus('Введите VIN-номер', 'info');
-            return;
-        }
+#market-badge {
+    display: inline-block;
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 500;
+    margin-left: 10px;
+}
 
-        if (!isValidVin(vin)) {
-            showStatus('Некорректный формат VIN (должно быть 17 символов, без букв I, O, Q)', 'error');
-            clearTargetFields();
-            return;
-        }
+.market-japan {
+    background: #fff3e0;
+    color: #e67e22;
+}
 
-        // 2. Проверка кэша
-        if (vinCache[vin]) {
-            showStatus('Данные загружены из кэша', 'success');
-            populateFields(vinCache[vin]);
-            return;
-        }
+.market-asia {
+    background: #e8f5e9;
+    color: #4caf50;
+}
 
-        // 3. Проверка наличия конфигурации AJAX
-        if (typeof akpp_vin_decoder_config === 'undefined') {
-            console.error('AKPP VIN Decoder: Конфигурация akpp_vin_decoder_config не найдена.');
-            showStatus('Ошибка инициализации декодера', 'error');
-            return;
-        }
+.market-europe {
+    background: #e3f2fd;
+    color: #2196f3;
+}
 
-        // 4. UI: Состояние загрузки
-        const $btn = $(CONFIG.decodeBtn);
-        const originalBtnText = $btn.html();
-        $btn.prop('disabled', true).html('<span class="spinner is-active" style="float:none; margin-right:5px;"></span> Поиск...');
-        showStatus('Декодирование VIN...', 'info');
-        clearTargetFields();
+.market-usa {
+    background: #fce4ec;
+    color: #e91e63;
+}
 
-        // 5. AJAX-запрос к серверу
-        $.ajax({
-            url: akpp_vin_decoder_config.ajax_url,
-            type: 'POST',
-            data: {
-                action: 'akpp_decode_vin',
-                nonce: akpp_vin_decoder_config.nonce,
-                vin: vin
-            },
-            success: function(response) {
-                if (response.success && response.data) {
-                    // Сохраняем в кэш
-                    vinCache[vin] = response.data;
-                    
-                    // Заполняем поля
-                    populateFields(response.data);
-                    showStatus('Автомобиль успешно идентифицирован!', 'success');
-                } else {
-                    const errorMsg = response.data && response.data.message 
-                        ? response.data.message 
-                        : 'Не удалось распознать VIN. Проверьте правильность ввода или заполните поля вручную.';
-                    showStatus(errorMsg, 'error');
-                }
-            },
-            error: function(xhr, status, error) {
-                console.error('AKPP VIN Decode Error:', status, error);
-                showStatus('Ошибка соединения с сервером декодирования.', 'error');
-            },
-            complete: function() {
-                // Возврат кнопки в исходное состояние
-                $btn.prop('disabled', false).html(originalBtnText);
-            }
-        });
-    }
+#manual-entry-warning {
+    margin-top: 15px;
+    padding: 10px 15px;
+    background: #fff3cd;
+    border-left: 4px solid #ffc107;
+    border-radius: 4px;
+}
 
-    /**
-     * Инициализация обработчиков событий
-     */
-    function init() {
-        const $vinInput = $(CONFIG.vinInput);
-        const $decodeBtn = $(CONFIG.decodeBtn);
+#vin-message {
+    margin: 15px 0;
+    padding: 10px 15px;
+    border-radius: 4px;
+}
 
-        // Если поля нет на странице, тихо выходим
-        if (!$vinInput.length) {
-            return;
-        }
+#vin-message.notice-success {
+    background: #d4edda;
+    border-left: 4px solid #28a745;
+    color: #155724;
+}
 
-        // Декодирование по клику на кнопку
-        if ($decodeBtn.length) {
-            $decodeBtn.on('click', function(e) {
-                e.preventDefault();
-                decodeVin();
-            });
-        }
+#vin-message.notice-error {
+    background: #f8d7da;
+    border-left: 4px solid #dc3545;
+    color: #721c24;
+}
 
-        // Декодирование по потере фокуса (blur), если VIN валиден и поле было изменено
-        let vinChanged = false;
-        $vinInput.on('input', function() {
-            vinChanged = true;
-            // Скрываем сообщение об ошибке при начале нового ввода
-            $(CONFIG.statusMessage).hide();
-        });
+.ui-autocomplete {
+    max-height: 200px;
+    overflow-y: auto;
+    background: #fff;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    z-index: 10000;
+}
 
-        $vinInput.on('blur', function() {
-            if (vinChanged && isValidVin($(this).val().trim())) {
-                decodeVin();
-                vinChanged = false;
-            }
-        });
+.ui-autocomplete li {
+    padding: 8px 12px;
+    cursor: pointer;
+    list-style: none;
+}
 
-        // Декодирование по нажатию Enter в поле VIN
-        $vinInput.on('keypress', function(e) {
-            if (e.which === 13) { // Enter
-                e.preventDefault();
-                decodeVin();
-            }
-        });
-
-        console.log('✅ АКПП CRM: VIN-декодер инициализирован.');
-    }
-
-    // Запуск после загрузки DOM
-    $(document).ready(function() {
-        init();
-    });
-
-})(jQuery);
+.ui-autocomplete li:hover {
+    background: #f0f2f5;
+}
