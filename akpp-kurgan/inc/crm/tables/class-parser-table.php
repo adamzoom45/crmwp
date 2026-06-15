@@ -1,302 +1,435 @@
 <?php
-if (!defined('ABSPATH')) exit;
+/**
+ * Класс для таблицы элементов парсера в админке
+ * 
+ * @package AKPP45_CRM
+ */
+
+if (!defined('ABSPATH')) {
+    exit;
+}
 
 if (!class_exists('WP_List_Table')) {
-    require_once(ABSPATH . 'wp-admin/includes/class-wp-list-table.php');
+    require_once ABSPATH . 'wp-admin/includes/class-wp-list-table.php';
 }
 
 class AKPP_Parser_Table extends WP_List_Table {
     
-    private $statuses = [
-        'pending'  => 'Ожидает проверки',
-        'approved' => 'Одобрено',
-        'rejected' => 'Отклонено'
-    ];
-
+    private $table_name;
+    
     public function __construct() {
         parent::__construct([
-            'singular' => __('Запись парсера', 'akpp-crm'),
-            'plural'   => __('Парсер', 'akpp-crm'),
-            'ajax'     => false
+            'singular' => 'parser_item',
+            'plural' => 'parser_items',
+            'ajax' => false
         ]);
-    }
-
-    /**
-     * Получение данных из базы данных с учетом фильтров
-     */
-    public function get_parser_items() {
+        
         global $wpdb;
-        $table_name = $wpdb->prefix . 'akpp_parser_items';
-
-        $per_page = $this->get_items_per_page('parser_per_page', 15);
-        $current_page = $this->get_pagenum();
-        $search = isset($_REQUEST['s']) ? sanitize_text_field($_REQUEST['s']) : '';
-        $status_filter = isset($_REQUEST['status']) ? sanitize_text_field($_REQUEST['status']) : '';
-        $orderby = isset($_REQUEST['orderby']) ? sanitize_sql_orderby($_REQUEST['orderby']) : 'created_at';
-        $order = isset($_REQUEST['order']) && $_REQUEST['order'] === 'asc' ? 'ASC' : 'DESC';
-
-        // Построение условий WHERE
-        $where_clauses = ["1=1"];
-        $prepare_args = [];
-
-        if (!empty($search)) {
-            $search_like = '%' . $wpdb->esc_like($search) . '%';
-            $where_clauses[] = "(source_url LIKE %s OR title LIKE %s OR ai_analysis LIKE %s)";
-            $prepare_args[] = $search_like;
-            $prepare_args[] = $search_like;
-            $prepare_args[] = $search_like;
-        }
-
-        if (!empty($status_filter) && array_key_exists($status_filter, $this->statuses)) {
-            $where_clauses[] = "status = %s";
-            $prepare_args[] = $status_filter;
-        }
-
-        $where_sql = implode(' AND ', $where_clauses);
-
-        // Общее количество записей
-        $count_query = "SELECT COUNT(*) FROM $table_name WHERE $where_sql";
-        $total_items = empty($prepare_args) ? $wpdb->get_var($count_query) : $wpdb->get_var($wpdb->prepare($count_query, $prepare_args));
-
-        // Данные для текущей страницы
-        $offset = ($current_page - 1) * $per_page;
-        $prepare_args[] = $per_page;
-        $prepare_args[] = $offset;
-
-        $query = "SELECT * FROM $table_name WHERE $where_sql ORDER BY $orderby $order LIMIT %d OFFSET %d";
-        $data = $wpdb->get_results($wpdb->prepare($query, $prepare_args), ARRAY_A);
-
-        $this->set_pagination_args([
-            'total_items' => $total_items,
-            'per_page'    => $per_page,
-            'total_pages' => ceil($total_items / $per_page)
-        ]);
-
-        return $data;
+        $this->table_name = $wpdb->prefix . 'akpp_parser_items';
     }
-
+    
     /**
-     * Подготовка элементов
+     * Получение данных для таблицы
      */
     public function prepare_items() {
-        $columns = $this->get_columns();
-        $hidden = [];
-        $sortable = $this->get_sortable_columns();
-
-        $this->_column_headers = [$columns, $hidden, $sortable];
+        global $wpdb;
+        
+        $per_page = 20;
+        $current_page = $this->get_pagenum();
+        $offset = ($current_page - 1) * $per_page;
+        
+        // Фильтры
+        $status_filter = isset($_GET['status_filter']) ? sanitize_text_field($_GET['status_filter']) : 'all';
+        $type_filter = isset($_GET['type_filter']) ? sanitize_text_field($_GET['type_filter']) : 'all';
+        $search = isset($_GET['s']) ? sanitize_text_field($_GET['s']) : '';
+        
+        // Построение WHERE
+        $where = [];
+        $params = [];
+        
+        if ($status_filter !== 'all') {
+            $where[] = "status = %s";
+            $params[] = $status_filter;
+        }
+        
+        if ($type_filter !== 'all') {
+            $where[] = "content_type = %s";
+            $params[] = $type_filter;
+        }
+        
+        if (!empty($search)) {
+            $where[] = "(title LIKE '%%%s%%' OR url LIKE '%%%s%%')";
+            $params[] = $search;
+            $params[] = $search;
+        }
+        
+        $where_clause = !empty($where) ? "WHERE " . implode(" AND ", $where) : "";
+        
+        // Получение общего количества
+        $count_query = "SELECT COUNT(*) FROM {$this->table_name} {$where_clause}";
+        if (!empty($params)) {
+            $count_query = $wpdb->prepare($count_query, $params);
+        }
+        $total_items = $wpdb->get_var($count_query);
+        
+        // Получение данных
+        $query = "SELECT * FROM {$this->table_name} {$where_clause} ORDER BY created_at DESC LIMIT %d OFFSET %d";
+        $params[] = $per_page;
+        $params[] = $offset;
+        
+        $query = $wpdb->prepare($query, $params);
+        $this->items = $wpdb->get_results($query);
+        
+        // Настройка пагинации
+        $this->set_pagination_args([
+            'total_items' => $total_items,
+            'per_page' => $per_page,
+            'total_pages' => ceil($total_items / $per_page)
+        ]);
+        
         $this->process_bulk_action();
-        $this->items = $this->get_parser_items();
     }
-
+    
     /**
      * Определение колонок
      */
     public function get_columns() {
         return [
-            'cb'          => '<input type="checkbox" />',
-            'id'          => __('ID', 'akpp-crm'),
-            'source'      => __('Источник (URL)', 'akpp-crm'),
-            'title'       => __('Заголовок', 'akpp-crm'),
-            'ai_analysis' => __('AI Анализ', 'akpp-crm'),
-            'status'      => __('Статус', 'akpp-crm'),
-            'date'        => __('Дата', 'akpp-crm'),
-            'actions'     => __('Действия', 'akpp-crm')
+            'cb' => '<input type="checkbox" />',
+            'id' => 'ID',
+            'title' => 'Заголовок',
+            'content_type' => 'Тип',
+            'status' => 'Статус',
+            'ai_confidence' => 'Уверенность AI',
+            'created_at' => 'Дата создания',
+            'actions' => 'Действия'
         ];
     }
-
+    
     /**
      * Сортируемые колонки
      */
     public function get_sortable_columns() {
         return [
-            'id'   => ['id', true],
-            'date' => ['created_at', false]
+            'id' => ['id', false],
+            'created_at' => ['created_at', true],
+            'content_type' => ['content_type', false]
         ];
     }
-
-    /**
-     * Дополнительная навигация (Фильтр по статусу)
-     */
-    public function extra_tablenav($which) {
-        if ($which === 'top') {
-            $current_status = isset($_REQUEST['status']) ? sanitize_text_field($_REQUEST['status']) : '';
-            ?>
-            <div class="alignleft actions">
-                <select name="status">
-                    <option value=""><?php _e('Все статусы', 'akpp-crm'); ?></option>
-                    <?php foreach ($this->statuses as $value => $label) : ?>
-                        <option value="<?php echo esc_attr($value); ?>" <?php selected($current_status, $value); ?>>
-                            <?php echo esc_html($label); ?>
-                        </option>
-                    <?php endforeach; ?>
-                </select>
-                <?php submit_button(__('Фильтр', 'akpp-crm'), '', 'filter_action', false); ?>
-            </div>
-            <?php
-        }
-    }
-
-    /**
-     * Колонка с чекбоксом
-     */
-    public function column_cb($item) {
-        return sprintf('<input type="checkbox" name="parser_item[]" value="%s" />', $item['id']);
-    }
-
-    /**
-     * Колонка ID
-     */
-    public function column_id($item) {
-        return '#' . esc_html($item['id']);
-    }
-
-    /**
-     * Колонка Источник (URL)
-     */
-    public function column_source($item) {
-        $url = esc_url($item['source_url']);
-        $display_url = strlen($url) > 40 ? substr($url, 0, 37) . '...' : $url;
-        return '<a href="' . $url . '" target="_blank" title="' . esc_attr($url) . '">' . esc_html($display_url) . ' <span class="dashicons dashicons-external"></span></a>';
-    }
-
-    /**
-     * Колонка Заголовок
-     */
-    public function column_title($item) {
-        return '<strong>' . esc_html(wp_trim_words($item['title'], 8, '...')) . '</strong>';
-    }
-
-    /**
-     * Колонка AI Анализ (краткая выжимка)
-     */
-    public function column_ai_analysis($item) {
-        if (empty($item['ai_analysis'])) {
-            return '<span class="akpp-text-muted">Не проводился</span>';
-        }
-        
-        // Пытаемся распарсить JSON, если AI вернул его
-        $analysis = json_decode($item['ai_analysis'], true);
-        if (json_last_error() === JSON_ERROR_NONE && isset($analysis['problem_type'])) {
-            $problem = esc_html($analysis['problem_type']);
-            $severity = isset($analysis['severity']) ? intval($analysis['severity']) : 0;
-            $color = $severity >= 7 ? '#ff4444' : ($severity >= 4 ? '#ffaa00' : '#00ff88');
-            return '<div style="font-size:12px;">' . 
-                   '<strong style="color:' . $color . ';">[' . $severity . '/10]</strong> ' . 
-                   esc_html(wp_trim_words($problem, 10, '...')) . 
-                   '</div>';
-        }
-        
-        return '<div style="font-size:12px;">' . esc_html(wp_trim_words(strip_tags($item['ai_analysis']), 15, '...')) . '</div>';
-    }
-
-    /**
-     * Колонка Статус
-     */
-    public function column_status($item) {
-        $badges = [
-            'pending'  => '<span class="akpp-badge akpp-badge-warning">Ожидает</span>',
-            'approved' => '<span class="akpp-badge akpp-badge-success">Одобрено</span>',
-            'rejected' => '<span class="akpp-badge akpp-badge-danger">Отклонено</span>'
-        ];
-        return isset($badges[$item['status']]) ? $badges[$item['status']] : esc_html($item['status']);
-    }
-
-    /**
-     * Колонка Дата
-     */
-    public function column_date($item) {
-        return date('d.m.Y H:i', strtotime($item['created_at']));
-    }
-
-    /**
-     * Колонка Действия
-     */
-    public function column_actions($item) {
-        $actions = [];
-
-        if ($item['status'] !== 'approved') {
-            $approve_url = wp_nonce_url(
-                add_query_arg(['page' => 'akpp-parser', 'action' => 'approve', 'id' => $item['id']], admin_url('admin.php')), 
-                'akpp_approve_parser_' . $item['id']
-            );
-            $actions['approve'] = sprintf('<a href="%s" style="color:#00aa55;">%s</a>', esc_url($approve_url), __('Одобрить', 'akpp-crm'));
-        }
-
-        if ($item['status'] !== 'rejected') {
-            $reject_url = wp_nonce_url(
-                add_query_arg(['page' => 'akpp-parser', 'action' => 'reject', 'id' => $item['id']], admin_url('admin.php')), 
-                'akpp_reject_parser_' . $item['id']
-            );
-            $actions['reject'] = sprintf('<a href="%s" style="color:#cc0000;">%s</a>', esc_url($reject_url), __('Отклонить', 'akpp-crm'));
-        }
-
-        $delete_url = wp_nonce_url(
-            add_query_arg(['page' => 'akpp-parser', 'action' => 'delete', 'id' => $item['id']], admin_url('admin.php')), 
-            'akpp_delete_parser_' . $item['id']
-        );
-        $actions['delete'] = sprintf('<a href="%s" style="color:#a00;" onclick="return confirm(\'Удалить запись?\');">%s</a>', esc_url($delete_url), __('Удалить', 'akpp-crm'));
-
-        return $this->row_actions($actions);
-    }
-
-    /**
-     * Значение по умолчанию
-     */
-    public function column_default($item, $column_name) {
-        return isset($item[$column_name]) ? esc_html($item[$column_name]) : '—';
-    }
-
+    
     /**
      * Массовые действия
      */
     public function get_bulk_actions() {
         return [
-            'approve' => __('Одобрить', 'akpp-crm'),
-            'reject'  => __('Отклонить', 'akpp-crm'),
-            'delete'  => __('Удалить', 'akpp-crm')
+            'approve' => 'Одобрить',
+            'reject' => 'Отклонить',
+            'delete' => 'Удалить'
         ];
     }
-
+    
     /**
-     * Обработка массовых и одиночных действий
+     * Обработка массовых действий
      */
     public function process_bulk_action() {
         global $wpdb;
-        $table_name = $wpdb->prefix . 'akpp_parser_items';
-
-        $action = $this->current_action();
         
-        // Одиночное действие
-        if (in_array($action, ['approve', 'reject', 'delete']) && isset($_GET['id'])) {
-            $id = intval($_GET['id']);
-            
-            if ($action === 'delete') {
-                check_admin_referer('akpp_delete_parser_' . $id);
-                $wpdb->delete($table_name, ['id' => $id]);
-            } else {
-                $nonce_action = $action === 'approve' ? 'akpp_approve_parser_' . $id : 'akpp_reject_parser_' . $id;
-                check_admin_referer($nonce_action);
-                $wpdb->update($table_name, ['status' => $action], ['id' => $id]);
-            }
-            
-            wp_redirect(add_query_arg(['page' => 'akpp-parser', 'updated' => '1'], admin_url('admin.php')));
-            exit;
+        if (!$this->current_action()) return;
+        
+        $item_ids = isset($_GET['parser_item']) ? array_map('intval', $_GET['parser_item']) : [];
+        
+        if (empty($item_ids)) return;
+        
+        $ids_placeholder = implode(',', array_fill(0, count($item_ids), '%d'));
+        
+        switch ($this->current_action()) {
+            case 'approve':
+                foreach ($item_ids as $item_id) {
+                    $this->approve_item($item_id);
+                }
+                echo '<div class="notice notice-success"><p>Элементы одобрены</p></div>';
+                break;
+                
+            case 'reject':
+                $wpdb->query($wpdb->prepare(
+                    "UPDATE {$this->table_name} SET status = 'rejected' WHERE id IN ({$ids_placeholder})",
+                    $item_ids
+                ));
+                echo '<div class="notice notice-success"><p>Элементы отклонены</p></div>';
+                break;
+                
+            case 'delete':
+                $wpdb->query($wpdb->prepare(
+                    "DELETE FROM {$this->table_name} WHERE id IN ({$ids_placeholder})",
+                    $item_ids
+                ));
+                echo '<div class="notice notice-success"><p>Элементы удалены</p></div>';
+                break;
         }
-
-        // Массовое действие
-        if (in_array($action, ['approve', 'reject', 'delete']) && isset($_POST['parser_item']) && is_array($_POST['parser_item'])) {
-            check_admin_referer('bulk-' . $this->_args['plural']);
-            $ids = array_map('intval', $_POST['parser_item']);
-            $ids_str = implode(',', $ids);
-
-            if ($action === 'delete') {
-                $wpdb->query("DELETE FROM $table_name WHERE id IN ($ids_str)");
-            } else {
-                $wpdb->query($wpdb->prepare("UPDATE $table_name SET status = %s WHERE id IN ($ids_str)", $action));
-            }
-            
-            wp_redirect(add_query_arg(['page' => 'akpp-parser', 'updated' => count($ids)], admin_url('admin.php')));
-            exit;
+    }
+    
+    /**
+     * Одобрение элемента
+     */
+    private function approve_item($item_id) {
+        global $wpdb;
+        
+        $item = $wpdb->get_row($wpdb->prepare(
+            "SELECT * FROM {$this->table_name} WHERE id = %d",
+            $item_id
+        ));
+        
+        if (!$item) return;
+        
+        $ai_analysis = json_decode($item->ai_analysis, true);
+        
+        if (!$ai_analysis) return;
+        
+        // Сохраняем в соответствующую таблицу
+        if ($item->content_type === 'transmission') {
+            $this->save_to_transmissions($item, $ai_analysis);
+        } elseif ($item->content_type === 'part') {
+            $this->save_to_parts($item, $ai_analysis);
+        } elseif ($item->content_type === 'oil') {
+            $this->save_to_oils($item, $ai_analysis);
         }
+        
+        $wpdb->update(
+            $this->table_name,
+            ['status' => 'approved'],
+            ['id' => $item_id],
+            ['%s'],
+            ['%d']
+        );
+    }
+    
+    /**
+     * Сохранение в таблицу АКПП
+     */
+    private function save_to_transmissions($item, $data) {
+        global $wpdb;
+        $table = $wpdb->prefix . 'akpp_transmissions';
+        
+        $wpdb->insert(
+            $table,
+            [
+                'make' => $data['make'] ?? '',
+                'model' => $data['model'] ?? '',
+                'type' => $data['type'] ?? '',
+                'years' => $data['years'] ?? '',
+                'common_problems' => is_array($data['problems'] ?? null) ? json_encode($data['problems']) : '',
+                'symptoms' => is_array($data['symptoms'] ?? null) ? json_encode($data['symptoms']) : '',
+                'repair_cost' => $data['repair_cost'] ?? 0,
+                'difficulty' => $data['difficulty'] ?? 3,
+                'source_url' => $item->url,
+                'created_at' => current_time('mysql')
+            ],
+            ['%s', '%s', '%s', '%s', '%s', '%s', '%d', '%d', '%s', '%s']
+        );
+    }
+    
+    /**
+     * Сохранение в таблицу запчастей
+     */
+    private function save_to_parts($item, $data) {
+        global $wpdb;
+        $table = $wpdb->prefix . 'akpp_parts';
+        
+        $wpdb->insert(
+            $table,
+            [
+                'name' => $data['part_type'] ?? $item->title,
+                'sku' => $data['part_number'] ?? '',
+                'category' => $data['part_type'] ?? 'Запчасть АКПП',
+                'description' => $item->content,
+                'price' => $data['avg_price'] ?? 0,
+                'compatible_transmissions' => is_array($data['transmissions'] ?? null) ? json_encode($data['transmissions']) : '',
+                'source_url' => $item->url,
+                'created_at' => current_time('mysql')
+            ],
+            ['%s', '%s', '%s', '%s', '%d', '%s', '%s', '%s']
+        );
+    }
+    
+    /**
+     * Сохранение в таблицу масел
+     */
+    private function save_to_oils($item, $data) {
+        global $wpdb;
+        $table = $wpdb->prefix . 'akpp_oils';
+        
+        $wpdb->insert(
+            $table,
+            [
+                'name' => $data['oil_type'] ?? $item->title,
+                'type' => $data['oil_type'] ?? 'ATF',
+                'viscosity' => $data['viscosity'] ?? '',
+                'specifications' => is_array($data['specifications'] ?? null) ? json_encode($data['specifications']) : '',
+                'compatible_transmissions' => is_array($data['transmissions'] ?? null) ? json_encode($data['transmissions']) : '',
+                'fill_volume' => $data['fill_volume'] ?? 0,
+                'price_per_liter' => $data['price_per_liter'] ?? 0,
+                'source_url' => $item->url,
+                'created_at' => current_time('mysql')
+            ],
+            ['%s', '%s', '%s', '%s', '%s', '%d', '%d', '%s', '%s']
+        );
+    }
+    
+    /**
+     * Отображение колонки cb (чекбокс)
+     */
+    protected function column_cb($item) {
+        return sprintf('<input type="checkbox" name="parser_item[]" value="%s" />', $item->id);
+    }
+    
+    /**
+     * Отображение колонки ID
+     */
+    protected function column_id($item) {
+        return $item->id;
+    }
+    
+    /**
+     * Отображение колонки заголовка
+     */
+    protected function column_title($item) {
+        $title = !empty($item->title) ? esc_html($item->title) : 'Без заголовка';
+        $url = esc_url($item->url);
+        
+        return sprintf(
+            '<a href="%s" target="_blank"><strong>%s</strong></a><br><small style="color:#999;">%s</small>',
+            $url,
+            $title,
+            substr($url, 0, 60)
+        );
+    }
+    
+    /**
+     * Отображение колонки типа контента
+     */
+    protected function column_content_type($item) {
+        $types = [
+            'transmission' => '🔧 АКПП',
+            'part' => '🔩 Запчасть',
+            'oil' => '🛢️ Масло',
+            'general' => '📄 Общее'
+        ];
+        
+        $type_name = $types[$item->content_type] ?? $item->content_type;
+        return '<span class="content-type-badge content-type-' . esc_attr($item->content_type) . '">' . $type_name . '</span>';
+    }
+    
+    /**
+     * Отображение колонки статуса
+     */
+    protected function column_status($item) {
+        $statuses = [
+            'pending' => '⏳ Ожидает',
+            'parsed' => '📄 Распаршено',
+            'ai_processed' => '🤖 AI обработан',
+            'approved' => '✅ Одобрено',
+            'rejected' => '❌ Отклонено'
+        ];
+        
+        $status_name = $statuses[$item->status] ?? $item->status;
+        return '<span class="status-badge status-' . esc_attr($item->status) . '">' . $status_name . '</span>';
+    }
+    
+    /**
+     * Отображение колонки уверенности AI
+     */
+    protected function column_ai_confidence($item) {
+        $ai_analysis = json_decode($item->ai_analysis, true);
+        $confidence = $ai_analysis['confidence'] ?? 0;
+        
+        if ($confidence === 0) return '—';
+        
+        $color = $confidence >= 80 ? '#28a745' : ($confidence >= 60 ? '#ffc107' : '#dc3545');
+        
+        return sprintf(
+            '<div style="display: flex; align-items: center; gap: 8px;">
+                <div style="width: 80px; height: 6px; background: #e9ecef; border-radius: 3px; overflow: hidden;">
+                    <div style="width: %d%%; height: 100%; background: %s;"></div>
+                </div>
+                <span>%d%%</span>
+            </div>',
+            $confidence,
+            $color,
+            $confidence
+        );
+    }
+    
+    /**
+     * Отображение колонки даты
+     */
+    protected function column_created_at($item) {
+        return date_i18n(get_option('date_format') . ' ' . get_option('time_format'), strtotime($item->created_at));
+    }
+    
+    /**
+     * Отображение колонки действий
+     */
+    protected function column_actions($item) {
+        $actions = '';
+        
+        if ($item->status !== 'approved') {
+            $actions .= sprintf(
+                '<button class="button button-small approve-item" data-id="%d">✅ Одобрить</button> ',
+                $item->id
+            );
+        }
+        
+        if ($item->status !== 'rejected' && $item->status !== 'approved') {
+            $actions .= sprintf(
+                '<button class="button button-small reject-item" data-id="%d">❌ Отклонить</button> ',
+                $item->id
+            );
+        }
+        
+        $actions .= sprintf(
+            '<button class="button button-small view-item" data-id="%d">👁️ Просмотр</button>',
+            $item->id
+        );
+        
+        return $actions;
+    }
+    
+    /**
+     * Фильтры над таблицей
+     */
+    protected function extra_tablenav($which) {
+        if ($which !== 'top') return;
+        
+        $status_filter = isset($_GET['status_filter']) ? sanitize_text_field($_GET['status_filter']) : 'all';
+        $type_filter = isset($_GET['type_filter']) ? sanitize_text_field($_GET['type_filter']) : 'all';
+        ?>
+        <div class="alignleft actions">
+            <select name="status_filter">
+                <option value="all" <?php selected($status_filter, 'all'); ?>>Все статусы</option>
+                <option value="pending" <?php selected($status_filter, 'pending'); ?>>Ожидает парсинга</option>
+                <option value="parsed" <?php selected($status_filter, 'parsed'); ?>>Распаршено</option>
+                <option value="ai_processed" <?php selected($status_filter, 'ai_processed'); ?>>AI обработан</option>
+                <option value="approved" <?php selected($status_filter, 'approved'); ?>>Одобрено</option>
+                <option value="rejected" <?php selected($status_filter, 'rejected'); ?>>Отклонено</option>
+            </select>
+            
+            <select name="type_filter">
+                <option value="all" <?php selected($type_filter, 'all'); ?>>Все типы</option>
+                <option value="transmission" <?php selected($type_filter, 'transmission'); ?>>АКПП</option>
+                <option value="part" <?php selected($type_filter, 'part'); ?>>Запчасти</option>
+                <option value="oil" <?php selected($type_filter, 'oil'); ?>>Масла</option>
+                <option value="general" <?php selected($type_filter, 'general'); ?>>Общее</option>
+            </select>
+            
+            <input type="submit" name="filter_action" class="button" value="Фильтровать">
+        </div>
+        <?php
+    }
+    
+    /**
+     * Отображение, если нет данных
+     */
+    public function no_items() {
+        echo 'Нет элементов для отображения';
     }
 }
