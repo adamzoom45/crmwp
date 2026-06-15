@@ -101,6 +101,7 @@ class AKPP_AJAX {
         // Telegram
         add_action('wp_ajax_akpp_save_telegram_settings', [$this, 'ajax_save_telegram_settings']);
         add_action('wp_ajax_akpp_send_test_telegram', [$this, 'ajax_send_test_telegram']);
+        add_action('wp_ajax_akpp_set_telegram_webhook', [$this, 'ajax_set_telegram_webhook']);
         
         // Авито
         add_action('wp_ajax_akpp_save_avito_settings', [$this, 'ajax_save_avito_settings']);
@@ -2895,5 +2896,108 @@ public function ajax_reject_parser_item() {
     $this->log_event("Элемент #{$item_id} отклонен");
     
     wp_send_json_success(['message' => 'Элемент отклонен']);
+}
+    /**
+ * ДОПОЛНЕНИЕ К ФАЙЛУ class-akpp-ajax.php
+ * Методы для Telegram
+ */
+
+/**
+ * Сохранение настроек Telegram
+ */
+public function ajax_save_telegram_settings() {
+    if (!check_ajax_referer('akpp_telegram_settings_nonce', 'nonce', false)) {
+        wp_send_json_error('Неверный security токен');
+        return;
+    }
+    
+    if (!current_user_can('manage_options')) {
+        wp_send_json_error('Недостаточно прав');
+        return;
+    }
+    
+    $bot_token = isset($_POST['bot_token']) ? sanitize_text_field($_POST['bot_token']) : '';
+    
+    if (empty($bot_token)) {
+        wp_send_json_error('Bot Token не может быть пустым');
+        return;
+    }
+    
+    if (!class_exists('AKPP_Telegram')) {
+        require_once AKPP_CRM_PATH . 'class-akpp-telegram.php';
+    }
+    
+    $telegram = AKPP_Telegram::get_instance();
+    $result = $telegram->save_settings($bot_token);
+    
+    if ($result) {
+        $this->log_event("Настройки Telegram сохранены");
+        wp_send_json_success(['message' => 'Настройки Telegram сохранены, webhook установлен']);
+    } else {
+        wp_send_json_error('Ошибка сохранения настроек');
+    }
+}
+
+/**
+ * Отправка тестового сообщения
+ */
+public function ajax_send_test_telegram() {
+    if (!check_ajax_referer('akpp_telegram_settings_nonce', 'nonce', false)) {
+        wp_send_json_error('Неверный security токен');
+        return;
+    }
+    
+    if (!current_user_can('manage_options')) {
+        wp_send_json_error('Недостаточно прав');
+        return;
+    }
+    
+    $admin_chat_id = get_option('akpp_telegram_admin_chat_id', '');
+    
+    if (empty($admin_chat_id)) {
+        wp_send_json_error('Сначала настройте бота и получите chat_id администратора');
+        return;
+    }
+    
+    if (!class_exists('AKPP_Telegram')) {
+        require_once AKPP_CRM_PATH . 'class-akpp-telegram.php';
+    }
+    
+    $telegram = AKPP_Telegram::get_instance();
+    $result = $telegram->send_message($admin_chat_id, '✅ Тестовое сообщение от CRM АКПП45! Бот работает корректно.');
+    
+    if ($result) {
+        wp_send_json_success(['message' => 'Тестовое сообщение отправлено']);
+    } else {
+        wp_send_json_error('Ошибка отправки сообщения');
+    }
+}
+
+/**
+ * Установка webhook
+ */
+public function ajax_set_telegram_webhook() {
+    if (!check_ajax_referer('akpp_telegram_settings_nonce', 'nonce', false)) {
+        wp_send_json_error('Неверный security токен');
+        return;
+    }
+    
+    if (!current_user_can('manage_options')) {
+        wp_send_json_error('Недостаточно прав');
+        return;
+    }
+    
+    if (!class_exists('AKPP_Telegram')) {
+        require_once AKPP_CRM_PATH . 'class-akpp-telegram.php';
+    }
+    
+    $telegram = AKPP_Telegram::get_instance();
+    $result = $telegram->set_webhook();
+    
+    if ($result) {
+        wp_send_json_success(['message' => 'Webhook успешно установлен']);
+    } else {
+        wp_send_json_error('Ошибка установки webhook. Проверьте Bot Token');
+    }
 }
 }
