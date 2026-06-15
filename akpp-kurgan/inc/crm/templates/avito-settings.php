@@ -1,216 +1,250 @@
 <?php
 /**
- * АКПП45 CRM - Настройки интеграции с Авито API
- * Страница для ввода Client ID, Client Secret и настройки Webhook.
- *
- * @package AKPP_CRM
- * @version 4.2
+ * Шаблон страницы настроек Авито API
+ * 
+ * @package AKPP45_CRM
  */
 
 if (!defined('ABSPATH')) {
-    exit; // Защита от прямого доступа
+    exit;
 }
 
-// Проверка прав доступа (только администраторы)
-if (!current_user_can('manage_options')) {
-    wp_die(__('Недостаточно прав для изменения настроек.', 'akpp-crm'));
-}
+// Получаем текущие настройки
+$client_id = get_option('akpp_avito_client_id', '');
+$client_secret = get_option('akpp_avito_client_secret', '');
 
-// =============================================================================
-// ОБРАБОТКА СОХРАНЕНИЯ НАСТРОЕК
-// =============================================================================
-$message = '';
-$message_type = ''; // 'success' или 'error'
+// Получаем статус токена
+$token_status = '';
+$token_expires = '';
 
-if (isset($_POST['akpp_save_avito_settings']) && check_admin_referer('akpp_avito_settings_nonce')) {
+global $wpdb;
+$table_name = $wpdb->prefix . 'akpp_avito_tokens';
+$token = $wpdb->get_row("SELECT created_at, expires_in FROM {$table_name} WHERE is_active = 1 LIMIT 1");
+
+if ($token) {
+    $created_timestamp = strtotime($token->created_at);
+    $expires_timestamp = $created_timestamp + $token->expires_in;
+    $expires_in_seconds = $expires_timestamp - time();
     
-    // Санитизация входных данных
-    $client_id     = sanitize_text_field($_POST['akpp_avito_client_id']);
-    $client_secret = sanitize_text_field($_POST['akpp_avito_client_secret']);
-    $webhook_url   = esc_url_raw($_POST['akpp_avito_webhook_url']);
-    $auto_sync     = isset($_POST['akpp_avito_auto_sync']) ? 1 : 0;
-
-    // Валидация: поля не должны быть пустыми (кроме webhook, он опционален)
-    if (empty($client_id) || empty($client_secret)) {
-        $message = __('Ошибка: Client ID и Client Secret не могут быть пустыми.', 'akpp-crm');
-        $message_type = 'error';
+    if ($expires_in_seconds > 0) {
+        $expires_in_hours = floor($expires_in_seconds / 3600);
+        $expires_in_minutes = floor(($expires_in_seconds % 3600) / 60);
+        $token_status = 'active';
+        $token_expires = "Истекает через: {$expires_in_hours} ч. {$expires_in_minutes} мин.";
     } else {
-        // Сохранение в базу данных WordPress (wp_options)
-        update_option('akpp_avito_client_id', $client_id);
-        update_option('akpp_avito_client_secret', $client_secret);
-        update_option('akpp_avito_webhook_url', $webhook_url);
-        update_option('akpp_avito_auto_sync', $auto_sync);
-
-        $message = __('Настройки Авито успешно сохранены!', 'akpp-crm');
-        $message_type = 'success';
+        $token_status = 'expired';
+        $token_expires = 'Токен истек. Требуется обновление.';
     }
+} else {
+    $token_status = 'missing';
+    $token_expires = 'Токен не получен. Нажмите "Получить токен".';
 }
-
-// =============================================================================
-// ПОЛУЧЕНИЕ ТЕКУЩИХ ЗНАЧЕНИЙ
-// =============================================================================
-$current_client_id   = get_option('akpp_avito_client_id', '');
-$current_client_secret = get_option('akpp_avito_client_secret', '');
-$current_webhook_url = get_option('akpp_avito_webhook_url', site_url('/wp-json/akpp/v1/avito-webhook')); // URL по умолчанию
-$current_auto_sync   = get_option('akpp_avito_auto_sync', 1);
-
-// Генерация nonce для формы
-$form_nonce = wp_create_nonce('akpp_avito_settings_nonce');
-$test_nonce = wp_create_nonce('akpp_avito_test_connection');
 ?>
 
-<div class="wrap akpp-settings-wrap">
-    <h1><?php _e('Настройки интеграции с Авито', 'akpp-crm'); ?></h1>
+<div class="wrap akpp-crm-wrap">
+    <h1 class="wp-heading-inline">📱 Настройки Авито API</h1>
+    <hr class="wp-header-end">
     
-    <?php if (!empty($message)) : ?>
-        <div class="notice notice-<?php echo esc_attr($message_type); ?> is-dismissible">
-            <p><?php echo esc_html($message); ?></p>
+    <?php if (isset($_GET['settings-updated'])): ?>
+        <div class="notice notice-success is-dismissible">
+            <p>Настройки успешно сохранены!</p>
         </div>
     <?php endif; ?>
-
-    <div class="akpp-settings-card">
-        <form method="post" action="">
-            <?php wp_nonce_field('akpp_avito_settings_nonce', 'akpp_avito_settings_nonce_field'); ?>
+    
+    <?php if (isset($_GET['token-error'])): ?>
+        <div class="notice notice-error is-dismissible">
+            <p>Ошибка получения токена. Проверьте Client ID и Client Secret.</p>
+        </div>
+    <?php endif; ?>
+    
+    <div class="akpp-settings-container" style="display: flex; gap: 30px; margin-top: 20px;">
+        
+        <!-- Форма настроек -->
+        <div class="akpp-settings-form" style="flex: 1; background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+            <h2>🔑 Данные для авторизации</h2>
+            <p>Введите данные от приложения Авито API.</p>
             
-            <table class="form-table" role="presentation">
-                <tbody>
-                    <!-- Client ID -->
-                    <tr>
-                        <th scope="row">
-                            <label for="akpp_avito_client_id"><?php _e('Client ID', 'akpp-crm'); ?> <span class="required">*</span></label>
-                        </th>
-                        <td>
-                            <input name="akpp_avito_client_id" type="text" id="akpp_avito_client_id" 
-                                   value="<?php echo esc_attr($current_client_id); ?>" 
-                                   class="regular-text code" 
-                                   placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" required>
-                            <p class="description">
-                                <?php _e('Ваш Client ID из личного кабинета разработчика Авито.', 'akpp-crm'); ?>
-                            </p>
-                        </td>
-                    </tr>
-
-                    <!-- Client Secret -->
-                    <tr>
-                        <th scope="row">
-                            <label for="akpp_avito_client_secret"><?php _e('Client Secret', 'akpp-crm'); ?> <span class="required">*</span></label>
-                        </th>
-                        <td>
-                            <input name="akpp_avito_client_secret" type="password" id="akpp_avito_client_secret" 
-                                   value="<?php echo esc_attr($current_client_secret); ?>" 
-                                   class="regular-text code" 
-                                   placeholder="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" required>
-                            <p class="description">
-                                <?php _e('Секретный ключ для получения access_token (OAuth 2.0).', 'akpp-crm'); ?>
-                            </p>
-                        </td>
-                    </tr>
-
-                    <!-- Webhook URL -->
-                    <tr>
-                        <th scope="row">
-                            <label for="akpp_avito_webhook_url"><?php _e('Webhook URL', 'akpp-crm'); ?></label>
-                        </th>
-                        <td>
-                            <input name="akpp_avito_webhook_url" type="url" id="akpp_avito_webhook_url" 
-                                   value="<?php echo esc_url($current_webhook_url); ?>" 
-                                   class="regular-text code" dir="ltr">
-                            <p class="description">
-                                <?php _e('Этот URL необходимо указать в настройках приложения Авито для получения уведомлений о новых сообщениях.', 'akpp-crm'); ?>
-                                <br>
-                                <button type="button" class="button button-secondary" id="akpp-copy-webhook" data-url="<?php echo esc_url($current_webhook_url); ?>">
-                                    📋 <?php _e('Копировать URL', 'akpp-crm'); ?>
-                                </button>
-                            </p>
-                        </td>
-                    </tr>
-
-                    <!-- Автоматическая синхронизация (WP-Cron) -->
-                    <tr>
-                        <th scope="row"><?php _e('Резервная синхронизация', 'akpp-crm'); ?></th>
-                        <td>
-                            <label for="akpp_avito_auto_sync">
-                                <input name="akpp_avito_auto_sync" type="checkbox" id="akpp_avito_auto_sync" 
-                                       value="1" <?php checked(1, $current_auto_sync); ?>>
-                                <?php _e('Включить фоновую синхронизацию диалогов каждые 15 минут (на случай сбоя Webhook).', 'akpp-crm'); ?>
-                            </label>
-                        </td>
-                    </tr>
-                </tbody>
-            </table>
-
-            <p class="submit">
-                <input type="submit" name="akpp_save_avito_settings" id="submit" class="button button-primary" value="<?php _e('Сохранить изменения', 'akpp-crm'); ?>">
+            <form id="akpp-avito-settings-form" method="post" action="<?php echo admin_url('admin-ajax.php'); ?>">
+                <?php wp_nonce_field('akpp_avito_settings_nonce', 'akpp_avito_nonce'); ?>
+                <input type="hidden" name="action" value="akpp_save_avito_settings">
                 
-                <button type="button" class="button" id="akpp-test-connection-btn" data-nonce="<?php echo esc_attr($test_nonce); ?>">
-                    🔌 <?php _e('Проверить подключение', 'akpp-crm'); ?>
-                </button>
-                <span class="spinner" id="akpp-test-spinner" style="float: none; margin-left: 10px;"></span>
-                <span id="akpp-test-result" style="margin-left: 10px; font-weight: bold;"></span>
-            </p>
-        </form>
+                <table class="form-table">
+                    <tr>
+                        <th scope="row">
+                            <label for="avito_client_id">Client ID</label>
+                        </th>
+                        <td>
+                            <input type="text" 
+                                   id="avito_client_id" 
+                                   name="avito_client_id" 
+                                   value="<?php echo esc_attr($client_id); ?>" 
+                                   class="regular-text" 
+                                   required>
+                            <p class="description">Client ID из вашего приложения Авито</p>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th scope="row">
+                            <label for="avito_client_secret">Client Secret</label>
+                        </th>
+                        <td>
+                            <input type="password" 
+                                   id="avito_client_secret" 
+                                   name="avito_client_secret" 
+                                   value="<?php echo esc_attr($client_secret); ?>" 
+                                   class="regular-text" 
+                                   required>
+                            <p class="description">Client Secret из вашего приложения Авито</p>
+                        </td>
+                    </tr>
+                </table>
+                
+                <p class="submit">
+                    <button type="submit" class="button button-primary" id="akpp-save-settings-btn">
+                        💾 Сохранить настройки и получить токен
+                    </button>
+                    <button type="button" class="button" id="akpp-refresh-token-btn" style="margin-left: 10px;">
+                        🔄 Обновить токен
+                    </button>
+                </p>
+            </form>
+        </div>
+        
+        <!-- Статус токена -->
+        <div class="akpp-token-status" style="flex: 1; background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+            <h2>🔐 Статус токена</h2>
+            
+            <div class="status-indicator" style="padding: 15px; border-radius: 5px; margin-top: 10px; 
+                 <?php 
+                 if ($token_status == 'active') echo 'background: #d4edda; border-left: 4px solid #28a745;';
+                 elseif ($token_status == 'expired') echo 'background: #f8d7da; border-left: 4px solid #dc3545;';
+                 else echo 'background: #fff3cd; border-left: 4px solid #ffc107;';
+                 ?>">
+                
+                <?php if ($token_status == 'active'): ?>
+                    <p style="margin: 0; color: #155724;">✅ Токен активен</p>
+                <?php elseif ($token_status == 'expired'): ?>
+                    <p style="margin: 0; color: #721c24;">❌ Токен истек</p>
+                <?php else: ?>
+                    <p style="margin: 0; color: #856404;">⚠️ Токен не получен</p>
+                <?php endif; ?>
+                
+                <p style="margin: 10px 0 0 0; font-size: 12px; <?php 
+                if ($token_status == 'active') echo 'color: #155724;';
+                elseif ($token_status == 'expired') echo 'color: #721c24;';
+                else echo 'color: #856404;';
+                ?>">
+                    <?php echo esc_html($token_expires); ?>
+                </p>
+            </div>
+            
+            <div class="token-info" style="margin-top: 20px; padding: 10px; background: #f8f9fa; border-radius: 5px;">
+                <h3 style="margin-top: 0;">📋 Инструкция:</h3>
+                <ol style="margin: 0; padding-left: 20px;">
+                    <li>Перейдите в <a href="https://developers.avito.ru/" target="_blank">Developers Avito</a></li>
+                    <li>Создайте приложение или выберите существующее</li>
+                    <li>Скопируйте Client ID и Client Secret</li>
+                    <li>Вставьте их в форму слева</li>
+                    <li>Нажмите "Сохранить настройки и получить токен"</li>
+                </ol>
+            </div>
+        </div>
     </div>
-
-    <!-- Инструкция для разработчика -->
-    <div class="akpp-settings-card" style="margin-top: 20px; background: #fcfcfc; border-left: 4px solid #00a0d2;">
-        <h2 style="margin-top: 0;"><?php _e('📖 Как настроить Авито API', 'akpp-crm'); ?></h2>
-        <ol>
-            <li><?php _e('Перейдите в', 'akpp-crm'); ?> <a href="https://developers.avito.ru/" target="_blank">Личный кабинет разработчика Авито</a>.</li>
-            <li><?php _e('Создайте новое приложение или выберите существующее.', 'akpp-crm'); ?></li>
-            <li><?php _e('Скопируйте <strong>Client ID</strong> и <strong>Client Secret</strong> и вставьте их в поля выше.', 'akpp-crm'); ?></li>
-            <li><?php _e('В разделе "Webhooks" приложения Авито укажите <strong>Webhook URL</strong>, указанный на этой странице.', 'akpp-crm'); ?></li>
-            <li><?php _e('Убедитесь, что подписаны на события: <code>message.created</code> и <code>message.updated</code>.', 'akpp-crm'); ?></li>
-        </ol>
-    </div>
+    
+    <div id="akpp-ajax-message" style="display: none; margin-top: 20px; padding: 10px; border-radius: 5px;"></div>
 </div>
 
-<script type="text/javascript">
+<script>
 jQuery(document).ready(function($) {
-    // Копирование Webhook URL в буфер обмена
-    $('#akpp-copy-webhook').on('click', function() {
-        const url = $(this).data('url');
-        navigator.clipboard.writeText(url).then(function() {
-            const originalText = $('#akpp-copy-webhook').html();
-            $('#akpp-copy-webhook').html('✅ <?php _e('Скопировано!', 'akpp-crm'); ?>');
-            setTimeout(function() {
-                $('#akpp-copy-webhook').html(originalText);
-            }, 2000);
+    
+    // Сохранение настроек и получение токена
+    $('#akpp-avito-settings-form').on('submit', function(e) {
+        e.preventDefault();
+        
+        var form = $(this);
+        var submitBtn = $('#akpp-save-settings-btn');
+        var messageDiv = $('#akpp-ajax-message');
+        
+        submitBtn.prop('disabled', true).text('⏳ Сохранение...');
+        messageDiv.hide();
+        
+        $.ajax({
+            url: form.attr('action'),
+            type: 'POST',
+            data: form.serialize(),
+            dataType: 'json',
+            success: function(response) {
+                if (response.success) {
+                    messageDiv.removeClass('notice-error').addClass('notice notice-success')
+                        .html('<p>✅ ' + response.data.message + '</p>').show();
+                    setTimeout(function() {
+                        location.reload();
+                    }, 1500);
+                } else {
+                    messageDiv.removeClass('notice-success').addClass('notice notice-error')
+                        .html('<p>❌ ' + response.data.message + '</p>').show();
+                    submitBtn.prop('disabled', false).text('💾 Сохранить настройки и получить токен');
+                }
+            },
+            error: function() {
+                messageDiv.removeClass('notice-success').addClass('notice notice-error')
+                    .html('<p>❌ Ошибка соединения с сервером</p>').show();
+                submitBtn.prop('disabled', false).text('💾 Сохранить настройки и получить токен');
+            }
         });
     });
-
-    // Тестовое подключение (Заглушка для AJAX-запроса)
-    $('#akpp-test-connection-btn').on('click', function() {
-        const btn = $(this);
-        const spinner = $('#akpp-test-spinner');
-        const result = $('#akpp-test-result');
-        const nonce = btn.data('nonce');
-
-        btn.prop('disabled', true);
-        spinner.addClass('is-active');
-        result.text('').removeClass('success-text error-text');
-
-        // Здесь будет реальный AJAX-запрос к классу Avito API
-        setTimeout(function() {
-            spinner.removeClass('is-active');
-            btn.prop('disabled', false);
-            
-            // Имитация ответа (заменить на реальный $.post)
-            result.addClass('error-text').text('<?php _e('Требуется реализация AJAX-обработчика проверки токена', 'akpp-crm'); ?>');
-        }, 1500);
+    
+    // Обновление токена
+    $('#akpp-refresh-token-btn').on('click', function() {
+        var btn = $(this);
+        var messageDiv = $('#akpp-ajax-message');
+        
+        btn.prop('disabled', true).text('⏳ Обновление...');
+        messageDiv.hide();
+        
+        $.ajax({
+            url: ajaxurl,
+            type: 'POST',
+            data: {
+                action: 'akpp_refresh_avito_token',
+                nonce: '<?php echo wp_create_nonce("akpp_refresh_token_nonce"); ?>'
+            },
+            dataType: 'json',
+            success: function(response) {
+                if (response.success) {
+                    messageDiv.removeClass('notice-error').addClass('notice notice-success')
+                        .html('<p>✅ ' + response.data.message + '</p>').show();
+                    setTimeout(function() {
+                        location.reload();
+                    }, 1500);
+                } else {
+                    messageDiv.removeClass('notice-success').addClass('notice notice-error')
+                        .html('<p>❌ ' + response.data.message + '</p>').show();
+                    btn.prop('disabled', false).text('🔄 Обновить токен');
+                }
+            },
+            error: function() {
+                messageDiv.removeClass('notice-success').addClass('notice notice-error')
+                    .html('<p>❌ Ошибка обновления токена</p>').show();
+                btn.prop('disabled', false).text('🔄 Обновить токен');
+            }
+        });
     });
 });
 </script>
 
 <style>
-    .akpp-settings-card {
-        background: #fff;
-        border: 1px solid #ccd0d4;
-        box-shadow: 0 1px 1px rgba(0,0,0,.04);
-        padding: 20px;
-        max-width: 800px;
+.akpp-crm-wrap {
+    max-width: 1200px;
+    margin: 20px 20px 0 0;
+}
+.akpp-settings-container {
+    flex-wrap: wrap;
+}
+@media (max-width: 768px) {
+    .akpp-settings-form, .akpp-token-status {
+        flex: 100% !important;
+        margin-bottom: 20px;
     }
-    .required { color: #dc3232; }
-    .success-text { color: #00a32a; }
-    .error-text { color: #dc3232; }
-    .code { font-family: Consolas, Monaco, monospace; }
+}
 </style>
