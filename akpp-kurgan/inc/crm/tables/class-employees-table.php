@@ -1,234 +1,360 @@
 <?php
-if (!defined('ABSPATH')) exit;
+/**
+ * Класс для таблицы сотрудников в админке
+ * 
+ * @package AKPP45_CRM
+ */
 
-// Подключаем класс WP_List_Table, если он еще не загружен
+if (!defined('ABSPATH')) {
+    exit;
+}
+
 if (!class_exists('WP_List_Table')) {
-    require_once(ABSPATH . 'wp-admin/includes/class-wp-list-table.php');
+    require_once ABSPATH . 'wp-admin/includes/class-wp-list-table.php';
 }
 
 class AKPP_Employees_Table extends WP_List_Table {
     
+    private $table_name;
+    
     public function __construct() {
         parent::__construct([
-            'singular' => __('Сотрудник', 'akpp-crm'),
-            'plural'   => __('Сотрудники', 'akpp-crm'),
-            'ajax'     => false
+            'singular' => 'employee',
+            'plural' => 'employees',
+            'ajax' => false
         ]);
-    }
-
-    /**
-     * Получение данных из базы данных
-     */
-    public function get_employees() {
+        
         global $wpdb;
-        $table_name = $wpdb->prefix . 'akpp_employees';
-
-        // Параметры запроса
-        $per_page = $this->get_items_per_page('employees_per_page', 20);
-        $current_page = $this->get_pagenum();
-        $search = isset($_REQUEST['s']) ? sanitize_text_field($_REQUEST['s']) : '';
-        $orderby = isset($_REQUEST['orderby']) ? sanitize_sql_orderby($_REQUEST['orderby']) : 'id';
-        $order = isset($_REQUEST['order']) && $_REQUEST['order'] === 'desc' ? 'DESC' : 'ASC';
-
-        // Построение условия WHERE для поиска
-        $where = "1=1";
-        if (!empty($search)) {
-            $search_like = '%' . $wpdb->esc_like($search) . '%';
-            $where = $wpdb->prepare("(full_name LIKE %s OR phone LIKE %s OR role LIKE %s)", $search_like, $search_like, $search_like);
-        }
-
-        // Получение общего количества записей для пагинации
-        $total_items = $wpdb->get_var("SELECT COUNT(*) FROM $table_name WHERE $where");
-
-        // Получение данных для текущей страницы
-        $offset = ($current_page - 1) * $per_page;
-        $query = $wpdb->prepare(
-            "SELECT * FROM $table_name WHERE $where ORDER BY $orderby $order LIMIT %d OFFSET %d",
-            $per_page, $offset
-        );
-        $data = $wpdb->get_results($query, ARRAY_A);
-
-        // Установка свойств для пагинации
-        $this->set_pagination_args([
-            'total_items' => $total_items,
-            'per_page'    => $per_page,
-            'total_pages' => ceil($total_items / $per_page)
-        ]);
-
-        return $data;
+        $this->table_name = $wpdb->prefix . 'akpp_employees';
     }
-
+    
     /**
-     * Подготовка элементов для вывода
+     * Получение данных для таблицы
      */
     public function prepare_items() {
-        $columns = $this->get_columns();
-        $hidden = [];
-        $sortable = $this->get_sortable_columns();
-
-        $this->_column_headers = [$columns, $hidden, $sortable];
-
-        // Обработка массовых действий
+        global $wpdb;
+        
+        $per_page = 20;
+        $current_page = $this->get_pagenum();
+        $offset = ($current_page - 1) * $per_page;
+        
+        // Фильтры
+        $role_filter = isset($_GET['role_filter']) ? sanitize_text_field($_GET['role_filter']) : 'all';
+        $status_filter = isset($_GET['status_filter']) ? sanitize_text_field($_GET['status_filter']) : 'all';
+        $search = isset($_GET['s']) ? sanitize_text_field($_GET['s']) : '';
+        
+        // Построение WHERE
+        $where = [];
+        $params = [];
+        
+        if ($role_filter !== 'all') {
+            $where[] = "role = %s";
+            $params[] = $role_filter;
+        }
+        
+        if ($status_filter !== 'all') {
+            $is_active = $status_filter === 'active' ? 1 : 0;
+            $where[] = "is_active = %d";
+            $params[] = $is_active;
+        }
+        
+        if (!empty($search)) {
+            $where[] = "(name LIKE '%%%s%%' OR email LIKE '%%%s%%' OR phone LIKE '%%%s%%')";
+            $params[] = $search;
+            $params[] = $search;
+            $params[] = $search;
+        }
+        
+        $where_clause = !empty($where) ? "WHERE " . implode(" AND ", $where) : "";
+        
+        // Сортировка
+        $orderby = isset($_GET['orderby']) ? sanitize_sql_orderby($_GET['orderby']) : 'name';
+        $order = isset($_GET['order']) && strtoupper($_GET['order']) === 'ASC' ? 'ASC' : 'DESC';
+        
+        // Получение общего количества
+        $count_query = "SELECT COUNT(*) FROM {$this->table_name} {$where_clause}";
+        if (!empty($params)) {
+            $count_query = $wpdb->prepare($count_query, $params);
+        }
+        $total_items = $wpdb->get_var($count_query);
+        
+        // Получение данных
+        $query = "SELECT * FROM {$this->table_name} {$where_clause} ORDER BY {$orderby} {$order} LIMIT %d OFFSET %d";
+        $params[] = $per_page;
+        $params[] = $offset;
+        
+        $query = $wpdb->prepare($query, $params);
+        $this->items = $wpdb->get_results($query);
+        
+        // Настройка пагинации
+        $this->set_pagination_args([
+            'total_items' => $total_items,
+            'per_page' => $per_page,
+            'total_pages' => ceil($total_items / $per_page)
+        ]);
+        
         $this->process_bulk_action();
-
-        $this->items = $this->get_employees();
     }
-
+    
     /**
-     * Определение колонок таблицы
+     * Определение колонок
      */
     public function get_columns() {
         return [
-            'cb'       => '<input type="checkbox" />',
-            'id'       => __('ID', 'akpp-crm'),
-            'full_name'=> __('ФИО', 'akpp-crm'),
-            'role'     => __('Должность', 'akpp-crm'),
-            'phone'    => __('Телефон', 'akpp-crm'),
-            'status'   => __('Статус', 'akpp-crm'),
-            'actions'  => __('Действия', 'akpp-crm')
+            'cb' => '<input type="checkbox" />',
+            'id' => 'ID',
+            'name' => 'ФИО',
+            'contact' => 'Контакты',
+            'role' => 'Должность',
+            'percent' => '%',
+            'telegram' => 'Telegram',
+            'status' => 'Статус',
+            'created_at' => 'Дата',
+            'actions' => 'Действия'
         ];
     }
-
+    
     /**
-     * Определение сортируемых колонок
+     * Сортируемые колонки
      */
     public function get_sortable_columns() {
         return [
-            'id'        => ['id', true],
-            'full_name' => ['full_name', false],
-            'role'      => ['role', false]
+            'id' => ['id', false],
+            'name' => ['name', true],
+            'role' => ['role', false],
+            'percent' => ['percent', false],
+            'created_at' => ['created_at', true]
         ];
     }
-
-    /**
-     * Колонка с чекбоксом
-     */
-    public function column_cb($item) {
-        return sprintf('<input type="checkbox" name="employee[]" value="%s" />', $item['id']);
-    }
-
-    /**
-     * Колонка ID
-     */
-    public function column_id($item) {
-        return '#' . esc_html($item['id']);
-    }
-
-    /**
-     * Колонка ФИО (с ссылками действий)
-     */
-    public function column_full_name($item) {
-        $edit_url = add_query_arg([
-            'page' => 'akpp-employees',
-            'action' => 'edit',
-            'id' => $item['id'],
-            '_wpnonce' => wp_create_nonce('akpp_edit_employee_' . $item['id'])
-        ], admin_url('admin.php'));
-
-        $actions = [
-            'edit' => sprintf('<a href="%s">%s</a>', esc_url($edit_url), __('Редактировать', 'akpp-crm')),
-            'delete' => sprintf('<a href="%s" style="color:#a00;" onclick="return confirm(\'Удалить сотрудника?\');">%s</a>', 
-                wp_nonce_url(add_query_arg(['page' => 'akpp-employees', 'action' => 'delete', 'id' => $item['id']], admin_url('admin.php')), 'akpp_delete_employee_' . $item['id']), 
-                __('Удалить', 'akpp-crm')
-            )
-        ];
-
-        return sprintf('<strong>%1$s</strong> %2$s', esc_html($item['full_name']), $this->row_actions($actions));
-    }
-
-    /**
-     * Колонка Должность
-     */
-    public function column_role($item) {
-        $roles = [
-            'admin' => 'Администратор',
-            'manager' => 'Менеджер',
-            'mechanic' => 'Механик'
-        ];
-        return esc_html($roles[$item['role']] ?? $item['role']);
-    }
-
-    /**
-     * Колонка Телефон
-     */
-    public function column_phone($item) {
-        return esc_html($item['phone']);
-    }
-
-    /**
-     * Колонка Статус (с цветным бейджем)
-     */
-    public function column_status($item) {
-        if ($item['status'] === 'active') {
-            return '<span class="akpp-badge akpp-badge-success">Активен</span>';
-        }
-        return '<span class="akpp-badge akpp-badge-secondary">Неактивен</span>';
-    }
-
-    /**
-     * Колонка Действия (дублирует row_actions, но для явного столбца)
-     */
-    public function column_actions($item) {
-        $edit_url = add_query_arg([
-            'page' => 'akpp-employees',
-            'action' => 'edit',
-            'id' => $item['id'],
-            '_wpnonce' => wp_create_nonce('akpp_edit_employee_' . $item['id'])
-        ], admin_url('admin.php'));
-
-        $delete_url = wp_nonce_url(
-            add_query_arg(['page' => 'akpp-employees', 'action' => 'delete', 'id' => $item['id']], admin_url('admin.php')), 
-            'akpp_delete_employee_' . $item['id']
-        );
-
-        return sprintf(
-            '<a href="%s" class="button button-small">Изменить</a> 
-             <a href="%s" class="button button-small button-link-delete" onclick="return confirm(\'Вы уверены?\');">Удалить</a>',
-            esc_url($edit_url),
-            esc_url($delete_url)
-        );
-    }
-
-    /**
-     * Значение по умолчанию для колонок
-     */
-    public function column_default($item, $column_name) {
-        return isset($item[$column_name]) ? esc_html($item[$column_name]) : '';
-    }
-
+    
     /**
      * Массовые действия
      */
     public function get_bulk_actions() {
         return [
-            'delete' => __('Удалить', 'akpp-crm')
+            'activate' => 'Активировать',
+            'deactivate' => 'Деактивировать',
+            'delete' => 'Удалить'
         ];
     }
-
+    
     /**
      * Обработка массовых действий
      */
     public function process_bulk_action() {
         global $wpdb;
-        $table_name = $wpdb->prefix . 'akpp_employees';
-
-        // Одиночное удаление
-        if ('delete' === $this->current_action() && isset($_GET['id'])) {
-            $id = intval($_GET['id']);
-            check_admin_referer('akpp_delete_employee_' . $id);
-            $wpdb->delete($table_name, ['id' => $id]);
-            wp_redirect(add_query_arg(['page' => 'akpp-employees', 'deleted' => '1'], admin_url('admin.php')));
-            exit;
+        
+        if (!$this->current_action()) return;
+        
+        $employee_ids = isset($_GET['employee']) ? array_map('intval', $_GET['employee']) : [];
+        
+        if (empty($employee_ids)) return;
+        
+        $ids_placeholder = implode(',', array_fill(0, count($employee_ids), '%d'));
+        
+        switch ($this->current_action()) {
+            case 'activate':
+                $wpdb->query($wpdb->prepare(
+                    "UPDATE {$this->table_name} SET is_active = 1 WHERE id IN ({$ids_placeholder})",
+                    $employee_ids
+                ));
+                echo '<div class="notice notice-success"><p>Сотрудники активированы</p></div>';
+                break;
+                
+            case 'deactivate':
+                $wpdb->query($wpdb->prepare(
+                    "UPDATE {$this->table_name} SET is_active = 0 WHERE id IN ({$ids_placeholder})",
+                    $employee_ids
+                ));
+                echo '<div class="notice notice-success"><p>Сотрудники деактивированы</p></div>';
+                break;
+                
+            case 'delete':
+                $wpdb->query($wpdb->prepare(
+                    "DELETE FROM {$this->table_name} WHERE id IN ({$ids_placeholder})",
+                    $employee_ids
+                ));
+                echo '<div class="notice notice-success"><p>Сотрудники удалены</p></div>';
+                break;
         }
-
-        // Массовое удаление
-        if ('delete' === $this->current_action() && isset($_POST['employee']) && is_array($_POST['employee'])) {
-            check_admin_referer('bulk-' . $this->_args['plural']);
-            $ids = array_map('intval', $_POST['employee']);
-            $ids_str = implode(',', $ids);
-            $wpdb->query("DELETE FROM $table_name WHERE id IN ($ids_str)");
-            wp_redirect(add_query_arg(['page' => 'akpp-employees', 'deleted' => count($ids)], admin_url('admin.php')));
-            exit;
+    }
+    
+    /**
+     * Отображение колонки cb (чекбокс)
+     */
+    protected function column_cb($item) {
+        return sprintf('<input type="checkbox" name="employee[]" value="%s" />', $item->id);
+    }
+    
+    /**
+     * Отображение колонки ID
+     */
+    protected function column_id($item) {
+        return $item->id;
+    }
+    
+    /**
+     * Отображение колонки имени
+     */
+    protected function column_name($item) {
+        return '<strong>' . esc_html($item->name) . '</strong>';
+    }
+    
+    /**
+     * Отображение колонки контактов
+     */
+    protected function column_contact($item) {
+        $contact = '';
+        
+        if ($item->email) {
+            $contact .= '<div>✉️ ' . esc_html($item->email) . '</div>';
         }
+        if ($item->phone) {
+            $contact .= '<div>📞 ' . esc_html($item->phone) . '</div>';
+        }
+        
+        return !empty($contact) ? $contact : '—';
+    }
+    
+    /**
+     * Отображение колонки должности
+     */
+    protected function column_role($item) {
+        $roles = [
+            'admin' => '👑 Администратор',
+            'guide' => '🎯 Гид',
+            'master' => '🔧 Мастер',
+            'senior_master' => '⭐ Старший мастер',
+            'lead_master' => '🏆 Ведущий мастер',
+            'foreman' => '📋 Бригадир',
+            'assistant' => '👨‍🔧 Помощник'
+        ];
+        
+        $role_label = $roles[$item->role] ?? $item->role;
+        
+        // Бейдж для гида
+        if ($item->role === 'guide') {
+            $role_label = '<span class="role-badge guide">' . $role_label . '</span>';
+        }
+        
+        return $role_label;
+    }
+    
+    /**
+     * Отображение колонки процента
+     */
+    protected function column_percent($item) {
+        return '<strong>' . $item->percent . '%</strong>';
+    }
+    
+    /**
+     * Отображение колонки Telegram
+     */
+    protected function column_telegram($item) {
+        if ($item->telegram_username) {
+            return sprintf(
+                '<a href="https://t.me/%s" target="_blank">@%s</a>',
+                esc_attr($item->telegram_username),
+                esc_html($item->telegram_username)
+            );
+        } elseif ($item->telegram_id) {
+            return '📱 ID: ' . esc_html($item->telegram_id);
+        }
+        
+        return '—';
+    }
+    
+    /**
+     * Отображение колонки статуса
+     */
+    protected function column_status($item) {
+        if ($item->is_active) {
+            return '<span class="status-badge status-active">🟢 Активен</span>';
+        } else {
+            return '<span class="status-badge status-inactive">🔴 Неактивен</span>';
+        }
+    }
+    
+    /**
+     * Отображение колонки даты
+     */
+    protected function column_created_at($item) {
+        return date_i18n(get_option('date_format'), strtotime($item->created_at));
+    }
+    
+    /**
+     * Отображение колонки действий
+     */
+    protected function column_actions($item) {
+        $actions = sprintf(
+            '<a href="?page=akpp-crm-employees&action=edit&id=%d" class="button button-small">✏️ Ред.</a> ',
+            $item->id
+        );
+        
+        if ($item->is_active) {
+            $actions .= sprintf(
+                '<button class="button button-small deactivate-employee" data-id="%d">🔴 Деакт.</button> ',
+                $item->id
+            );
+        } else {
+            $actions .= sprintf(
+                '<button class="button button-small activate-employee" data-id="%d">🟢 Акт.</button> ',
+                $item->id
+            );
+        }
+        
+        $actions .= sprintf(
+            '<button class="button button-small delete-employee" data-id="%d">🗑️</button>',
+            $item->id
+        );
+        
+        return $actions;
+    }
+    
+    /**
+     * Отображение по умолчанию для неизвестных колонок
+     */
+    protected function column_default($item, $column_name) {
+        return isset($item->$column_name) ? esc_html($item->$column_name) : '—';
+    }
+    
+    /**
+     * Фильтры над таблицей
+     */
+    protected function extra_tablenav($which) {
+        if ($which !== 'top') return;
+        
+        $role_filter = isset($_GET['role_filter']) ? sanitize_text_field($_GET['role_filter']) : 'all';
+        $status_filter = isset($_GET['status_filter']) ? sanitize_text_field($_GET['status_filter']) : 'all';
+        ?>
+        <div class="alignleft actions">
+            <select name="role_filter">
+                <option value="all" <?php selected($role_filter, 'all'); ?>>Все должности</option>
+                <option value="admin" <?php selected($role_filter, 'admin'); ?>>👑 Администратор</option>
+                <option value="guide" <?php selected($role_filter, 'guide'); ?>>🎯 Гид</option>
+                <option value="master" <?php selected($role_filter, 'master'); ?>>🔧 Мастер</option>
+                <option value="senior_master" <?php selected($role_filter, 'senior_master'); ?>>⭐ Старший мастер</option>
+                <option value="lead_master" <?php selected($role_filter, 'lead_master'); ?>>🏆 Ведущий мастер</option>
+                <option value="foreman" <?php selected($role_filter, 'foreman'); ?>>📋 Бригадир</option>
+                <option value="assistant" <?php selected($role_filter, 'assistant'); ?>>👨‍🔧 Помощник</option>
+            </select>
+            
+            <select name="status_filter">
+                <option value="all" <?php selected($status_filter, 'all'); ?>>Все сотрудники</option>
+                <option value="active" <?php selected($status_filter, 'active'); ?>>Активные</option>
+                <option value="inactive" <?php selected($status_filter, 'inactive'); ?>>Неактивные</option>
+            </select>
+            
+            <input type="submit" name="filter_action" class="button" value="Фильтровать">
+            <a href="?page=akpp-crm-employees&action=add" class="button button-primary">➕ Добавить сотрудника</a>
+        </div>
+        <?php
+    }
+    
+    /**
+     * Отображение, если нет данных
+     */
+    public function no_items() {
+        echo 'Нет сотрудников для отображения';
     }
 }
