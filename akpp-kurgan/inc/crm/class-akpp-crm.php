@@ -1,6 +1,6 @@
 <?php
 /**
- * Главный класс CRM АКПП45
+ * Главный класс CRM АКПП45 (ПОЛНЫЙ ФАЙЛ)
  * 
  * @package AKPP45_CRM
  */
@@ -67,12 +67,13 @@ class AKPP_CRM {
         add_action('admin_enqueue_scripts', [$this, 'enqueue_admin_assets']);
         add_action('wp_enqueue_scripts', [$this, 'enqueue_frontend_assets']);
         
-        // Инициализация компонентов
+        // Регистрация страниц фронтенда
+        add_action('init', [$this, 'register_frontend_pages']);
+        
         add_action('init', [$this, 'init_components']);
     }
     
     public function init() {
-        // Создание таблиц при активации
         if (is_admin()) {
             $install = AKPP_Install::get_instance();
             $install->create_tables();
@@ -80,14 +81,54 @@ class AKPP_CRM {
     }
     
     public function init_components() {
-        // Инициализация AJAX
         AKPP_AJAX::get_instance();
-        
-        // Инициализация Cron
         AKPP_Cron::get_instance();
-        
-        // Инициализация Webhook
         AKPP_Webhook::get_instance();
+    }
+    
+    /**
+     * Регистрация страниц фронтенда
+     */
+    public function register_frontend_pages() {
+        add_rewrite_rule('^crm-login/?$', 'index.php?akpp_page=login', 'top');
+        add_rewrite_rule('^crm-register/?$', 'index.php?akpp_page=register', 'top');
+        add_rewrite_rule('^crm-profile/?$', 'index.php?akpp_page=profile', 'top');
+        add_rewrite_rule('^crm-chat/?$', 'index.php?akpp_page=chat', 'top');
+        
+        add_filter('query_vars', [$this, 'add_query_vars']);
+        add_action('template_include', [$this, 'load_frontend_template']);
+    }
+    
+    public function add_query_vars($vars) {
+        $vars[] = 'akpp_page';
+        return $vars;
+    }
+    
+    public function load_frontend_template($template) {
+        $page = get_query_var('akpp_page');
+        
+        if (!$page) {
+            return $template;
+        }
+        
+        $template_path = AKPP_CRM_PATH . 'templates/frontend/';
+        
+        switch ($page) {
+            case 'login':
+                $template = $template_path . 'login.php';
+                break;
+            case 'register':
+                $template = $template_path . 'register.php';
+                break;
+            case 'profile':
+                $template = $template_path . 'profile.php';
+                break;
+            case 'chat':
+                $template = $template_path . 'chat.php';
+                break;
+        }
+        
+        return $template;
     }
     
     public function add_admin_menus() {
@@ -234,14 +275,33 @@ class AKPP_CRM {
     }
     
     public function enqueue_frontend_assets() {
-        if (!is_page('crm-login') && !is_page('crm-register') && !is_page('crm-profile') && !is_page('crm-chat')) {
+        $page = get_query_var('akpp_page');
+        
+        if (!$page) {
             return;
         }
         
         wp_enqueue_style('akpp-frontend-css', AKPP_CRM_URL . 'assets/css/frontend.css', [], AKPP_CRM_VERSION);
-        wp_enqueue_script('akpp-frontend-js', AKPP_CRM_URL . 'assets/js/auth.js', ['jquery'], AKPP_CRM_VERSION, true);
-        wp_enqueue_script('akpp-chat-js', AKPP_CRM_URL . 'assets/js/chat.js', ['jquery'], AKPP_CRM_VERSION, true);
+        
+        if ($page === 'chat') {
+            wp_enqueue_script('akpp-chat-js', AKPP_CRM_URL . 'assets/js/chat.js', ['jquery'], AKPP_CRM_VERSION, true);
+            wp_localize_script('akpp-chat-js', 'akpp_chat', [
+                'ajax_url' => admin_url('admin-ajax.php'),
+                'nonce' => wp_create_nonce('akpp_get_chat_nonce'),
+                'user_id' => get_current_user_id()
+            ]);
+        }
+        
+        if ($page === 'profile') {
+            wp_enqueue_script('akpp-profile-js', AKPP_CRM_URL . 'assets/js/profile.js', ['jquery'], AKPP_CRM_VERSION, true);
+        }
+        
+        if ($page === 'register' || $page === 'login') {
+            wp_enqueue_script('akpp-auth-js', AKPP_CRM_URL . 'assets/js/auth.js', ['jquery'], AKPP_CRM_VERSION, true);
+        }
     }
+    
+    // ==================== МЕТОДЫ ОТОБРАЖЕНИЯ ====================
     
     public function render_dashboard() {
         include AKPP_CRM_PATH . 'templates/dashboard.php';
