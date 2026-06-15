@@ -123,6 +123,15 @@ class AKPP_AJAX {
         add_action('wp_ajax_akpp_multi_employee_payment', [$this, 'ajax_multi_employee_payment']);
         add_action('wp_ajax_akpp_update_employee_percent', [$this, 'ajax_update_employee_percent']);
         add_action('wp_ajax_akpp_payment_statistics', [$this, 'ajax_payment_statistics']);
+
+        // Парсер
+        add_action('wp_ajax_akpp_parse_url', [$this, 'ajax_parse_url']);
+        add_action('wp_ajax_akpp_get_parser_items', [$this, 'ajax_get_parser_items']);
+        add_action('wp_ajax_akpp_get_parser_item', [$this, 'ajax_get_parser_item']);
+        add_action('wp_ajax_akpp_reparse_url', [$this, 'ajax_reparse_url']);
+        add_action('wp_ajax_akpp_delete_parser_item', [$this, 'ajax_delete_parser_item']);
+        add_action('wp_ajax_akpp_bulk_parse', [$this, 'ajax_bulk_parse']);
+        add_action('wp_ajax_akpp_export_parser_items', [$this, 'ajax_export_parser_items']);
     }
     
     // ==================== СДЕЛКИ ====================
@@ -2106,5 +2115,353 @@ public function ajax_payment_statistics() {
         'month' => $month,
         'data' => $results
     ]);
+}
+    /**
+ * ДОПОЛНЕНИЕ К ФАЙЛУ class-akpp-ajax.php
+ * Методы для универсального парсера
+ */
+
+/**
+ * Парсинг URL (AJAX)
+ */
+public function ajax_parse_url() {
+    if (!check_ajax_referer('akpp_parse_url_nonce', 'nonce', false)) {
+        wp_send_json_error('Неверный security токен');
+        return;
+    }
+    
+    if (!current_user_can('manage_options')) {
+        wp_send_json_error('Недостаточно прав');
+        return;
+    }
+    
+    $url = isset($_POST['url']) ? esc_url_raw($_POST['url']) : '';
+    
+    if (empty($url)) {
+        wp_send_json_error('URL не передан');
+        return;
+    }
+    
+    if (!class_exists('AKPP_Parser')) {
+        require_once AKPP_CRM_PATH . 'class-akpp-parser.php';
+    }
+    
+    $parser = AKPP_Parser::get_instance();
+    $result = $parser->parse($url);
+    
+    if ($result) {
+        $this->log_event("Парсинг выполнен: {$url}");
+        
+        // Запускаем AI анализ в фоне
+        $this->trigger_ai_analysis($result['id']);
+        
+        wp_send_json_success([
+            'message' => 'Парсинг успешно выполнен',
+            'item_id' => $result['id'],
+            'title' => $result['title'],
+            'content_type' => $result['content_type'],
+            'text_preview' => mb_substr($result['text'], 0, 300) . '...',
+            'images_count' => count($result['images'])
+        ]);
+    } else {
+        wp_send_json_error('Ошибка парсинга URL. Проверьте доступность сайта.');
+    }
+}
+
+/**
+ * Запуск AI анализа в фоне
+ */
+private function trigger_ai_analysis($item_id) {
+    // Используем wp_schedule_single_event для фоновой обработки
+    if (!wp_next_scheduled('akpp_ai_analysis_event', [$item_id])) {
+        wp_schedule_single_event(time(), 'akpp_ai_analysis_event', [$item_id]);
+    }
+}
+
+/**
+ * Получение списка элементов парсера
+ */
+public function ajax_get_parser_items() {
+    if (!check_ajax_referer('akpp_get_parser_items_nonce', 'nonce', false)) {
+        wp_send_json_error('Неверный security токен');
+        return;
+    }
+    
+    $status = isset($_POST['status']) ? sanitize_text_field($_POST['status']) : 'all';
+    $page = isset($_POST['page']) ? intval($_POST['page']) : 1;
+    $limit = isset($_POST['limit']) ? intval($_POST['limit']) : 20;
+    $offset = ($page - 1) * $limit;
+    
+    global $wpdb;
+    $table = $wpdb->prefix . 'akpp_parser_items';
+    
+    $where = '';
+    if ($status !== 'all') {
+        $where = $wpdb->prepare("WHERE status = %s", $status);
+    }
+    
+    $total = $wpdb->get_var("SELECT COUNT(*) FROM {$table} {$where}");
+    
+    $items = $wpdb->get_results(
+        "SELECT * FROM {$table} {$where} 
+        ORDER BY created_at DESC 
+        LIMIT {$limit} OFFSET {$offset}"
+    );
+    
+    // Декодируем JSON поля
+    foreach ($items as $item) {
+        $item->images = json_decode($item->images, true);
+        $item->ai_analysis = json_decode($item->ai_analysis, true);
+        $item->parsed_data = json_decode($item->parsed_data, true);
+    }
+    
+    wp_send_json_success([
+        'items' => $items,
+        'total' => $total,
+        'page' => $page,
+        'pages' => ceil($total / $limit)
+    ]);
+}
+
+/**
+ * Получение деталей элемента парсера
+ */
+public function ajax_get_parser_item() {
+    if (!check_ajax_referer('akpp_get_parser_item_nonce', 'nonce', false)) {
+        wp_send_json_error('Неверный security токен');
+        return;
+    }
+    
+    $item_id = isset($_POST['item_id']) ? intval($_POST['item_id']) : 0;
+    
+    if (!$item_id) {
+        wp_send_json_error('ID элемента не передан');
+        return;
+    }
+    
+    global $wpdb;
+    $table = $wpdb->prefix . 'akpp_parser_items';
+    
+    $item = $wpdb->get_row($wpdb->prepare(
+        "SELECT * FROM {$table} WHERE id = %d",
+        $item_id
+    ));
+    
+    if ($item) {
+        $item->images = json_decode($item->images, true);
+        $item->ai_analysis = json_decode($item->ai_analysis, true);
+        $item->parsed_data = json_decode($item->parsed_data, true);
+        wp_send_json_success($item);
+    } else {
+        wp_send_json_error('Элемент не найден');
+    }
+}
+
+/**
+ * Повторный парсинг URL
+ */
+public function ajax_reparse_url() {
+    if (!check_ajax_referer('akpp_reparse_url_nonce', 'nonce', false)) {
+        wp_send_json_error('Неверный security токен');
+        return;
+    }
+    
+    if (!current_user_can('manage_options')) {
+        wp_send_json_error('Недостаточно прав');
+        return;
+    }
+    
+    $item_id = isset($_POST['item_id']) ? intval($_POST['item_id']) : 0;
+    
+    if (!$item_id) {
+        wp_send_json_error('ID элемента не передан');
+        return;
+    }
+    
+    global $wpdb;
+    $table = $wpdb->prefix . 'akpp_parser_items';
+    
+    $item = $wpdb->get_row($wpdb->prepare(
+        "SELECT url FROM {$table} WHERE id = %d",
+        $item_id
+    ));
+    
+    if (!$item) {
+        wp_send_json_error('Элемент не найден');
+        return;
+    }
+    
+    // Удаляем старый результат
+    $wpdb->delete($table, ['id' => $item_id], ['%d']);
+    
+    if (!class_exists('AKPP_Parser')) {
+        require_once AKPP_CRM_PATH . 'class-akpp-parser.php';
+    }
+    
+    $parser = AKPP_Parser::get_instance();
+    $result = $parser->parse($item->url);
+    
+    if ($result) {
+        wp_send_json_success([
+            'message' => 'Повторный парсинг выполнен',
+            'new_item_id' => $result['id']
+        ]);
+    } else {
+        wp_send_json_error('Ошибка повторного парсинга');
+    }
+}
+
+/**
+ * Удаление элемента парсера
+ */
+public function ajax_delete_parser_item() {
+    if (!check_ajax_referer('akpp_delete_parser_item_nonce', 'nonce', false)) {
+        wp_send_json_error('Неверный security токен');
+        return;
+    }
+    
+    if (!current_user_can('manage_options')) {
+        wp_send_json_error('Недостаточно прав');
+        return;
+    }
+    
+    $item_id = isset($_POST['item_id']) ? intval($_POST['item_id']) : 0;
+    
+    if (!$item_id) {
+        wp_send_json_error('ID элемента не передан');
+        return;
+    }
+    
+    global $wpdb;
+    $table = $wpdb->prefix . 'akpp_parser_items';
+    
+    $deleted = $wpdb->delete($table, ['id' => $item_id], ['%d']);
+    
+    if ($deleted) {
+        $this->log_event("Удален элемент парсера #{$item_id}");
+        wp_send_json_success(['message' => 'Элемент удален']);
+    } else {
+        wp_send_json_error('Ошибка удаления');
+    }
+}
+
+/**
+ * Пакетный парсинг (несколько URL)
+ */
+public function ajax_bulk_parse() {
+    if (!check_ajax_referer('akpp_bulk_parse_nonce', 'nonce', false)) {
+        wp_send_json_error('Неверный security токен');
+        return;
+    }
+    
+    if (!current_user_can('manage_options')) {
+        wp_send_json_error('Недостаточно прав');
+        return;
+    }
+    
+    $urls = isset($_POST['urls']) ? array_map('esc_url_raw', explode("\n", $_POST['urls'])) : [];
+    $urls = array_filter($urls);
+    
+    if (empty($urls)) {
+        wp_send_json_error('Нет URL для парсинга');
+        return;
+    }
+    
+    if (!class_exists('AKPP_Parser')) {
+        require_once AKPP_CRM_PATH . 'class-akpp-parser.php';
+    }
+    
+    $parser = AKPP_Parser::get_instance();
+    $results = [];
+    $success_count = 0;
+    $error_count = 0;
+    
+    foreach ($urls as $url) {
+        $result = $parser->parse($url);
+        if ($result) {
+            $success_count++;
+            $results[] = [
+                'url' => $url,
+                'status' => 'success',
+                'item_id' => $result['id']
+            ];
+        } else {
+            $error_count++;
+            $results[] = [
+                'url' => $url,
+                'status' => 'error'
+            ];
+        }
+    }
+    
+    $this->log_event("Пакетный парсинг: {$success_count} успешно, {$error_count} ошибок");
+    
+    wp_send_json_success([
+        'message' => "Парсинг завершен: {$success_count} успешно, {$error_count} ошибок",
+        'success_count' => $success_count,
+        'error_count' => $error_count,
+        'results' => $results
+    ]);
+}
+
+/**
+ * Экспорт результатов парсинга
+ */
+public function ajax_export_parser_items() {
+    if (!check_ajax_referer('akpp_export_parser_nonce', 'nonce', false)) {
+        wp_send_json_error('Неверный security токен');
+        return;
+    }
+    
+    if (!current_user_can('manage_options')) {
+        wp_send_json_error('Недостаточно прав');
+        return;
+    }
+    
+    $status = isset($_POST['status']) ? sanitize_text_field($_POST['status']) : 'all';
+    $format = isset($_POST['format']) ? sanitize_text_field($_POST['format']) : 'json';
+    
+    global $wpdb;
+    $table = $wpdb->prefix . 'akpp_parser_items';
+    
+    $where = '';
+    if ($status !== 'all') {
+        $where = $wpdb->prepare("WHERE status = %s", $status);
+    }
+    
+    $items = $wpdb->get_results("SELECT * FROM {$table} {$where} ORDER BY created_at DESC");
+    
+    foreach ($items as $item) {
+        $item->images = json_decode($item->images, true);
+        $item->ai_analysis = json_decode($item->ai_analysis, true);
+        $item->parsed_data = json_decode($item->parsed_data, true);
+    }
+    
+    if ($format === 'json') {
+        header('Content-Type: application/json');
+        header('Content-Disposition: attachment; filename="parser_export_' . date('Y-m-d') . '.json"');
+        echo json_encode($items, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
+        exit;
+    } elseif ($format === 'csv') {
+        header('Content-Type: text/csv');
+        header('Content-Disposition: attachment; filename="parser_export_' . date('Y-m-d') . '.csv"');
+        
+        $output = fopen('php://output', 'w');
+        fputcsv($output, ['ID', 'URL', 'Title', 'Content Type', 'Status', 'Created At']);
+        
+        foreach ($items as $item) {
+            fputcsv($output, [
+                $item->id,
+                $item->url,
+                $item->title,
+                $item->content_type,
+                $item->status,
+                $item->created_at
+            ]);
+        }
+        
+        fclose($output);
+        exit;
+    }
 }
 }
