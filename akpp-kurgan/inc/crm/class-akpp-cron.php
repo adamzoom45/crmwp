@@ -21,16 +21,20 @@ class AKPP_Cron {
     }
     
     private function __construct() {
-        $this->register_hooks();
-    }
-    
-    private function register_hooks() {
         add_action('wp', [$this, 'schedule_events']);
         add_filter('cron_schedules', [$this, 'add_cron_intervals']);
+        
+        // Регистрация хуков
         add_action('akpp_sync_avito_dialogs', [$this, 'sync_avito_dialogs']);
         add_action('akpp_sync_avito_messages', [$this, 'sync_avito_messages']);
+        add_action('akpp_cleanup_old_data', [$this, 'cleanup_old_data']);
+        add_action('akpp_update_exchange_rates', [$this, 'update_exchange_rates']);
+        add_action('akpp_ai_bulk_analysis', [$this, 'ai_bulk_analysis']);
     }
     
+    /**
+     * Добавление интервалов cron
+     */
     public function add_cron_intervals($schedules) {
         $schedules['every_five_minutes'] = [
             'interval' => 300,
@@ -42,74 +46,79 @@ class AKPP_Cron {
             'display' => __('Каждый час', 'akpp45-crm')
         ];
         
+        $schedules['every_day'] = [
+            'interval' => 86400,
+            'display' => __('Каждый день', 'akpp45-crm')
+        ];
+        
+        $schedules['every_week'] = [
+            'interval' => 604800,
+            'display' => __('Каждую неделю', 'akpp45-crm')
+        ];
+        
         return $schedules;
     }
     
+    /**
+     * Планирование событий
+     */
     public function schedule_events() {
+        // Синхронизация диалогов Авито (каждый час)
         if (!wp_next_scheduled('akpp_sync_avito_dialogs')) {
             wp_schedule_event(time(), 'every_hour', 'akpp_sync_avito_dialogs');
         }
         
+        // Синхронизация сообщений Авито (каждые 5 минут)
         if (!wp_next_scheduled('akpp_sync_avito_messages')) {
             wp_schedule_event(time(), 'every_five_minutes', 'akpp_sync_avito_messages');
         }
+        
+        // Очистка старых данных (каждый день)
+        if (!wp_next_scheduled('akpp_cleanup_old_data')) {
+            wp_schedule_event(time(), 'every_day', 'akpp_cleanup_old_data');
+        }
+        
+        // Обновление курсов валют (каждый день)
+        if (!wp_next_scheduled('akpp_update_exchange_rates')) {
+            wp_schedule_event(time(), 'every_day', 'akpp_update_exchange_rates');
+        }
+        
+        // Пакетный AI анализ (каждый час)
+        if (!wp_next_scheduled('akpp_ai_bulk_analysis')) {
+            wp_schedule_event(time(), 'every_hour', 'akpp_ai_bulk_analysis');
+        }
     }
     
+    /**
+     * Синхронизация диалогов Авито
+     */
     public function sync_avito_dialogs() {
         $this->log_event('Запуск синхронизации диалогов Авито');
         
-        $token = $this->get_avito_token();
-        if (!$token) {
-            $this->log_error('Нет токена для синхронизации диалогов');
-            return;
+        if (!class_exists('AKPP_Avito')) {
+            require_once AKPP_CRM_PATH . 'class-akpp-avito.php';
         }
         
-        $account_id = get_option('akpp_avito_account_id', '');
-        if (empty($account_id)) {
-            $this->log_error('Нет account_id для синхронизации диалогов');
-            return;
-        }
+        $avito = AKPP_Avito::get_instance();
+        $dialogs = $avito->get_dialogs(50);
         
-        $url = 'https://api.avito.ru/messenger/v1/accounts/' . $account_id . '/chats';
-        
-        $args = [
-            'method' => 'GET',
-            'timeout' => 30,
-            'headers' => [
-                'Authorization' => 'Bearer ' . $token,
-                'Content-Type' => 'application/json'
-            ]
-        ];
-        
-        $response = wp_remote_get($url, $args);
-        
-        if (is_wp_error($response)) {
-            $this->log_error('Ошибка синхронизации диалогов: ' . $response->get_error_message());
-            return;
-        }
-        
-        $status_code = wp_remote_retrieve_response_code($response);
-        $body = wp_remote_retrieve_body($response);
-        
-        if ($status_code !== 200) {
-            $this->log_error('Ошибка синхронизации диалогов. Статус: ' . $status_code);
-            return;
-        }
-        
-        $data = json_decode($body, true);
-        $chats = $data['chats'] ?? $data['results'] ?? [];
-        
-        if (empty($chats)) {
-            $this->log_event('Нет диалогов для синхронизации');
-            return;
-        }
-        
-        $this->save_dialogs($chats);
-        $this->log_event('Синхронизировано диалогов: ' . count($chats));
+        $this->log_event('Синхронизировано диалогов: ' . count($dialogs));
     }
     
+    /**
+     * Синхронизация сообщений Авито
+     */
     public function sync_avito_messages() {
         $this->log_event('Запуск синхронизации сообщений Авито');
+        
+        global $wpdb;
+        $table_dialogs = $wpdb->prefix . 'akpp_avito_dialogs';
+        
+        $dialogs = $wpdb->get_col("SELECT dialog_id FROM {$table_dialogs} WHERE is_active = 1");
+        
+        if (empty($dialogs)) {
+            return;
+        }
         
         $token = $this->get_avito_token();
         if (!$token) {
@@ -119,17 +128,6 @@ class AKPP_Cron {
         
         $account_id = get_option('akpp_avito_account_id', '');
         if (empty($account_id)) {
-            $this->log_error('Нет account_id для синхронизации сообщений');
-            return;
-        }
-        
-        global $wpdb;
-        $table_dialogs = $wpdb->prefix . 'akpp_avito_dialogs';
-        
-        $dialogs = $wpdb->get_col("SELECT dialog_id FROM {$table_dialogs} WHERE is_active = 1");
-        
-        if (empty($dialogs)) {
-            $this->log_event('Нет активных диалогов для синхронизации сообщений');
             return;
         }
         
@@ -140,8 +138,11 @@ class AKPP_Cron {
         $this->log_event('Синхронизация сообщений завершена для ' . count($dialogs) . ' диалогов');
     }
     
+    /**
+     * Синхронизация сообщений диалога
+     */
     private function sync_dialog_messages($account_id, $token, $dialog_id) {
-        $url = 'https://api.avito.ru/messenger/v1/accounts/' . $account_id . '/chats/' . $dialog_id . '/messages';
+        $url = 'https://api.avito.ru/messenger/v1/accounts/' . $account_id . '/chats/' . $dialog_id . '/messages?limit=50';
         
         $args = [
             'method' => 'GET',
@@ -155,89 +156,27 @@ class AKPP_Cron {
         $response = wp_remote_get($url, $args);
         
         if (is_wp_error($response)) {
-            $this->log_error('Ошибка получения сообщений для диалога ' . $dialog_id . ': ' . $response->get_error_message());
             return;
         }
         
-        $status_code = wp_remote_retrieve_response_code($response);
         $body = wp_remote_retrieve_body($response);
-        
-        if ($status_code !== 200) {
-            $this->log_error('Ошибка получения сообщений для диалога ' . $dialog_id . '. Статус: ' . $status_code);
-            return;
-        }
-        
         $data = json_decode($body, true);
-        $messages = $data['messages'] ?? $data['results'] ?? [];
         
-        if (!empty($messages)) {
-            $this->save_messages($dialog_id, $messages);
+        if (isset($data['messages'])) {
+            $this->save_messages($dialog_id, $data['messages']);
         }
     }
     
-    private function save_dialogs($chats) {
-        global $wpdb;
-        $table_dialogs = $wpdb->prefix . 'akpp_avito_dialogs';
-        
-        foreach ($chats as $chat) {
-            $dialog_id = $chat['id'] ?? $chat['chat_id'] ?? '';
-            $user_id = $chat['user_id'] ?? $chat['participant_id'] ?? '';
-            $user_name = $chat['user_name'] ?? $chat['participant_name'] ?? 'Пользователь Авито';
-            $last_message = $chat['last_message'] ?? $chat['last_message_text'] ?? '';
-            $last_message_time = $chat['last_message_time'] ?? $chat['updated_at'] ?? current_time('mysql');
-            
-            if (empty($dialog_id)) {
-                continue;
-            }
-            
-            $exists = $wpdb->get_var($wpdb->prepare(
-                "SELECT id FROM {$table_dialogs} WHERE dialog_id = %s",
-                $dialog_id
-            ));
-            
-            if ($exists) {
-                $wpdb->update(
-                    $table_dialogs,
-                    [
-                        'last_message' => $last_message,
-                        'last_message_time' => $last_message_time,
-                        'updated_at' => current_time('mysql')
-                    ],
-                    ['dialog_id' => $dialog_id],
-                    ['%s', '%s', '%s'],
-                    ['%s']
-                );
-            } else {
-                $wpdb->insert(
-                    $table_dialogs,
-                    [
-                        'dialog_id' => $dialog_id,
-                        'user_id' => $user_id,
-                        'user_name' => $user_name,
-                        'last_message' => $last_message,
-                        'last_message_time' => $last_message_time,
-                        'is_active' => 1,
-                        'created_at' => current_time('mysql')
-                    ],
-                    ['%s', '%s', '%s', '%s', '%s', '%d', '%s']
-                );
-            }
-        }
-    }
-    
+    /**
+     * Сохранение сообщений
+     */
     private function save_messages($dialog_id, $messages) {
         global $wpdb;
         $table_cache = $wpdb->prefix . 'akpp_avito_messages_cache';
         
         foreach ($messages as $msg) {
-            $message_id = $msg['id'] ?? $msg['message_id'] ?? '';
-            $text = $msg['text'] ?? $msg['message'] ?? '';
-            $is_incoming = isset($msg['is_incoming']) ? (int)$msg['is_incoming'] : (isset($msg['direction']) && $msg['direction'] === 'in');
-            $created_at = $msg['created_at'] ?? $msg['timestamp'] ?? current_time('mysql');
-            
-            if (empty($message_id) || empty($text)) {
-                continue;
-            }
+            $message_id = $msg['id'] ?? '';
+            if (empty($message_id)) continue;
             
             $exists = $wpdb->get_var($wpdb->prepare(
                 "SELECT id FROM {$table_cache} WHERE message_id = %s",
@@ -250,17 +189,21 @@ class AKPP_Cron {
                     [
                         'dialog_id' => $dialog_id,
                         'message_id' => $message_id,
-                        'message_text' => $text,
-                        'is_incoming' => $is_incoming,
-                        'created_at' => $created_at,
-                        'synced_at' => current_time('mysql')
+                        'sender_id' => $msg['sender_id'] ?? '',
+                        'sender_name' => $msg['sender_name'] ?? '',
+                        'message_text' => $msg['text'] ?? '',
+                        'is_incoming' => isset($msg['direction']) && $msg['direction'] === 'in' ? 1 : 0,
+                        'created_at' => $msg['created_at'] ?? current_time('mysql')
                     ],
-                    ['%s', '%s', '%s', '%d', '%s', '%s']
+                    ['%s', '%s', '%s', '%s', '%s', '%d', '%s']
                 );
             }
         }
     }
     
+    /**
+     * Получение токена Авито
+     */
     private function get_avito_token() {
         if (!class_exists('AKPP_Avito')) {
             require_once AKPP_CRM_PATH . 'class-akpp-avito.php';
@@ -268,6 +211,125 @@ class AKPP_Cron {
         
         $avito = AKPP_Avito::get_instance();
         return $avito->get_active_token();
+    }
+    
+    /**
+     * Очистка старых данных
+     */
+    public function cleanup_old_data() {
+        global $wpdb;
+        
+        $this->log_event('Запуск очистки старых данных');
+        
+        // Удаление старых кэшей VIN (старше 90 дней)
+        $table_vin = $wpdb->prefix . 'akpp_vin_cache';
+        $wpdb->query("DELETE FROM {$table_vin} WHERE created_at < DATE_SUB(NOW(), INTERVAL 90 DAY)");
+        
+        // Удаление старых сообщений чата (старше 1 года)
+        $table_chat = $wpdb->prefix . 'akpp_chat_messages';
+        $wpdb->query("DELETE FROM {$table_chat} WHERE created_at < DATE_SUB(NOW(), INTERVAL 1 YEAR)");
+        
+        // Удаление старых логов парсера (старше 60 дней)
+        $table_parser = $wpdb->prefix . 'akpp_parser_items';
+        $wpdb->query("DELETE FROM {$table_parser} WHERE status = 'rejected' AND created_at < DATE_SUB(NOW(), INTERVAL 60 DAY)");
+        
+        // Удаление неактивных диалогов Авито (старше 30 дней)
+        $table_dialogs = $wpdb->prefix . 'akpp_avito_dialogs';
+        $wpdb->query("DELETE FROM {$table_dialogs} WHERE is_active = 0 AND updated_at < DATE_SUB(NOW(), INTERVAL 30 DAY)");
+        
+        $this->log_event('Очистка старых данных завершена');
+    }
+    
+    /**
+     * Обновление курсов валют (для расчета цен в рублях)
+     */
+    public function update_exchange_rates() {
+        $this->log_event('Обновление курсов валют');
+        
+        $url = 'https://www.cbr-xml-daily.ru/daily_json.js';
+        
+        $response = wp_remote_get($url, ['timeout' => 30]);
+        
+        if (is_wp_error($response)) {
+            $this->log_error('Ошибка получения курсов валют: ' . $response->get_error_message());
+            return;
+        }
+        
+        $body = wp_remote_retrieve_body($response);
+        $data = json_decode($body, true);
+        
+        if (isset($data['Valute'])) {
+            update_option('akpp_exchange_rates', [
+                'USD' => $data['Valute']['USD']['Value'] ?? 0,
+                'EUR' => $data['Valute']['EUR']['Value'] ?? 0,
+                'CNY' => $data['Valute']['CNY']['Value'] ?? 0,
+                'updated_at' => current_time('mysql')
+            ]);
+            
+            $this->log_event('Курсы валют обновлены');
+        }
+    }
+    
+    /**
+     * Пакетный AI анализ (для фоновой обработки)
+     */
+    public function ai_bulk_analysis() {
+        global $wpdb;
+        $table = $wpdb->prefix . 'akpp_parser_items';
+        
+        $items = $wpdb->get_results(
+            "SELECT * FROM {$table} 
+            WHERE status = 'pending' 
+            ORDER BY created_at ASC 
+            LIMIT 5"
+        );
+        
+        if (empty($items)) {
+            return;
+        }
+        
+        if (!class_exists('AKPP_AI_Analyzer')) {
+            require_once AKPP_CRM_PATH . 'ai/class-ai-analyzer.php';
+        }
+        
+        $analyzer = AKPP_AI_Analyzer::get_instance();
+        $processed = 0;
+        
+        foreach ($items as $item) {
+            $result = $analyzer->analyze($item->content, $item->content_type);
+            
+            $wpdb->update(
+                $table,
+                [
+                    'ai_analysis' => json_encode($result, JSON_UNESCAPED_UNICODE),
+                    'status' => 'ai_processed',
+                    'updated_at' => current_time('mysql')
+                ],
+                ['id' => $item->id],
+                ['%s', '%s', '%s'],
+                ['%d']
+            );
+            
+            $processed++;
+            
+            // Задержка между запросами к AI
+            usleep(1000000);
+        }
+        
+        $this->log_event("AI анализ: обработано {$processed} элементов");
+    }
+    
+    /**
+     * Отмена всех запланированных событий (при деактивации)
+     */
+    public function clear_scheduled_events() {
+        wp_clear_scheduled_hook('akpp_sync_avito_dialogs');
+        wp_clear_scheduled_hook('akpp_sync_avito_messages');
+        wp_clear_scheduled_hook('akpp_cleanup_old_data');
+        wp_clear_scheduled_hook('akpp_update_exchange_rates');
+        wp_clear_scheduled_hook('akpp_ai_bulk_analysis');
+        
+        $this->log_event('Все cron задачи отменены');
     }
     
     private function log_error($message) {
