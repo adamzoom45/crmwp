@@ -109,6 +109,11 @@ class AKPP_Avito {
         // Сохраняем токен в базу данных
         $this->save_token($data['access_token'], $data['expires_in']);
         
+        // Если есть user_id или account_id - сохраняем
+        if (isset($data['user_id'])) {
+            $this->set_account_id($data['user_id']);
+        }
+        
         return [
             'access_token' => $data['access_token'],
             'expires_in' => $data['expires_in'],
@@ -214,6 +219,105 @@ class AKPP_Avito {
         
         // Пробуем получить токен
         return $this->get_oauth_token();
+    }
+    
+    /**
+     * Отправка сообщения в диалог Авито
+     * 
+     * @param string $dialog_id ID диалога
+     * @param string $message Текст сообщения
+     * @return bool
+     */
+    public function send_message($dialog_id, $message) {
+        // Получаем активный токен
+        $token = $this->get_active_token();
+        
+        if (!$token) {
+            $this->log_error('Нет активного токена для отправки сообщения');
+            return false;
+        }
+        
+        // Получаем account_id (нужно сохранить при первом получении токена)
+        $account_id = get_option('akpp_avito_account_id', '');
+        
+        if (empty($account_id)) {
+            $this->log_error('Не указан account_id Авито');
+            return false;
+        }
+        
+        $url = $this->api_url . '/messenger/v1/accounts/' . $account_id . '/chats/' . $dialog_id . '/messages';
+        
+        $body = [
+            'message' => [
+                'text' => $message
+            ]
+        ];
+        
+        $args = [
+            'method' => 'POST',
+            'timeout' => 30,
+            'headers' => [
+                'Authorization' => 'Bearer ' . $token,
+                'Content-Type' => 'application/json'
+            ],
+            'body' => json_encode($body)
+        ];
+        
+        $response = wp_remote_post($url, $args);
+        
+        if (is_wp_error($response)) {
+            $this->log_error('Ошибка отправки сообщения: ' . $response->get_error_message());
+            return false;
+        }
+        
+        $status_code = wp_remote_retrieve_response_code($response);
+        $body = wp_remote_retrieve_body($response);
+        
+        if ($status_code !== 200 && $status_code !== 201) {
+            $this->log_error('Ошибка отправки сообщения. Статус: ' . $status_code . ', Ответ: ' . $body);
+            return false;
+        }
+        
+        $this->log_event("Сообщение отправлено в диалог {$dialog_id}");
+        
+        // Сохраняем отправленное сообщение в кэш
+        $this->save_sent_message($dialog_id, $message);
+        
+        return true;
+    }
+    
+    /**
+     * Сохранение отправленного сообщения в кэш
+     * 
+     * @param string $dialog_id ID диалога
+     * @param string $message Текст сообщения
+     */
+    private function save_sent_message($dialog_id, $message) {
+        global $wpdb;
+        
+        $table_cache = $wpdb->prefix . 'akpp_avito_messages_cache';
+        
+        $wpdb->insert(
+            $table_cache,
+            [
+                'dialog_id' => $dialog_id,
+                'message_id' => 'sent_' . time() . '_' . rand(1000, 9999),
+                'message_text' => $message,
+                'is_incoming' => 0,
+                'is_sent' => 1,
+                'created_at' => current_time('mysql')
+            ],
+            ['%s', '%s', '%s', '%d', '%d', '%s']
+        );
+    }
+    
+    /**
+     * Сохранение account_id (вызовите после успешного получения токена)
+     * 
+     * @param string $account_id ID аккаунта Авито
+     */
+    public function set_account_id($account_id) {
+        update_option('akpp_avito_account_id', sanitize_text_field($account_id));
     }
     
     /**
