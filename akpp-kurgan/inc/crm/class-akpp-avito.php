@@ -11,29 +11,11 @@ if (!defined('ABSPATH')) {
 
 class AKPP_Avito {
     
-    /**
-     * Экземпляр класса (Singleton)
-     */
     private static $instance = null;
-    
-    /**
-     * API URL
-     */
     private $api_url = 'https://api.avito.ru';
-    
-    /**
-     * Client ID из настроек
-     */
     private $client_id = '';
-    
-    /**
-     * Client Secret из настроек
-     */
     private $client_secret = '';
     
-    /**
-     * Получить экземпляр класса
-     */
     public static function get_instance() {
         if (self::$instance === null) {
             self::$instance = new self();
@@ -41,26 +23,15 @@ class AKPP_Avito {
         return self::$instance;
     }
     
-    /**
-     * Конструктор
-     */
     private function __construct() {
         $this->load_settings();
     }
     
-    /**
-     * Загрузка настроек из базы данных
-     */
     private function load_settings() {
         $this->client_id = get_option('akpp_avito_client_id', '');
         $this->client_secret = get_option('akpp_avito_client_secret', '');
     }
     
-    /**
-     * Получение OAuth токена
-     * 
-     * @return array|false Массив с токеном или false при ошибке
-     */
     public function get_oauth_token() {
         if (empty($this->client_id) || empty($this->client_secret)) {
             $this->log_error('Client ID или Client Secret не настроены');
@@ -78,9 +49,7 @@ class AKPP_Avito {
         $args = [
             'method' => 'POST',
             'timeout' => 30,
-            'headers' => [
-                'Content-Type' => 'application/x-www-form-urlencoded'
-            ],
+            'headers' => ['Content-Type' => 'application/x-www-form-urlencoded'],
             'body' => http_build_query($body)
         ];
         
@@ -93,7 +62,6 @@ class AKPP_Avito {
         
         $body = wp_remote_retrieve_body($response);
         $data = json_decode($body, true);
-        
         $status_code = wp_remote_retrieve_response_code($response);
         
         if ($status_code !== 200) {
@@ -106,10 +74,8 @@ class AKPP_Avito {
             return false;
         }
         
-        // Сохраняем токен в базу данных
         $this->save_token($data['access_token'], $data['expires_in']);
         
-        // Если есть user_id или account_id - сохраняем
         if (isset($data['user_id'])) {
             $this->set_account_id($data['user_id']);
         }
@@ -121,21 +87,12 @@ class AKPP_Avito {
         ];
     }
     
-    /**
-     * Сохранение токена в таблицу wp_akpp_avito_tokens
-     * 
-     * @param string $access_token Токен доступа
-     * @param int $expires_in Время жизни в секундах
-     */
     private function save_token($access_token, $expires_in) {
         global $wpdb;
         
         $table_name = $wpdb->prefix . 'akpp_avito_tokens';
-        
-        // Удаляем старые токены
         $wpdb->delete($table_name, ['is_active' => 1]);
         
-        // Сохраняем новый токен
         $wpdb->insert(
             $table_name,
             [
@@ -150,11 +107,6 @@ class AKPP_Avito {
         $this->log_event('Новый токен сохранен. Истекает через ' . $expires_in . ' секунд');
     }
     
-    /**
-     * Получение активного токена из базы
-     * 
-     * @return string|false Токен или false
-     */
     public function get_active_token() {
         global $wpdb;
         
@@ -165,7 +117,6 @@ class AKPP_Avito {
         );
         
         if (!$token) {
-            // Нет токена - пробуем получить новый
             $result = $this->get_oauth_token();
             if ($result && isset($result['access_token'])) {
                 return $result['access_token'];
@@ -173,11 +124,9 @@ class AKPP_Avito {
             return false;
         }
         
-        // Проверяем, не истек ли токен
         $created_timestamp = strtotime($token->created_at);
         $expires_timestamp = $created_timestamp + $token->expires_in;
         
-        // Если до истечения меньше 1 часа (3600 секунд) - обновляем
         if (($expires_timestamp - time()) < 3600) {
             $this->log_event('Токен истекает, обновляем...');
             $result = $this->get_oauth_token();
@@ -189,23 +138,11 @@ class AKPP_Avito {
         return $token->access_token;
     }
     
-    /**
-     * Обновление токена (публичный метод для cron)
-     * 
-     * @return bool
-     */
     public function refresh_token() {
         $result = $this->get_oauth_token();
         return ($result !== false);
     }
     
-    /**
-     * Сохранение настроек Client ID и Client Secret
-     * 
-     * @param string $client_id
-     * @param string $client_secret
-     * @return bool
-     */
     public function save_settings($client_id, $client_secret) {
         if (empty($client_id) || empty($client_secret)) {
             return false;
@@ -217,19 +154,10 @@ class AKPP_Avito {
         $this->client_id = $client_id;
         $this->client_secret = $client_secret;
         
-        // Пробуем получить токен
         return $this->get_oauth_token();
     }
     
-    /**
-     * Отправка сообщения в диалог Авито
-     * 
-     * @param string $dialog_id ID диалога
-     * @param string $message Текст сообщения
-     * @return bool
-     */
     public function send_message($dialog_id, $message) {
-        // Получаем активный токен
         $token = $this->get_active_token();
         
         if (!$token) {
@@ -237,7 +165,6 @@ class AKPP_Avito {
             return false;
         }
         
-        // Получаем account_id (нужно сохранить при первом получении токена)
         $account_id = get_option('akpp_avito_account_id', '');
         
         if (empty($account_id)) {
@@ -247,11 +174,7 @@ class AKPP_Avito {
         
         $url = $this->api_url . '/messenger/v1/accounts/' . $account_id . '/chats/' . $dialog_id . '/messages';
         
-        $body = [
-            'message' => [
-                'text' => $message
-            ]
-        ];
+        $body = ['message' => ['text' => $message]];
         
         $args = [
             'method' => 'POST',
@@ -279,19 +202,11 @@ class AKPP_Avito {
         }
         
         $this->log_event("Сообщение отправлено в диалог {$dialog_id}");
-        
-        // Сохраняем отправленное сообщение в кэш
         $this->save_sent_message($dialog_id, $message);
         
         return true;
     }
     
-    /**
-     * Сохранение отправленного сообщения в кэш
-     * 
-     * @param string $dialog_id ID диалога
-     * @param string $message Текст сообщения
-     */
     private function save_sent_message($dialog_id, $message) {
         global $wpdb;
         
@@ -311,27 +226,16 @@ class AKPP_Avito {
         );
     }
     
-    /**
-     * Сохранение account_id (вызовите после успешного получения токена)
-     * 
-     * @param string $account_id ID аккаунта Авито
-     */
     public function set_account_id($account_id) {
         update_option('akpp_avito_account_id', sanitize_text_field($account_id));
     }
     
-    /**
-     * Логирование ошибок
-     */
     private function log_error($message) {
         if (defined('WP_DEBUG_LOG') && WP_DEBUG_LOG) {
             error_log('[AKPP_AVITO] ОШИБКА: ' . $message);
         }
     }
     
-    /**
-     * Логирование событий
-     */
     private function log_event($message) {
         if (defined('WP_DEBUG_LOG') && WP_DEBUG_LOG) {
             error_log('[AKPP_AVITO] СОБЫТИЕ: ' . $message);
