@@ -113,6 +113,16 @@ class AKPP_AJAX {
         add_action('wp_ajax_akpp_get_deal_parts_history', [$this, 'ajax_get_deal_parts_history']);
         add_action('wp_ajax_akpp_get_parts_categories', [$this, 'ajax_get_parts_categories']);
         add_action('wp_ajax_akpp_bulk_return_parts', [$this, 'ajax_bulk_return_parts']);
+        
+        // Калькулятор оплаты
+        add_action('wp_ajax_akpp_calculate_payment', [$this, 'ajax_calculate_payment']);
+        add_action('wp_ajax_akpp_employee_efficiency', [$this, 'ajax_employee_efficiency']);
+        add_action('wp_ajax_akpp_predict_payment', [$this, 'ajax_predict_payment']);
+        add_action('wp_ajax_akpp_deal_profitability', [$this, 'ajax_deal_profitability']);
+        add_action('wp_ajax_akpp_get_recommended_percent', [$this, 'ajax_get_recommended_percent']);
+        add_action('wp_ajax_akpp_multi_employee_payment', [$this, 'ajax_multi_employee_payment']);
+        add_action('wp_ajax_akpp_update_employee_percent', [$this, 'ajax_update_employee_percent']);
+        add_action('wp_ajax_akpp_payment_statistics', [$this, 'ajax_payment_statistics']);
     }
     
     // ==================== СДЕЛКИ ====================
@@ -1819,5 +1829,282 @@ public function ajax_bulk_return_parts() {
         $wpdb->query('ROLLBACK');
         wp_send_json_error('Ошибка массового возврата: ' . $e->getMessage());
     }
+}
+    /**
+ * ДОПОЛНЕНИЕ К ФАЙЛУ class-akpp-ajax.php
+ * Методы для калькулятора оплаты сотрудников
+ */
+
+/**
+ * Расчет оплаты сотрудника (AJAX)
+ */
+public function ajax_calculate_payment() {
+    if (!check_ajax_referer('akpp_calculate_payment_nonce', 'nonce', false)) {
+        wp_send_json_error('Неверный security токен');
+        return;
+    }
+    
+    $work_cost = isset($_POST['work_cost']) ? floatval($_POST['work_cost']) : 0;
+    $work_hours = isset($_POST['work_hours']) ? floatval($_POST['work_hours']) : 0;
+    $standard_hours = isset($_POST['standard_hours']) ? floatval($_POST['standard_hours']) : 1;
+    $percent = isset($_POST['percent']) ? floatval($_POST['percent']) : 0;
+    
+    if (!class_exists('AKPP_Deal_Calculator')) {
+        require_once AKPP_CRM_PATH . 'decoders/class-deal-calculator.php';
+    }
+    
+    $calculator = AKPP_Deal_Calculator::get_instance();
+    
+    // Валидация
+    $validation = $calculator->validate_inputs($work_cost, $work_hours, $standard_hours, $percent);
+    if (!$validation['valid']) {
+        wp_send_json_error([
+            'message' => 'Ошибка валидации',
+            'errors' => $validation['errors']
+        ]);
+        return;
+    }
+    
+    // Детальный расчет
+    $result = $calculator->calculate_detailed($work_cost, $work_hours, $standard_hours, $percent);
+    
+    wp_send_json_success([
+        'payment' => $result['payment'],
+        'payment_formatted' => $result['payment_formatted'],
+        'completion_ratio' => $result['completion_ratio'],
+        'details' => $result['details'],
+        'work_cost' => $result['work_cost'],
+        'work_hours' => $result['work_hours'],
+        'standard_hours' => $result['standard_hours'],
+        'percent' => $result['percent']
+    ]);
+}
+
+/**
+ * Расчет эффективности сотрудника за месяц
+ */
+public function ajax_employee_efficiency() {
+    if (!check_ajax_referer('akpp_employee_efficiency_nonce', 'nonce', false)) {
+        wp_send_json_error('Неверный security токен');
+        return;
+    }
+    
+    $employee_id = isset($_POST['employee_id']) ? intval($_POST['employee_id']) : 0;
+    $month = isset($_POST['month']) ? intval($_POST['month']) : date('n');
+    $year = isset($_POST['year']) ? intval($_POST['year']) : date('Y');
+    
+    if (!$employee_id) {
+        wp_send_json_error('ID сотрудника не передан');
+        return;
+    }
+    
+    if (!class_exists('AKPP_Deal_Calculator')) {
+        require_once AKPP_CRM_PATH . 'decoders/class-deal-calculator.php';
+    }
+    
+    $calculator = AKPP_Deal_Calculator::get_instance();
+    $result = $calculator->calculate_employee_efficiency($employee_id, $month, $year);
+    
+    wp_send_json_success($result);
+}
+
+/**
+ * Прогнозирование оплаты по сделке
+ */
+public function ajax_predict_payment() {
+    if (!check_ajax_referer('akpp_predict_payment_nonce', 'nonce', false)) {
+        wp_send_json_error('Неверный security токен');
+        return;
+    }
+    
+    $work_cost = isset($_POST['work_cost']) ? floatval($_POST['work_cost']) : 0;
+    $standard_hours = isset($_POST['standard_hours']) ? floatval($_POST['standard_hours']) : 1;
+    $percent = isset($_POST['percent']) ? floatval($_POST['percent']) : 0;
+    
+    if (!class_exists('AKPP_Deal_Calculator')) {
+        require_once AKPP_CRM_PATH . 'decoders/class-deal-calculator.php';
+    }
+    
+    $calculator = AKPP_Deal_Calculator::get_instance();
+    $scenarios = $calculator->predict_payment($work_cost, $standard_hours, $percent);
+    
+    wp_send_json_success($scenarios);
+}
+
+/**
+ * Расчет рентабельности сделки
+ */
+public function ajax_deal_profitability() {
+    if (!check_ajax_referer('akpp_deal_profitability_nonce', 'nonce', false)) {
+        wp_send_json_error('Неверный security токен');
+        return;
+    }
+    
+    $deal_id = isset($_POST['deal_id']) ? intval($_POST['deal_id']) : 0;
+    
+    if (!$deal_id) {
+        wp_send_json_error('ID сделки не передан');
+        return;
+    }
+    
+    if (!class_exists('AKPP_Deal_Calculator')) {
+        require_once AKPP_CRM_PATH . 'decoders/class-deal-calculator.php';
+    }
+    
+    $calculator = AKPP_Deal_Calculator::get_instance();
+    $result = $calculator->calculate_profitability($deal_id);
+    
+    if ($result) {
+        wp_send_json_success($result);
+    } else {
+        wp_send_json_error('Сделка не найдена');
+    }
+}
+
+/**
+ * Получение рекомендуемого процента для сотрудника
+ */
+public function ajax_get_recommended_percent() {
+    if (!check_ajax_referer('akpp_recommended_percent_nonce', 'nonce', false)) {
+        wp_send_json_error('Неверный security токен');
+        return;
+    }
+    
+    $role = isset($_POST['role']) ? sanitize_text_field($_POST['role']) : 'master';
+    $experience_years = isset($_POST['experience_years']) ? intval($_POST['experience_years']) : 0;
+    
+    if (!class_exists('AKPP_Deal_Calculator')) {
+        require_once AKPP_CRM_PATH . 'decoders/class-deal-calculator.php';
+    }
+    
+    $calculator = AKPP_Deal_Calculator::get_instance();
+    $percent = $calculator->get_recommended_percent($role, $experience_years);
+    
+    wp_send_json_success([
+        'percent' => $percent,
+        'message' => "Рекомендованный процент для {$role}: {$percent}%"
+    ]);
+}
+
+/**
+ * Расчет для нескольких сотрудников по одной сделке
+ */
+public function ajax_multi_employee_payment() {
+    if (!check_ajax_referer('akpp_multi_employee_nonce', 'nonce', false)) {
+        wp_send_json_error('Неверный security токен');
+        return;
+    }
+    
+    $work_cost = isset($_POST['work_cost']) ? floatval($_POST['work_cost']) : 0;
+    $work_hours = isset($_POST['work_hours']) ? floatval($_POST['work_hours']) : 0;
+    $standard_hours = isset($_POST['standard_hours']) ? floatval($_POST['standard_hours']) : 1;
+    $employees = isset($_POST['employees']) ? json_decode(stripslashes($_POST['employees']), true) : [];
+    
+    if (empty($employees)) {
+        wp_send_json_error('Список сотрудников пуст');
+        return;
+    }
+    
+    if (!class_exists('AKPP_Deal_Calculator')) {
+        require_once AKPP_CRM_PATH . 'decoders/class-deal-calculator.php';
+    }
+    
+    $calculator = AKPP_Deal_Calculator::get_instance();
+    $result = $calculator->calculate_multi_employee($work_cost, $work_hours, $standard_hours, $employees);
+    
+    wp_send_json_success($result);
+}
+
+/**
+ * Обновление процента сотрудника
+ */
+public function ajax_update_employee_percent() {
+    if (!check_ajax_referer('akpp_update_percent_nonce', 'nonce', false)) {
+        wp_send_json_error('Неверный security токен');
+        return;
+    }
+    
+    if (!current_user_can('manage_options')) {
+        wp_send_json_error('Недостаточно прав');
+        return;
+    }
+    
+    $employee_id = isset($_POST['employee_id']) ? intval($_POST['employee_id']) : 0;
+    $percent = isset($_POST['percent']) ? floatval($_POST['percent']) : 0;
+    
+    if (!$employee_id) {
+        wp_send_json_error('ID сотрудника не передан');
+        return;
+    }
+    
+    if ($percent < 0 || $percent > 100) {
+        wp_send_json_error('Процент должен быть от 0 до 100');
+        return;
+    }
+    
+    global $wpdb;
+    $table_employees = $wpdb->prefix . 'akpp_employees';
+    
+    $wpdb->update(
+        $table_employees,
+        ['percent' => $percent],
+        ['id' => $employee_id],
+        ['%d'],
+        ['%d']
+    );
+    
+    $this->log_event("Обновлен процент сотрудника #{$employee_id}: {$percent}%");
+    
+    wp_send_json_success([
+        'message' => "Процент сотрудника обновлен на {$percent}%",
+        'percent' => $percent
+    ]);
+}
+
+/**
+ * Получение статистики по оплатам за период
+ */
+public function ajax_payment_statistics() {
+    if (!check_ajax_referer('akpp_payment_stats_nonce', 'nonce', false)) {
+        wp_send_json_error('Неверный security токен');
+        return;
+    }
+    
+    $period = isset($_POST['period']) ? sanitize_text_field($_POST['period']) : 'month';
+    $year = isset($_POST['year']) ? intval($_POST['year']) : date('Y');
+    $month = isset($_POST['month']) ? intval($_POST['month']) : date('n');
+    
+    global $wpdb;
+    $table_deals = $wpdb->prefix . 'akpp_deals';
+    
+    $where_clause = "status = 'completed' AND YEAR(created_at) = {$year}";
+    
+    if ($period === 'month') {
+        $where_clause .= " AND MONTH(created_at) = {$month}";
+        $group_by = "employee_id";
+    } elseif ($period === 'quarter') {
+        $quarter = ceil($month / 3);
+        $where_clause .= " AND QUARTER(created_at) = {$quarter}";
+        $group_by = "employee_id";
+    } else {
+        $group_by = "MONTH(created_at)";
+    }
+    
+    $results = $wpdb->get_results(
+        "SELECT {$group_by} as group_key, 
+                SUM(payment_amount) as total_payment,
+                COUNT(*) as deals_count,
+                AVG(payment_amount) as avg_payment
+         FROM {$table_deals}
+         WHERE {$where_clause}
+         GROUP BY {$group_by}"
+    );
+    
+    wp_send_json_success([
+        'period' => $period,
+        'year' => $year,
+        'month' => $month,
+        'data' => $results
+    ]);
 }
 }
