@@ -10,6 +10,104 @@ if (!defined('ABSPATH')) {
 }
 
 // ============================================================
+// 0. КОМПЛЕКСНОЕ ИСПРАВЛЕНИЕ ОШИБОК CRM
+// ============================================================
+
+// 1. Определяем недостающую функцию (для header.php)
+if (!function_exists('akpp_get_option')) {
+    function akpp_get_option($key, $default = '') {
+        return get_option($key, $default);
+    }
+}
+
+// 2. Добавляем недостающие колонки в таблицы при загрузке
+add_action('init', function() {
+    global $wpdb;
+    
+    // Проверяем, существуют ли таблицы
+    $table_employees = $wpdb->prefix . 'akpp_employees';
+    $table_exists = $wpdb->get_var("SHOW TABLES LIKE '{$table_employees}'");
+    
+    if ($table_exists) {
+        // Добавляем колонку status в employees (если нет)
+        $column_exists = $wpdb->get_results("SHOW COLUMNS FROM {$table_employees} LIKE 'status'");
+        if (empty($column_exists)) {
+            $wpdb->query("ALTER TABLE {$table_employees} ADD COLUMN status VARCHAR(20) DEFAULT 'active'");
+        }
+        
+        // Добавляем колонку full_name в employees (если нет)
+        $column_exists = $wpdb->get_results("SHOW COLUMNS FROM {$table_employees} LIKE 'full_name'");
+        if (empty($column_exists)) {
+            $wpdb->query("ALTER TABLE {$table_employees} ADD COLUMN full_name VARCHAR(100) AFTER name");
+            $wpdb->query("UPDATE {$table_employees} SET full_name = name");
+        }
+    }
+    
+    $table_site_users = $wpdb->prefix . 'akpp_site_users';
+    if ($wpdb->get_var("SHOW TABLES LIKE '{$table_site_users}'")) {
+        // Добавляем колонку wp_user_id в site_users (если нет)
+        $column_exists = $wpdb->get_results("SHOW COLUMNS FROM {$table_site_users} LIKE 'wp_user_id'");
+        if (empty($column_exists)) {
+            $wpdb->query("ALTER TABLE {$table_site_users} ADD COLUMN wp_user_id BIGINT(20) DEFAULT NULL");
+        }
+    }
+    
+    $table_vehicles = $wpdb->prefix . 'akpp_vehicles';
+    if ($wpdb->get_var("SHOW TABLES LIKE '{$table_vehicles}'")) {
+        // Добавляем колонку brand в vehicles (для обратной совместимости)
+        $column_exists = $wpdb->get_results("SHOW COLUMNS FROM {$table_vehicles} LIKE 'brand'");
+        if (empty($column_exists)) {
+            $wpdb->query("ALTER TABLE {$table_vehicles} ADD COLUMN brand VARCHAR(100) DEFAULT ''");
+            $wpdb->query("UPDATE {$table_vehicles} SET brand = make");
+        }
+    }
+});
+
+// 3. Перехватываем и исправляем проблемные запросы
+add_filter('query', function($query) {
+    global $wpdb;
+    
+    // Исправляем запрос в leads.php
+    if (strpos($query, "SELECT id, full_name FROM wp_akpp_employees WHERE status = 'active'") !== false) {
+        $query = str_replace("status = 'active'", "is_active = 1", $query);
+        $query = str_replace("full_name", "name as full_name", $query);
+    }
+    
+    // Исправляем запрос в deal-form.php
+    if (strpos($query, "SELECT id, name, percent FROM wp_akpp_employees WHERE status = 'active'") !== false) {
+        $query = str_replace("status = 'active'", "is_active = 1", $query);
+    }
+    
+    // Исправляем запрос в users.php
+    if (strpos($query, "LEFT JOIN wp_users u ON su.wp_user_id = u.ID") !== false) {
+        $query = "SELECT su.* FROM {$wpdb->prefix}akpp_site_users su ORDER BY su.id DESC";
+    }
+    
+    // Исправляем запрос в dashboard.php
+    if (strpos($query, "v.brand") !== false && strpos($query, "akpp_deals d") !== false) {
+        $query = str_replace("v.brand", "v.make", $query);
+        $query = str_replace("e.full_name", "e.name as employee_name", $query);
+    }
+    
+    return $query;
+});
+
+// 4. Регистрация интервалов Cron
+add_filter('cron_schedules', function($schedules) {
+    $schedules['every_five_minutes'] = [
+        'interval' => 300,
+        'display' => 'Каждые 5 минут'
+    ];
+    return $schedules;
+});
+
+// 5. Отключение проблемных Cron задач временно
+add_action('init', function() {
+    wp_clear_scheduled_hook('akpp_sync_avito_messages');
+    wp_clear_scheduled_hook('akpp_sync_avito_dialogs');
+});
+
+// ============================================================
 // 1. ПОДКЛЮЧЕНИЕ CRM СИСТЕМЫ
 // ============================================================
 
@@ -36,7 +134,6 @@ add_action('after_setup_theme', 'akpp45_init_crm');
  * Инициализация темы
  */
 function akpp45_theme_setup() {
-    // Поддержка заголовков
     add_theme_support('title-tag');
     add_theme_support('post-thumbnails');
     add_theme_support('custom-logo', [
@@ -46,14 +143,12 @@ function akpp45_theme_setup() {
         'flex-width' => true,
     ]);
     
-    // Регистрация меню
     register_nav_menus([
         'primary' => 'Главное меню',
         'footer' => 'Меню в подвале',
         'mobile' => 'Мобильное меню'
     ]);
     
-    // Поддержка HTML5
     add_theme_support('html5', [
         'search-form',
         'comment-form',
@@ -74,16 +169,13 @@ add_action('after_setup_theme', 'akpp45_theme_setup');
  * Подключение ассетов темы
  */
 function akpp45_enqueue_scripts() {
-    // Стили темы
     wp_enqueue_style('akpp45-style', get_stylesheet_uri(), [], '1.0.0');
     wp_enqueue_style('akpp45-main', get_template_directory_uri() . '/assets/css/main.css', [], '1.0.0');
     wp_enqueue_style('akpp-modal', get_template_directory_uri() . '/assets/css/modal.css', [], '1.0.0');
     
-    // Скрипты темы
     wp_enqueue_script('akpp45-main', get_template_directory_uri() . '/assets/js/main.js', ['jquery'], '1.0.0', true);
     wp_enqueue_script('akpp-modal-auth', get_template_directory_uri() . '/assets/js/modal-auth.js', ['jquery'], '1.0.0', true);
     
-    // Локализация для AJAX
     wp_localize_script('akpp-modal-auth', 'akpp_modal_ajax', [
         'ajax_url' => admin_url('admin-ajax.php'),
         'nonce' => wp_create_nonce('akpp_modal_nonce')
@@ -95,9 +187,6 @@ add_action('wp_enqueue_scripts', 'akpp45_enqueue_scripts');
 // 4. РЕГИСТРАЦИЯ СТРАНИЦ ФРОНТЕНДА
 // ============================================================
 
-/**
- * Создание страниц при активации темы
- */
 function akpp45_create_pages() {
     $pages = [
         'crm-login' => 'Вход в CRM',
@@ -108,7 +197,6 @@ function akpp45_create_pages() {
     
     foreach ($pages as $slug => $title) {
         $page = get_page_by_path($slug);
-        
         if (!$page) {
             wp_insert_post([
                 'post_title' => $title,
@@ -128,9 +216,6 @@ add_action('after_switch_theme', 'akpp45_create_pages');
 // 5. ПЕРЕХВАТ НЕАВТОРИЗОВАННЫХ ПОЛЬЗОВАТЕЛЕЙ
 // ============================================================
 
-/**
- * Перенаправление неавторизованных пользователей на страницу входа
- */
 function akpp45_check_crm_access() {
     if (is_page(['crm-profile', 'crm-chat'])) {
         if (function_exists('AKPP_Auth') && !AKPP_Auth::is_logged_in()) {
@@ -142,153 +227,19 @@ function akpp45_check_crm_access() {
 add_action('wp', 'akpp45_check_crm_access');
 
 // ============================================================
-// 6. ПРИНУДИТЕЛЬНОЕ СОЗДАНИЕ ТАБЛИЦ БД
+// 6. ПРИНУДИТЕЛЬНОЕ СОЗДАНИЕ ТАБЛИЦ
 // ============================================================
 
-/**
- * Создание таблиц при необходимости
- */
 function akpp45_check_and_create_tables() {
     global $wpdb;
-    
     $table_exists = $wpdb->get_var("SHOW TABLES LIKE '{$wpdb->prefix}akpp_deals'");
     
     if (!$table_exists && class_exists('AKPP_Install')) {
         $install = AKPP_Install::get_instance();
         $install->create_tables();
-        
-        // Добавляем тестовые данные
-        akpp45_add_test_data();
     }
 }
 add_action('admin_init', 'akpp45_check_and_create_tables');
 
-/**
- * Добавление тестовых данных
- */
-function akpp45_add_test_data() {
-    global $wpdb;
-    
-    $table_employees = $wpdb->prefix . 'akpp_employees';
-    $exists = $wpdb->get_var("SELECT COUNT(*) FROM {$table_employees}");
-    
-    if ($exists == 0) {
-        $wpdb->insert($table_employees, [
-            'name' => 'Администратор',
-            'email' => 'admin@akpp45.ru',
-            'phone' => '+7 (999) 123-45-67',
-            'role' => 'admin',
-            'percent' => 50,
-            'is_active' => 1,
-            'created_at' => current_time('mysql')
-        ]);
-        
-        $wpdb->insert($table_employees, [
-            'name' => 'Гид',
-            'email' => 'guide@akpp45.ru',
-            'phone' => '+7 (999) 234-56-78',
-            'role' => 'guide',
-            'percent' => 40,
-            'is_active' => 1,
-            'created_at' => current_time('mysql')
-        ]);
-        
-        $wpdb->insert($table_employees, [
-            'name' => 'Мастер',
-            'email' => 'master@akpp45.ru',
-            'phone' => '+7 (999) 345-67-89',
-            'role' => 'master',
-            'percent' => 45,
-            'is_active' => 1,
-            'created_at' => current_time('mysql')
-        ]);
-    }
-    
-    $table_parts = $wpdb->prefix . 'akpp_parts';
-    $parts_exists = $wpdb->get_var("SELECT COUNT(*) FROM {$table_parts}");
-    
-    if ($parts_exists == 0) {
-        $test_parts = [
-            ['name' => 'Ремкомплект АКПП A750E', 'sku' => 'RC-A750E-001', 'category' => 'Ремкомплекты', 'price' => 8500, 'quantity' => 10],
-            ['name' => 'Фрикционы A750E (комплект)', 'sku' => 'FR-A750E-001', 'category' => 'Фрикционы', 'price' => 12500, 'quantity' => 5],
-            ['name' => 'Масло ATF WS 4л', 'sku' => 'OIL-ATF-WS-4L', 'category' => 'Масла ATF', 'price' => 3200, 'quantity' => 20],
-            ['name' => 'Фильтр АКПП A750E', 'sku' => 'FIL-A750E-001', 'category' => 'Фильтры', 'price' => 850, 'quantity' => 15],
-            ['name' => 'Соленоид Shift Solenoid', 'sku' => 'SOL-SHIFT-001', 'category' => 'Соленоиды', 'price' => 3200, 'quantity' => 8],
-        ];
-        
-        foreach ($test_parts as $part) {
-            $wpdb->insert($table_parts, array_merge($part, ['created_at' => current_time('mysql')]));
-        }
-    }
-}
-
-// ============================================================
-// 7. БЕЗОПАСНОСТЬ
-// ============================================================
-
-/**
- * Отключение вывода версии WordPress
- */
-remove_action('wp_head', 'wp_generator');
-remove_action('wp_head', 'wlwmanifest_link');
-remove_action('wp_head', 'rsd_link');
-
-/**
- * Защита от XSS
- */
-function akpp45_security_headers() {
-    header('X-Frame-Options: SAMEORIGIN');
-    header('X-Content-Type-Options: nosniff');
-    header('X-XSS-Protection: 1; mode=block');
-}
-add_action('send_headers', 'akpp45_security_headers');
-
-// ============================================================
-// 8. ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
-// ============================================================
-
-/**
- * Форматирование цены
- */
-function akpp45_format_price($price) {
-    return number_format(floatval($price), 0, ',', ' ') . ' ₽';
-}
-
-/**
- * Получение статуса сделки в виде HTML
- */
-function akpp45_get_status_badge($status) {
-    $statuses = [
-        'new' => ['label' => '🆕 Новая', 'class' => 'status-new'],
-        'diagnostic' => ['label' => '🔧 Диагностика', 'class' => 'status-diagnostic'],
-        'in_work' => ['label' => '⚙️ В работе', 'class' => 'status-in_work'],
-        'completed' => ['label' => '✅ Выполнена', 'class' => 'status-completed'],
-        'rejected' => ['label' => '❌ Отклонена', 'class' => 'status-rejected']
-    ];
-    
-    $status = $statuses[$status] ?? ['label' => $status, 'class' => ''];
-    
-    return sprintf('<span class="status-badge %s">%s</span>', $status['class'], $status['label']);
-}
-
-/**
- * Проверка авторизации в CRM
- */
-function akpp45_is_crm_logged_in() {
-    if (function_exists('AKPP_Auth')) {
-        return AKPP_Auth::is_logged_in();
-    }
-    return false;
-}
-
-/**
- * Получение текущего пользователя CRM
- */
-function akpp45_get_current_crm_user() {
-    if (function_exists('AKPP_Auth') && AKPP_Auth::is_logged_in()) {
-        return AKPP_Auth::get_current_user();
-    }
-    return null;
-}
-
 // Конец файла functions.php
+?>
