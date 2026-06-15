@@ -1,169 +1,178 @@
 /**
- * АКПП45 CRM - Chat JavaScript
- * Управляет отправкой сообщений и автоматическим обновлением чата (polling).
+ * АКПП45 CRM - Логика внутреннего чата оператора
+ * Обработка отправки сообщений, авто-скролл и UX-улучшения.
+ *
+ * @package AKPP_CRM
+ * @version 4.2
  */
 
-jQuery(document).ready(function($) {
+(function($) {
     'use strict';
 
-    const ajaxUrl = typeof akppCRM !== 'undefined' ? akppCRM.ajax_url : '/wp-admin/admin-ajax.php';
-    const nonce = typeof akppCRM !== 'undefined' ? akppCRM.nonce : '';
+    // Проверяем, что конфигурация передана из PHP (из templates/chat.php)
+    if (typeof akpp_chat_config === 'undefined') {
+        return;
+    }
 
-    // Ищем контейнер чата на странице
-    const $chatContainer = $('.akpp-chat-container');
-    
-    if ($chatContainer.length) {
-        const $messagesBox = $chatContainer.find('.akpp-chat-messages');
-        const $inputField = $chatContainer.find('.akpp-chat-input textarea');
-        const $sendButton = $chatContainer.find('.akpp-chat-input button');
-        const dealId = $chatContainer.data('deal-id') || 0;
-        const currentUserId = $chatContainer.data('user-id') || 0; // ID текущего пользователя WP
-        
-        let lastMessageId = 0; // Для отслеживания новых сообщений
-        let pollingInterval = null;
-        let isUserScrolling = false;
+    // Кэширование DOM-элементов для производительности
+    const $chatForm = $('#akpp-chat-form');
+    const $messageInput = $('#akpp-message-input');
+    const $sendBtn = $('#akpp-chat-send-btn');
+    const $messagesArea = $('#akpp-chat-messages');
+    const $archiveBtn = $('#akpp-chat-archive-btn');
 
-        // ==========================================================================
-        // 1. Отправка сообщения
-        // ==========================================================================
-
-        function sendMessage() {
-            const messageText = $inputField.val().trim();
-            if (!messageText || !dealId) return;
-
-            // Блокируем кнопку и поле на время отправки
-            $sendButton.prop('disabled', true).text('Отправка...');
-            
-            // Оптимистичное добавление сообщения в UI (для мгновенного отклика)
-            appendMessageToUI({
-                user_id: currentUserId,
-                message: messageText,
-                is_internal: 0, // По умолчанию сообщение видно клиенту
-                created_at: new Date().toISOString()
-            }, 'manager');
-
-            $inputField.val('');
-            scrollToBottom();
-
-            $.post(ajaxUrl, {
-                action: 'akpp_send_chat_message',
-                nonce: nonce,
-                deal_id: dealId,
-                message: messageText,
-                is_internal: 0
-            }, function(response) {
-                if (response.success) {
-                    // Сообщение успешно сохранено в БД
-                    // Можно обновить lastMessageId из ответа, если сервер его возвращает
-                } else {
-                    console.error('Ошибка отправки:', response.data.message);
-                    // В реальном приложении здесь стоит показать уведомление об ошибке
-                }
-            }).always(function() {
-                $sendButton.prop('disabled', false).text('Отправить');
-                $inputField.focus();
-            });
+    /**
+     * Авто-прокрутка области сообщений вниз
+     */
+    function scrollToBottom() {
+        if ($messagesArea.length) {
+            $messagesArea.animate({
+                scrollTop: $messagesArea[0].scrollHeight
+            }, 300); // Плавная прокрутка за 300мс
         }
+    }
 
-        // Обработчик клика по кнопке
-        $sendButton.on('click', function(e) {
-            e.preventDefault();
-            sendMessage();
-        });
-
-        // Обработчик нажатия Enter (без Shift)
-        $inputField.on('keydown', function(e) {
-            if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                sendMessage();
-            }
-        });
-
-        // ==========================================================================
-        // 2. Получение новых сообщений (Polling)
-        // ==========================================================================
-
-        function fetchMessages() {
-            if (!dealId) return;
-
-            $.post(ajaxUrl, {
-                action: 'akpp_get_chat_messages',
-                nonce: nonce,
-                deal_id: dealId
-            }, function(response) {
-                if (response.success && response.data.messages) {
-                    const messages = response.data.messages;
-                    
-                    // Фильтруем только новые сообщения
-                    const newMessages = messages.filter(msg => msg.id > lastMessageId);
-                    
-                    if (newMessages.length > 0) {
-                        newMessages.forEach(msg => {
-                            const authorClass = (msg.user_id == currentUserId) ? 'manager' : 'client';
-                            appendMessageToUI(msg, authorClass);
-                            lastMessageId = Math.max(lastMessageId, msg.id);
-                        });
-                        
-                        // Прокручиваем вниз, только если пользователь не скроллит вверх вручную
-                        if (!isUserScrolling) {
-                            scrollToBottom();
-                        }
-                    }
-                }
-            });
-        }
-
-        // ==========================================================================
-        // 3. Вспомогательные функции UI
-        // ==========================================================================
-
-        function appendMessageToUI(msg, authorClass) {
-            const date = new Date(msg.created_at);
-            const timeStr = date.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+    /**
+     * Авто-ресайз textarea при вводе текста
+     */
+    function autoResizeTextarea() {
+        $messageInput.on('input', function() {
+            this.style.height = 'auto'; // Сброс высоты
+            this.style.height = (this.scrollHeight) + 'px'; // Установка по содержимому
             
-            // Форматирование текста (замена переносов строк на <br>)
-            const formattedText = msg.message.replace(/\n/g, '<br>');
-            
-            const isInternal = msg.is_internal == 1 ? '<span style="font-size:10px; color:#f59e0b; display:block; margin-bottom:4px;">🔒 Только для внутренних</span>' : '';
-
-            const html = `
-                <div class="chat-message ${authorClass}">
-                    ${isInternal}
-                    <div class="text">${formattedText}</div>
-                    <div class="meta">${timeStr}</div>
-                </div>
-            `;
-            
-            $messagesBox.append(html);
-        }
-
-        function scrollToBottom() {
-            $messagesBox.animate({
-                scrollTop: $messagesBox[0].scrollHeight
-            }, 300);
-        }
-
-        // Отслеживание ручного скролла пользователя
-        $messagesBox.on('scroll', function() {
-            const isAtBottom = $messagesBox[0].scrollHeight - $messagesBox.scrollTop() <= $messagesBox[0].clientHeight + 50;
-            isUserScrolling = !isAtBottom;
-        });
-
-        // ==========================================================================
-        // 4. Инициализация
-        // ==========================================================================
-
-        // Первичная загрузка сообщений
-        fetchMessages();
-
-        // Запуск polling каждые 5 секунд
-        pollingInterval = setInterval(fetchMessages, 5000);
-
-        // Остановка polling при уходе со страницы (для экономии ресурсов)
-        $(window).on('beforeunload', function() {
-            if (pollingInterval) {
-                clearInterval(pollingInterval);
+            // Активация/деактивация кнопки отправки
+            if ($(this).val().trim().length > 0) {
+                $sendBtn.prop('disabled', false).addClass('button-primary');
+            } else {
+                $sendBtn.prop('disabled', true).removeClass('button-primary');
             }
         });
     }
-});
+
+    /**
+     * Обработка отправки формы чата
+     */
+    function handleChatSubmission() {
+        $chatForm.on('submit', function(e) {
+            e.preventDefault();
+
+            const messageText = $messageInput.val().trim();
+            if (!messageText) {
+                return; // Защита от пустых сообщений
+            }
+
+            // 1. UI: Состояние "Отправка..."
+            const originalBtnHtml = $sendBtn.html();
+            $sendBtn.prop('disabled', true).html('<span class="spinner is-active" style="float:none; margin-right:5px;"></span> ' + akpp_chat_config.strings.sending);
+            $messageInput.prop('disabled', true);
+
+            // 2. AJAX-запрос к обработчику из class-chat-ajax.php
+            $.ajax({
+                url: akpp_chat_config.ajax_url,
+                type: 'POST',
+                data: {
+                    action: 'akpp_send_chat_message',
+                    akpp_chat_nonce_field: akpp_chat_config.nonce,
+                    dialog_id: akpp_chat_config.current_dialog_id,
+                    message_text: messageText,
+                    user_id: akpp_chat_config.current_user_id
+                },
+                success: function(response) {
+                    if (response.success) {
+                        // 3. Успех: Динамическое добавление сообщения в DOM
+                        const newMessageHtml = `
+                            <div class="akpp-message-bubble message-mine fade-in">
+                                <div class="akpp-message-text">${response.data.message_text}</div>
+                                <div class="akpp-message-meta">
+                                    <span class="akpp-message-time">${response.data.created_at}</span>
+                                    <span class="akpp-message-status sent" title="Отправлено">✓</span>
+                                </div>
+                            </div>
+                        `;
+                        
+                        $messagesArea.append(newMessageHtml);
+                        
+                        // Очистка поля ввода и сброс высоты
+                        $messageInput.val('').trigger('input');
+                        
+                        // Прокрутка вниз
+                        scrollToBottom();
+
+                        // (Опционально) Здесь можно обновить счётчик непрочитанных в боковой панели
+                        updateSidebarUnreadCount(akpp_chat_config.current_dialog_id);
+
+                    } else {
+                        // Обработка логической ошибки от сервера
+                        alert(response.data.message || akpp_chat_config.strings.error);
+                    }
+                },
+                error: function(xhr, status, error) {
+                    // Обработка сетевой ошибки
+                    console.error('Chat AJAX Error:', status, error);
+                    alert(akpp_chat_config.strings.error);
+                },
+                complete: function() {
+                    // 4. Возврат UI в исходное состояние
+                    $sendBtn.prop('disabled', false).html(originalBtnHtml);
+                    $messageInput.prop('disabled', false).focus();
+                }
+            });
+        });
+    }
+
+    /**
+     * Отправка по Enter (Shift+Enter для новой строки)
+     */
+    function handleEnterKey() {
+        $messageInput.on('keydown', function(e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault(); // Предотвращаем стандартный перенос строки
+                $chatForm.trigger('submit'); // Имитируем отправку формы
+            }
+        });
+    }
+
+    /**
+     * Обработка кнопки "В архив" (Заглушка для будущего AJAX)
+     */
+    function handleArchiveAction() {
+        if ($archiveBtn.length) {
+            $archiveBtn.on('click', function() {
+                if (confirm('Вы уверены, что хотите архивировать этот диалог?')) {
+                    const dialogId = $(this).data('dialog-id');
+                    // Здесь будет AJAX-запрос на архивацию
+                    window.location.href = `${akpp_chat_config.ajax_url.replace('admin-ajax.php', 'admin.php')}?page=akpp-avito-dialogs&action=archive&id=${dialogId}&_wpnonce=${akpp_chat_config.nonce}`;
+                }
+            });
+        }
+    }
+
+    /**
+     * Инициализация при загрузке страницы
+     */
+    $(document).ready(function() {
+        if ($chatForm.length && $messagesArea.length) {
+            autoResizeTextarea();
+            handleChatSubmission();
+            handleEnterKey();
+            handleArchiveAction();
+            
+            // Первоначальная прокрутка вниз при открытии чата
+            setTimeout(scrollToBottom, 100);
+            
+            console.log('✅ АКПП CRM: Внутренний чат инициализирован.');
+        }
+    });
+
+    /**
+     * Вспомогательная функция: обновление счётчика в боковой панели (опционально)
+     */
+    function updateSidebarUnreadCount(dialogId) {
+        const $chatItem = $(`.akpp-chat-item[data-dialog-id="${dialogId}"]`);
+        if ($chatItem.hasClass('has-unread')) {
+            $chatItem.removeClass('has-unread');
+            $chatItem.find('.akpp-chat-badge').remove();
+        }
+    }
+
+})(jQuery);
