@@ -106,6 +106,13 @@ class AKPP_AJAX {
         add_action('wp_ajax_akpp_save_avito_settings', [$this, 'ajax_save_avito_settings']);
         add_action('wp_ajax_akpp_refresh_avito_token', [$this, 'ajax_refresh_avito_token']);
         add_action('wp_ajax_akpp_send_avito_message', [$this, 'ajax_send_avito_message']);
+
+        // Возврат запчастей на склад
+        add_action('wp_ajax_akpp_return_parts_to_stock', [$this, 'ajax_return_parts_to_stock']);
+        add_action('wp_ajax_akpp_check_parts_stock', [$this, 'ajax_check_parts_stock']);
+        add_action('wp_ajax_akpp_get_deal_parts_history', [$this, 'ajax_get_deal_parts_history']);
+        add_action('wp_ajax_akpp_get_parts_categories', [$this, 'ajax_get_parts_categories']);
+        add_action('wp_ajax_akpp_bulk_return_parts', [$this, 'ajax_bulk_return_parts']);
     }
     
     // ==================== СДЕЛКИ ====================
@@ -1494,6 +1501,323 @@ private function notify_client_status_change($client_id, $deal_id, $old_status, 
 private function log_error($message) {
     if (defined('WP_DEBUG_LOG') && WP_DEBUG_LOG) {
         error_log('[AKPP_DEAL] ОШИБКА: ' . $message);
+    }
+}
+    /**
+ * ДОПОЛНЕНИЕ К ФАЙЛУ class-akpp-ajax.php
+ * Метод для возврата запчастей на склад при отмене/удалении сделки
+ */
+
+/**
+ * Возврат запчастей на склад (при отмене сделки или изменении статуса)
+ */
+public function ajax_return_parts_to_stock() {
+    if (!check_ajax_referer('akpp_return_parts_nonce', 'nonce', false)) {
+        wp_send_json_error('Неверный security токен');
+        return;
+    }
+    
+    if (!current_user_can('manage_options')) {
+        wp_send_json_error('Недостаточно прав');
+        return;
+    }
+    
+    $deal_id = isset($_POST['deal_id']) ? intval($_POST['deal_id']) : 0;
+    $status = isset($_POST['status']) ? sanitize_text_field($_POST['status']) : '';
+    
+    if (!$deal_id) {
+        wp_send_json_error('ID сделки не передан');
+        return;
+    }
+    
+    global $wpdb;
+    $table_deals = $wpdb->prefix . 'akpp_deals';
+    $table_deal_parts = $wpdb->prefix . 'akpp_deal_parts';
+    $table_parts = $wpdb->prefix . 'akpp_parts';
+    
+    // Получаем текущий статус сделки
+    $current_status = $wpdb->get_var($wpdb->prepare(
+        "SELECT status FROM {$table_deals} WHERE id = %d",
+        $deal_id
+    ));
+    
+    // Возвращаем запчасти только если статус меняется на 'rejected' или 'cancelled'
+    $statuses_for_return = ['rejected', 'cancelled'];
+    
+    if (in_array($status, $statuses_for_return) && !in_array($current_status, $statuses_for_return)) {
+        // Начинаем транзакцию
+        $wpdb->query('START TRANSACTION');
+        
+        try {
+            // Получаем запчасти сделки
+            $parts = $wpdb->get_results($wpdb->prepare(
+                "SELECT * FROM {$table_deal_parts} WHERE deal_id = %d",
+                $deal_id
+            ));
+            
+            // Возвращаем запчасти на склад
+            foreach ($parts as $part) {
+                $wpdb->query($wpdb->prepare(
+                    "UPDATE {$table_parts} SET quantity = quantity + %d WHERE id = %d",
+                    $part->quantity,
+                    $part->part_id
+                ));
+                
+                $this->log_event("Запчасть #{$part->part_id} возвращена на склад в количестве {$part->quantity} (сделка #{$deal_id})");
+            }
+            
+            // Обновляем статус сделки
+            $wpdb->update(
+                $table_deals,
+                [
+                    'status' => $status,
+                    'updated_at' => current_time('mysql')
+                ],
+                ['id' => $deal_id],
+                ['%s', '%s'],
+                ['%d']
+            );
+            
+            $wpdb->query('COMMIT');
+            
+            // Отправляем уведомление
+            $this->notify_parts_returned($deal_id);
+            
+            wp_send_json_success([
+                'message' => 'Запчасти возвращены на склад, статус сделки обновлен',
+                'parts_count' => count($parts)
+            ]);
+            
+        } catch (Exception $e) {
+            $wpdb->query('ROLLBACK');
+            $this->log_error('Ошибка возврата запчастей: ' . $e->getMessage());
+            wp_send_json_error('Ошибка возврата запчастей: ' . $e->getMessage());
+        }
+    } else {
+        // Просто обновляем статус без возврата запчастей
+        $wpdb->update(
+            $table_deals,
+            [
+                'status' => $status,
+                'updated_at' => current_time('mysql')
+            ],
+            ['id' => $deal_id],
+            ['%s', '%s'],
+            ['%d']
+        );
+        
+        wp_send_json_success(['message' => 'Статус сделки обновлен']);
+    }
+}
+
+/**
+ * Проверка остатков запчастей перед сохранением сделки
+ */
+public function ajax_check_parts_stock() {
+    if (!check_ajax_referer('akpp_check_stock_nonce', 'nonce', false)) {
+        wp_send_json_error('Неверный security токен');
+        return;
+    }
+    
+    $parts = isset($_POST['parts']) ? json_decode(stripslashes($_POST['parts']), true) : [];
+    
+    if (empty($parts)) {
+        wp_send_json_success(['available' => true]);
+        return;
+    }
+    
+    global $wpdb;
+    $table_parts = $wpdb->prefix . 'akpp_parts';
+    
+    $out_of_stock = [];
+    
+    foreach ($parts as $part) {
+        $stock = $wpdb->get_var($wpdb->prepare(
+            "SELECT quantity FROM {$table_parts} WHERE id = %d",
+            $part['id']
+        ));
+        
+        if ($stock < $part['quantity']) {
+            $part_info = $wpdb->get_row($wpdb->prepare(
+                "SELECT name, sku FROM {$table_parts} WHERE id = %d",
+                $part['id']
+            ));
+            
+            $out_of_stock[] = [
+                'id' => $part['id'],
+                'name' => $part_info->name,
+                'sku' => $part_info->sku,
+                'requested' => $part['quantity'],
+                'available' => $stock
+            ];
+        }
+    }
+    
+    if (empty($out_of_stock)) {
+        wp_send_json_success(['available' => true]);
+    } else {
+        wp_send_json_error([
+            'available' => false,
+            'out_of_stock' => $out_of_stock,
+            'message' => 'Некоторые запчасти отсутствуют на складе в нужном количестве'
+        ]);
+    }
+}
+
+/**
+ * Получение истории списаний запчастей для сделки
+ */
+public function ajax_get_deal_parts_history() {
+    if (!check_ajax_referer('akpp_deal_history_nonce', 'nonce', false)) {
+        wp_send_json_error('Неверный security токен');
+        return;
+    }
+    
+    $deal_id = isset($_POST['deal_id']) ? intval($_POST['deal_id']) : 0;
+    
+    if (!$deal_id) {
+        wp_send_json_error('ID сделки не передан');
+        return;
+    }
+    
+    global $wpdb;
+    $table_deal_parts = $wpdb->prefix . 'akpp_deal_parts';
+    
+    $parts = $wpdb->get_results($wpdb->prepare(
+        "SELECT * FROM {$table_deal_parts} WHERE deal_id = %d",
+        $deal_id
+    ));
+    
+    wp_send_json_success($parts);
+}
+
+/**
+ * Уведомление о возврате запчастей
+ */
+private function notify_parts_returned($deal_id) {
+    global $wpdb;
+    $table_deals = $wpdb->prefix . 'akpp_deals';
+    
+    $deal = $wpdb->get_row($wpdb->prepare(
+        "SELECT client_id FROM {$table_deals} WHERE id = %d",
+        $deal_id
+    ));
+    
+    if ($deal && $deal->client_id) {
+        if (!class_exists('AKPP_Push')) {
+            require_once AKPP_CRM_PATH . 'class-akpp-push.php';
+        }
+        
+        $push = AKPP_Push::get_instance();
+        $push->send_to_client(
+            $deal->client_id,
+            '🔄 Статус заказа изменен',
+            "Сделка №{$deal_id} отменена. Запчасти возвращены на склад.",
+            ['type' => 'deal', 'deal_id' => $deal_id, 'status' => 'cancelled']
+        );
+    }
+}
+
+/**
+ * Получение списка категорий запчастей
+ */
+public function ajax_get_parts_categories() {
+    if (!check_ajax_referer('akpp_parts_categories_nonce', 'nonce', false)) {
+        wp_send_json_error('Неверный security токен');
+        return;
+    }
+    
+    $categories = [
+        'АКПП в сборе',
+        'Фрикционы',
+        'Стальные диски',
+        'Сальники',
+        'Прокладки',
+        'Соленоиды',
+        'Гидроблоки',
+        'Масляные насосы',
+        'Подшипники',
+        'Планетарные ряды',
+        'Ремкомплекты',
+        'Масла ATF',
+        'Фильтры',
+        'Датчики',
+        'Прочее'
+    ];
+    
+    wp_send_json_success($categories);
+}
+
+/**
+ * Массовое списание запчастей (для инвентаризации)
+ */
+public function ajax_bulk_return_parts() {
+    if (!check_ajax_referer('akpp_bulk_return_nonce', 'nonce', false)) {
+        wp_send_json_error('Неверный security токен');
+        return;
+    }
+    
+    if (!current_user_can('manage_options')) {
+        wp_send_json_error('Недостаточно прав');
+        return;
+    }
+    
+    $deals = isset($_POST['deals']) ? array_map('intval', (array)$_POST['deals']) : [];
+    
+    if (empty($deals)) {
+        wp_send_json_error('Не выбраны сделки');
+        return;
+    }
+    
+    global $wpdb;
+    $table_deals = $wpdb->prefix . 'akpp_deals';
+    $table_deal_parts = $wpdb->prefix . 'akpp_deal_parts';
+    $table_parts = $wpdb->prefix . 'akpp_parts';
+    
+    $wpdb->query('START TRANSACTION');
+    
+    try {
+        $total_parts_returned = 0;
+        
+        foreach ($deals as $deal_id) {
+            // Проверяем статус сделки
+            $status = $wpdb->get_var($wpdb->prepare(
+                "SELECT status FROM {$table_deals} WHERE id = %d",
+                $deal_id
+            ));
+            
+            if ($status !== 'rejected' && $status !== 'cancelled') {
+                continue;
+            }
+            
+            // Получаем запчасти
+            $parts = $wpdb->get_results($wpdb->prepare(
+                "SELECT * FROM {$table_deal_parts} WHERE deal_id = %d",
+                $deal_id
+            ));
+            
+            foreach ($parts as $part) {
+                $wpdb->query($wpdb->prepare(
+                    "UPDATE {$table_parts} SET quantity = quantity + %d WHERE id = %d",
+                    $part->quantity,
+                    $part->part_id
+                ));
+                $total_parts_returned++;
+            }
+        }
+        
+        $wpdb->query('COMMIT');
+        
+        $this->log_event("Массовый возврат: {$total_parts_returned} позиций запчастей возвращены на склад");
+        
+        wp_send_json_success([
+            'message' => "Возвращено {$total_parts_returned} позиций запчастей",
+            'count' => $total_parts_returned
+        ]);
+        
+    } catch (Exception $e) {
+        $wpdb->query('ROLLBACK');
+        wp_send_json_error('Ошибка массового возврата: ' . $e->getMessage());
     }
 }
 }
