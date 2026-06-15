@@ -1,135 +1,316 @@
 <?php
-if (!defined('ABSPATH')) exit;
+/**
+ * Класс для отправки email уведомлений
+ * 
+ * @package AKPP45_CRM
+ */
+
+if (!defined('ABSPATH')) {
+    exit;
+}
 
 class AKPP_Email {
     
-    public function __construct() {
-        // Устанавливаем HTML-формат для всех писем, отправляемых через этот класс
-        add_filter('wp_mail_content_type', [$this, 'set_html_content_type']);
+    private static $instance = null;
+    private $from_email;
+    private $from_name;
+    
+    public static function get_instance() {
+        if (self::$instance === null) {
+            self::$instance = new self();
+        }
+        return self::$instance;
     }
-
-    /**
-     * Установка типа контента в HTML
-     */
-    public function set_html_content_type() {
-        return 'text/html';
+    
+    private function __construct() {
+        $this->from_email = get_option('admin_email');
+        $this->from_name = get_bloginfo('name');
+        
+        add_filter('wp_mail_from', [$this, 'set_from_email']);
+        add_filter('wp_mail_from_name', [$this, 'set_from_name']);
+        add_action('phpmailer_init', [$this, 'configure_smtp']);
     }
-
+    
     /**
-     * Отправка приветственного письма с данными для входа
-     *
-     * @param string $to       Email получателя
-     * @param string $name     Имя клиента
-     * @param string $password Сгенерированный пароль
+     * Установка email отправителя
      */
-    public function send_welcome_email($to, $name, $password) {
-        $subject = 'Добро пожаловать в АКПП45 CRM!';
+    public function set_from_email($email) {
+        return $this->from_email;
+    }
+    
+    /**
+     * Установка имени отправителя
+     */
+    public function set_from_name($name) {
+        return $this->from_name;
+    }
+    
+    /**
+     * Настройка SMTP (если используется)
+     */
+    public function configure_smtp($phpmailer) {
+        $smtp_host = get_option('akpp_smtp_host', '');
+        $smtp_port = get_option('akpp_smtp_port', '');
+        $smtp_user = get_option('akpp_smtp_user', '');
+        $smtp_pass = get_option('akpp_smtp_password', '');
         
-        $login_url = home_url('/login/');
-        $profile_url = home_url('/profile/');
+        if (!empty($smtp_host)) {
+            $phpmailer->isSMTP();
+            $phpmailer->Host = $smtp_host;
+            $phpmailer->Port = $smtp_port ?: 587;
+            $phpmailer->SMTPAuth = true;
+            $phpmailer->Username = $smtp_user;
+            $phpmailer->Password = $smtp_pass;
+            $phpmailer->SMTPSecure = $smtp_port == 465 ? 'ssl' : 'tls';
+        }
+    }
+    
+    /**
+     * Отправка приветственного письма
+     */
+    public function send_welcome($email, $name, $password) {
+        $subject = 'Добро пожаловать в АКПП45 CRM';
         
-        $body = $this->get_template_header($subject);
-        $body .= "<p>Здравствуйте, <strong>{$name}</strong>!</p>";
-        $body .= "<p>Спасибо за регистрацию в системе АКПП45. Ваша учетная запись успешно создана.</p>";
-        $body .= "<p><strong>Ваши данные для входа:</strong></p>";
-        $body .= "<ul>";
-        $body .= "<li><strong>Логин (Email):</strong> {$to}</li>";
-        $body .= "<li><strong>Пароль:</strong> <code style='background:#f4f4f4; padding:2px 5px; border-radius:3px;'>{$password}</code></li>";
-        $body .= "</ul>";
-        $body .= "<p>Мы настоятельно рекомендуем сменить пароль после первого входа в систему.</p>";
-        $body .= "<p style='margin-top: 20px;'>";
-        $body .= "<a href='{$login_url}' style='display:inline-block; background:#00ff88; color:#0a0f1c; text-decoration:none; padding:10px 20px; border-radius:5px; font-weight:bold;'>Войти в личный кабинет</a>";
-        $body .= "</p>";
-        $body .= $this->get_template_footer();
-
-        $headers = ['From: АКПП45 CRM <noreply@' . preg_replace('#^www\.#', '', parse_url(home_url(), PHP_URL_HOST)) . '>'];
-
-        $sent = wp_mail($to, $subject, $body, $headers);
+        $message = $this->get_template_header('Добро пожаловать!');
+        $message .= '<div style="padding: 20px;">';
+        $message .= '<h2 style="color: #667eea;">Уважаемый(ая) ' . esc_html($name) . '!</h2>';
+        $message .= '<p>Ваш аккаунт в системе АКПП45 CRM успешно создан.</p>';
+        $message .= '<h3 style="margin-top: 25px;">📋 Ваши данные для входа:</h3>';
+        $message .= '<div style="background: #f8f9fa; padding: 15px; border-radius: 8px; margin: 15px 0;">';
+        $message .= '<p><strong>🔗 Ссылка для входа:</strong> <a href="' . home_url('/crm-login') . '">' . home_url('/crm-login') . '</a></p>';
+        $message .= '<p><strong>📧 Email:</strong> ' . esc_html($email) . '</p>';
+        $message .= '<p><strong>🔑 Пароль:</strong> <code style="background: #e9ecef; padding: 4px 8px; border-radius: 4px;">' . esc_html($password) . '</code></p>';
+        $message .= '</div>';
+        $message .= '<p>⚠️ <strong>Важно:</strong> Рекомендуем сменить пароль после первого входа.</p>';
+        $message .= '<div style="text-align: center; margin-top: 30px;">';
+        $message .= '<a href="' . home_url('/crm-login') . '" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: #fff; padding: 12px 30px; text-decoration: none; border-radius: 25px; display: inline-block;">🔐 Войти в CRM</a>';
+        $message .= '</div>';
+        $message .= '</div>';
+        $message .= $this->get_template_footer();
         
-        // Сбрасываем фильтр после отправки, чтобы не ломать другие письма WordPress
-        remove_filter('wp_mail_content_type', [$this, 'set_html_content_type']);
-
+        $this->send($email, $subject, $message);
+    }
+    
+    /**
+     * Отправка письма со сбросом пароля
+     */
+    public function send_password_reset($email, $name, $new_password) {
+        $subject = 'Восстановление пароля - АКПП45 CRM';
+        
+        $message = $this->get_template_header('Восстановление пароля');
+        $message .= '<div style="padding: 20px;">';
+        $message .= '<h2 style="color: #667eea;">Здравствуйте, ' . esc_html($name) . '!</h2>';
+        $message .= '<p>Вы запросили восстановление пароля для доступа к CRM системе АКПП45.</p>';
+        $message .= '<div style="background: #f8f9fa; padding: 15px; border-radius: 8px; margin: 15px 0;">';
+        $message .= '<p><strong>🔑 Ваш новый пароль:</strong> <code style="background: #e9ecef; padding: 4px 8px; border-radius: 4px; font-size: 16px;">' . esc_html($new_password) . '</code></p>';
+        $message .= '</div>';
+        $message .= '<p>⚠️ <strong>Важно:</strong> Рекомендуем сменить этот пароль при следующем входе.</p>';
+        $message .= '<div style="text-align: center; margin-top: 30px;">';
+        $message .= '<a href="' . home_url('/crm-login') . '" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: #fff; padding: 12px 30px; text-decoration: none; border-radius: 25px; display: inline-block;">🔐 Войти в CRM</a>';
+        $message .= '</div>';
+        $message .= '</div>';
+        $message .= $this->get_template_footer();
+        
+        $this->send($email, $subject, $message);
+    }
+    
+    /**
+     * Уведомление о назначенной сделке (для сотрудника)
+     */
+    public function send_deal_assigned($email, $name, $deal_id, $client_name, $car) {
+        $subject = 'Новая сделка #' . $deal_id . ' - АКПП45 CRM';
+        
+        $message = $this->get_template_header('Новая сделка');
+        $message .= '<div style="padding: 20px;">';
+        $message .= '<h2 style="color: #667eea;">Здравствуйте, ' . esc_html($name) . '!</h2>';
+        $message .= '<p>Вам назначена новая сделка в системе АКПП45 CRM.</p>';
+        $message .= '<div style="background: #f8f9fa; padding: 15px; border-radius: 8px; margin: 15px 0;">';
+        $message .= '<p><strong>📋 Номер сделки:</strong> #' . $deal_id . '</p>';
+        $message .= '<p><strong>👤 Клиент:</strong> ' . esc_html($client_name) . '</p>';
+        $message .= '<p><strong>🚗 Автомобиль:</strong> ' . esc_html($car) . '</p>';
+        $message .= '</div>';
+        $message .= '<div style="text-align: center; margin-top: 30px;">';
+        $message .= '<a href="' . admin_url('admin.php?page=akpp-crm-deal-form&id=' . $deal_id) . '" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: #fff; padding: 12px 30px; text-decoration: none; border-radius: 25px; display: inline-block;">📋 Перейти к сделке</a>';
+        $message .= '</div>';
+        $message .= '</div>';
+        $message .= $this->get_template_footer();
+        
+        $this->send($email, $subject, $message);
+    }
+    
+    /**
+     * Уведомление об изменении статуса сделки (для клиента)
+     */
+    public function send_deal_status_changed($email, $name, $deal_id, $old_status, $new_status) {
+        $status_labels = [
+            'new' => 'Новая',
+            'diagnostic' => 'Диагностика',
+            'in_work' => 'В работе',
+            'completed' => 'Выполнена',
+            'rejected' => 'Отклонена'
+        ];
+        
+        $old_label = $status_labels[$old_status] ?? $old_status;
+        $new_label = $status_labels[$new_status] ?? $new_status;
+        
+        $subject = 'Изменение статуса сделки #' . $deal_id . ' - АКПП45 CRM';
+        
+        $message = $this->get_template_header('Изменение статуса сделки');
+        $message .= '<div style="padding: 20px;">';
+        $message .= '<h2 style="color: #667eea;">Здравствуйте, ' . esc_html($name) . '!</h2>';
+        $message .= '<p>Статус вашей сделки был изменен.</p>';
+        $message .= '<div style="background: #f8f9fa; padding: 15px; border-radius: 8px; margin: 15px 0;">';
+        $message .= '<p><strong>📋 Номер сделки:</strong> #' . $deal_id . '</p>';
+        $message .= '<p><strong>📊 Статус:</strong> ' . $old_label . ' → <span style="color: #667eea; font-weight: bold;">' . $new_label . '</span></p>';
+        $message .= '</div>';
+        $message .= '<div style="text-align: center; margin-top: 30px;">';
+        $message .= '<a href="' . home_url('/crm-profile?tab=deals') . '" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: #fff; padding: 12px 30px; text-decoration: none; border-radius: 25px; display: inline-block;">📋 Мои сделки</a>';
+        $message .= '</div>';
+        $message .= '</div>';
+        $message .= $this->get_template_footer();
+        
+        $this->send($email, $subject, $message);
+    }
+    
+    /**
+     * Уведомление о новом сообщении в чате
+     */
+    public function send_new_message($email, $name, $sender_name, $message_preview, $chat_url) {
+        $subject = 'Новое сообщение от ' . $sender_name . ' - АКПП45 CRM';
+        
+        $message = $this->get_template_header('Новое сообщение');
+        $message .= '<div style="padding: 20px;">';
+        $message .= '<h2 style="color: #667eea;">Здравствуйте, ' . esc_html($name) . '!</h2>';
+        $message .= '<p>Вы получили новое сообщение от <strong>' . esc_html($sender_name) . '</strong>:</p>';
+        $message .= '<div style="background: #f8f9fa; padding: 15px; border-radius: 8px; margin: 15px 0; border-left: 4px solid #667eea;">';
+        $message .= '<p style="margin: 0;">" ' . esc_html($message_preview) . ' "</p>';
+        $message .= '</div>';
+        $message .= '<div style="text-align: center; margin-top: 30px;">';
+        $message .= '<a href="' . esc_url($chat_url) . '" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: #fff; padding: 12px 30px; text-decoration: none; border-radius: 25px; display: inline-block;">💬 Перейти в чат</a>';
+        $message .= '</div>';
+        $message .= '</div>';
+        $message .= $this->get_template_footer();
+        
+        $this->send($email, $subject, $message);
+    }
+    
+    /**
+     * Отправка email
+     */
+    private function send($to, $subject, $message) {
+        $headers = [
+            'Content-Type: text/html; charset=UTF-8',
+            'X-Mailer: AKPP45 CRM/' . AKPP_CRM_VERSION
+        ];
+        
+        $sent = wp_mail($to, $subject, $message, $headers);
+        
+        if (!$sent) {
+            $this->log_error("Ошибка отправки email на {$to}");
+        }
+        
         return $sent;
     }
-
+    
     /**
-     * Отправка уведомления о смене статуса сделки
-     *
-     * @param string $to      Email клиента
-     * @param string $name    Имя клиента
-     * @param int    $deal_id ID сделки
-     * @param string $status  Новый статус (человекочитаемый)
-     */
-    public function send_deal_status_update($to, $name, $deal_id, $status) {
-        $subject = 'Обновление статуса вашей заявки №' . $deal_id;
-        
-        $profile_url = home_url('/profile/');
-        
-        $body = $this->get_template_header($subject);
-        $body .= "<p>Здравствуйте, <strong>{$name}</strong>!</p>";
-        $body .= "<p>Статус вашей заявки <strong>№{$deal_id}</strong> был изменен.</p>";
-        $body .= "<p><strong>Новый статус:</strong> <span style='color:#00aa55; font-weight:bold;'>{$status}</span></p>";
-        $body .= "<p>Вы можете отслеживать прогресс в вашем личном кабинете.</p>";
-        $body .= "<p style='margin-top: 20px;'>";
-        $body .= "<a href='{$profile_url}' style='display:inline-block; background:#00ff88; color:#0a0f1c; text-decoration:none; padding:10px 20px; border-radius:5px; font-weight:bold;'>Перейти в профиль</a>";
-        $body .= "</p>";
-        $body .= $this->get_template_footer();
-
-        $headers = ['From: АКПП45 CRM <noreply@' . preg_replace('#^www\.#', '', parse_url(home_url(), PHP_URL_HOST)) . '>'];
-
-        $sent = wp_mail($to, $subject, $body, $headers);
-        remove_filter('wp_mail_content_type', [$this, 'set_html_content_type']);
-
-        return $sent;
-    }
-
-    /**
-     * Шапка HTML-письма (базовый стиль)
+     * Получение HTML шапки письма
      */
     private function get_template_header($title) {
-        $logo_url = get_template_directory_uri() . '/assets/images/logo.png'; // Замените на реальный путь к лого
-        return "
-        <!DOCTYPE html>
+        return '<!DOCTYPE html>
         <html>
         <head>
-            <meta charset='UTF-8'>
-            <title>{$title}</title>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>' . esc_html($title) . '</title>
             <style>
-                body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; background-color: #f9f9f9; margin: 0; padding: 0; }
-                .email-container { max-width: 600px; margin: 20px auto; background: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
-                .email-header { background-color: #0a0f1c; color: #00ff88; padding: 20px; text-align: center; }
-                .email-header h1 { margin: 0; font-size: 24px; }
-                .email-body { padding: 30px; }
-                .email-footer { background-color: #f4f4f4; padding: 20px; text-align: center; font-size: 12px; color: #777; }
+                body {
+                    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+                    margin: 0;
+                    padding: 0;
+                    background-color: #f5f5f5;
+                }
+                .email-container {
+                    max-width: 600px;
+                    margin: 0 auto;
+                    background-color: #ffffff;
+                    border-radius: 12px;
+                    overflow: hidden;
+                    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+                }
+                .email-header {
+                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                    padding: 30px;
+                    text-align: center;
+                    color: #ffffff;
+                }
+                .email-header h1 {
+                    margin: 0;
+                    font-size: 24px;
+                }
+                .email-header p {
+                    margin: 10px 0 0;
+                    opacity: 0.9;
+                }
+                .email-body {
+                    padding: 20px;
+                }
+                .email-footer {
+                    background-color: #f8f9fa;
+                    padding: 20px;
+                    text-align: center;
+                    font-size: 12px;
+                    color: #666;
+                    border-top: 1px solid #e9ecef;
+                }
+                .email-footer a {
+                    color: #667eea;
+                    text-decoration: none;
+                }
             </style>
         </head>
-        <body>
-            <div class='email-container'>
-                <div class='email-header'>
-                    <h1>АКПП45 CRM</h1>
+        <body style="margin: 0; padding: 20px; background-color: #f5f5f5;">
+            <div class="email-container">
+                <div class="email-header">
+                    <h1>🚗 АКПП45 CRM</h1>
+                    <p>Система управления автосервисом</p>
                 </div>
-                <div class='email-body'>
-        ";
+                <div class="email-body">';
     }
-
+    
     /**
-     * Подвал HTML-письма
+     * Получение HTML подвала письма
      */
     private function get_template_footer() {
-        $site_name = get_bloginfo('name');
-        $site_url = home_url();
-        return "
-                </div>
-                <div class='email-footer'>
-                    <p>Это автоматическое сообщение, пожалуйста, не отвечайте на него.</p>
-                    <p>&copy; " . date('Y') . " <a href='{$site_url}' style='color:#555;'>{$site_name}</a>. Все права защищены.</p>
+        return '    </div>
+                <div class="email-footer">
+                    <p>© ' . date('Y') . ' АКПП45. Все права защищены.</p>
+                    <p><a href="' . home_url() . '">' . get_bloginfo('name') . '</a> | 
+                       <a href="' . home_url('/privacy-policy') . '">Политика конфиденциальности</a></p>
+                    <p>Это письмо было отправлено автоматически. Пожалуйста, не отвечайте на него.</p>
                 </div>
             </div>
         </body>
-        </html>
-        ";
+        </html>';
+    }
+    
+    /**
+     * Сохранение настроек SMTP
+     */
+    public function save_smtp_settings($host, $port, $user, $password) {
+        update_option('akpp_smtp_host', sanitize_text_field($host));
+        update_option('akpp_smtp_port', intval($port));
+        update_option('akpp_smtp_user', sanitize_email($user));
+        update_option('akpp_smtp_password', $password);
+        
+        return true;
+    }
+    
+    /**
+     * Логирование ошибок
+     */
+    private function log_error($message) {
+        if (defined('WP_DEBUG_LOG') && WP_DEBUG_LOG) {
+            error_log('[AKPP_EMAIL] ОШИБКА: ' . $message);
+        }
     }
 }
-
-// Инициализация
-new AKPP_Email();
