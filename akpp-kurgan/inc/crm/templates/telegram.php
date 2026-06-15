@@ -1,137 +1,319 @@
 <?php
-if (!defined('ABSPATH')) exit;
+/**
+ * Шаблон страницы настроек Telegram бота
+ * 
+ * @package AKPP45_CRM
+ */
+
+if (!defined('ABSPATH')) {
+    exit;
+}
 
 // Получаем текущие настройки
 $bot_token = get_option('akpp_telegram_bot_token', '');
-$chat_id = get_option('akpp_telegram_chat_id', '');
+$webhook_url = home_url('/wp-json/akpp/v1/telegram-webhook');
+$bot_username = get_option('akpp_telegram_bot_username', '');
 
-// Формируем URL вебхука
-$webhook_url = admin_url('admin-ajax.php?action=akpp_telegram_webhook');
-
-// Обработка сохранения настроек
-if (isset($_POST['akpp_save_telegram_settings']) && check_admin_referer('akpp_telegram_nonce')) {
-    $new_token = sanitize_text_field($_POST['bot_token']);
-    $new_chat_id = sanitize_text_field($_POST['chat_id']);
-    
-    update_option('akpp_telegram_bot_token', $new_token);
-    update_option('akpp_telegram_chat_id', $new_chat_id);
-    
-    echo '<div class="notice notice-success is-dismissible" style="border-left-color: var(--akpp-success);"><p>✅ Настройки Telegram успешно сохранены!</p></div>';
-    
-    // Обновляем переменные для отображения
-    $bot_token = $new_token;
-    $chat_id = $new_chat_id;
-}
-
-$is_configured = !empty($bot_token) && !empty($chat_id);
-
+// Получаем список сотрудников с Telegram
+global $wpdb;
+$table_employees = $wpdb->prefix . 'akpp_employees';
+$employees = $wpdb->get_results(
+    "SELECT id, name, role, telegram_id, telegram_chat_id, telegram_username 
+    FROM {$table_employees} 
+    WHERE telegram_id IS NOT NULL 
+    ORDER BY name ASC"
+);
 ?>
 
 <div class="wrap akpp-crm-wrap">
-    <h1 style="color: var(--akpp-accent); margin-bottom: 20px;">📱 Настройки Telegram-бота</h1>
-
-    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+    <h1 class="wp-heading-inline">📱 Telegram бот</h1>
+    <hr class="wp-header-end">
+    
+    <div id="telegram-message" style="display: none; margin: 20px 0; padding: 10px 15px; border-radius: 5px;"></div>
+    
+    <div class="telegram-settings-container" style="display: flex; gap: 30px; flex-wrap: wrap;">
         
-        <!-- ЛЕВАЯ КОЛОНКА: Форма настроек -->
-        <div class="akpp-card">
-            <div class="akpp-card-header">⚙️ Основные параметры</div>
+        <!-- Форма настроек -->
+        <div class="settings-form" style="flex: 1; background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+            <h2>🤖 Настройки бота</h2>
+            <p>Настройте Telegram бота для получения уведомлений из CRM.</p>
             
-            <form method="post" action="">
-                <?php wp_nonce_field('akpp_telegram_nonce'); ?>
+            <form id="telegram-settings-form">
+                <?php wp_nonce_field('akpp_telegram_settings_nonce', 'telegram_nonce'); ?>
                 
-                <div class="form-group" style="margin-bottom: 20px;">
-                    <label for="bot_token">Bot Token *</label>
-                    <input type="text" id="bot_token" name="bot_token" value="<?php echo esc_attr($bot_token); ?>" placeholder="123456789:ABCdefGHIjklMNOpqrsTUVwxyz" style="width: 100%; font-family: monospace;">
-                    <small class="akpp-text-muted">Получите токен у @BotFather в Telegram</small>
-                </div>
-
-                <div class="form-group" style="margin-bottom: 20px;">
-                    <label for="chat_id">Chat ID (ID чата для уведомлений) *</label>
-                    <input type="text" id="chat_id" name="chat_id" value="<?php echo esc_attr($chat_id); ?>" placeholder="-1001234567890 или 123456789" style="width: 100%; font-family: monospace;">
-                    <small class="akpp-text-muted">Узнайте свой ID через бота @userinfobot или @getidsbot</small>
-                </div>
-
-                <button type="submit" name="akpp_save_telegram_settings" class="button button-primary" style="background-color: var(--akpp-accent); border-color: var(--akpp-accent); color: var(--akpp-bg-primary); font-weight: 600;">
-                    💾 Сохранить настройки
-                </button>
-            </form>
-        </div>
-
-        <!-- ПРАВАЯ КОЛОНКА: Статус и Webhook -->
-        <div class="akpp-card">
-            <div class="akpp-card-header">🔗 Статус подключения</div>
-            
-            <?php if ($is_configured) : ?>
-                <div style="margin-bottom: 20px;">
-                    <p style="color: var(--akpp-success); font-weight: 600; margin-bottom: 10px;">✅ Бот настроен</p>
-                    <p class="akpp-text-muted" style="font-size: 13px; line-height: 1.5;">
-                        Убедитесь, что вы добавили бота в нужный чат или канал и выдали ему права администратора (если это групповой чат).
+                <div class="form-field" style="margin-bottom: 20px;">
+                    <label for="bot_token">Bot Token</label>
+                    <input type="text" id="bot_token" name="bot_token" 
+                           value="<?php echo esc_attr($bot_token); ?>" 
+                           class="regular-text" style="width: 100%;" 
+                           placeholder="1234567890:ABCdefGHIjklmNOPqrstUVwxyz">
+                    <p class="description">
+                        Получите токен у <a href="https://t.me/BotFather" target="_blank">@BotFather</a> в Telegram
                     </p>
                 </div>
-
-                <div style="background: var(--akpp-bg-tertiary); padding: 15px; border-radius: 6px; border: 1px solid var(--akpp-border); margin-bottom: 15px;">
-                    <label style="font-size: 12px; color: var(--akpp-text-secondary); text-transform: uppercase; margin-bottom: 5px; display: block;">URL Вебхука</label>
-                    <code style="word-break: break-all; color: var(--akpp-accent); font-size: 13px;"><?php echo esc_html($webhook_url); ?></code>
+                
+                <div class="form-field" style="margin-bottom: 20px;">
+                    <label>Webhook URL</label>
+                    <input type="text" value="<?php echo esc_url($webhook_url); ?>" 
+                           readonly class="regular-text" style="width: 100%; background: #f5f5f5;">
+                    <p class="description">
+                        Этот URL будет автоматически установлен как webhook для бота
+                    </p>
                 </div>
-
-                <button type="button" id="akpp-set-webhook-btn" class="button button-primary" style="width: 100%; background-color: var(--akpp-info); border-color: var(--akpp-info); color: #fff; font-weight: 600;">
-                    🔄 Установить / Обновить Webhook
+                
+                <button type="submit" class="button button-primary" id="save-telegram-btn">
+                    💾 Сохранить настройки
                 </button>
-                <div id="akpp-webhook-status" style="margin-top: 10px; font-size: 13px;"></div>
-
-            <?php else : ?>
-                <div style="text-align: center; padding: 20px; color: var(--akpp-text-secondary);">
-                    <p>Заполните форму слева, чтобы активировать интеграцию с Telegram.</p>
+                <button type="button" class="button" id="test-telegram-btn" style="margin-left: 10px;">
+                    📨 Отправить тестовое сообщение
+                </button>
+                <button type="button" class="button" id="set-webhook-btn" style="margin-left: 10px;">
+                    🔗 Установить webhook
+                </button>
+            </form>
+            
+            <div class="instructions" style="margin-top: 30px; padding: 15px; background: #f8f9fa; border-radius: 5px;">
+                <h3>📋 Инструкция по настройке:</h3>
+                <ol style="margin: 0; padding-left: 20px;">
+                    <li>Напишите <a href="https://t.me/BotFather" target="_blank">@BotFather</a> в Telegram</li>
+                    <li>Отправьте команду <code>/newbot</code></li>
+                    <li>Придумайте имя и username для бота</li>
+                    <li>Скопируйте полученный токен</li>
+                    <li>Вставьте токен в поле выше и нажмите "Сохранить"</li>
+                    <li>Сотрудники должны написать боту команду <code>/start</code></li>
+                </ol>
+            </div>
+        </div>
+        
+        <!-- Список сотрудников -->
+        <div class="employees-list" style="flex: 1; background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+            <h2>👥 Сотрудники в Telegram</h2>
+            <p>Сотрудники, которые подключили бота.</p>
+            
+            <?php if ($employees): ?>
+                <div class="employees-table" style="overflow-x: auto;">
+                    <table class="wp-list-table widefat fixed striped">
+                        <thead>
+                            <tr>
+                                <th>Имя</th>
+                                <th>Роль</th>
+                                <th>Telegram</th>
+                                <th>Статус</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php foreach ($employees as $emp): ?>
+                                <tr>
+                                    <td><?php echo esc_html($emp->name); ?></td>
+                                    <td><?php echo esc_html($emp->role); ?></td>
+                                    <td>
+                                        <?php if ($emp->telegram_username): ?>
+                                            <a href="https://t.me/<?php echo esc_attr($emp->telegram_username); ?>" target="_blank">
+                                                @<?php echo esc_html($emp->telegram_username); ?>
+                                            </a>
+                                        <?php else: ?>
+                                            <?php echo esc_html($emp->telegram_id); ?>
+                                        <?php endif; ?>
+                                    </td>
+                                    <td>
+                                        <?php if ($emp->telegram_chat_id): ?>
+                                            <span style="color: green;">✅ Активен</span>
+                                        <?php else: ?>
+                                            <span style="color: orange;">⏳ Ожидает</span>
+                                        <?php endif; ?>
+                                    </td>
+                                </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
+            <?php else: ?>
+                <div style="text-align: center; padding: 40px; color: #999;">
+                    Нет сотрудников, подключивших бота
                 </div>
             <?php endif; ?>
+            
+            <div class="info-box" style="margin-top: 20px; padding: 15px; background: #e7f3ff; border-radius: 5px; border-left: 4px solid #2196f3;">
+                <strong>ℹ️ Как подключиться сотруднику:</strong>
+                <ol style="margin: 10px 0 0 20px;">
+                    <li>Найдите бота по username (после настройки)</li>
+                    <li>Напишите команду <code>/start</code></li>
+                    <li>Бот автоматически свяжет ваш Telegram с профилем сотрудника</li>
+                    <li>Вы начнете получать уведомления</li>
+                </ol>
+            </div>
         </div>
     </div>
-
-    <!-- Инструкция -->
-    <div class="akpp-card" style="margin-top: 20px;">
-        <div class="akpp-card-header">📖 Краткая инструкция по настройке</div>
-        <ol style="color: var(--akpp-text-primary); line-height: 1.8; padding-left: 20px;">
-            <li>Откройте Telegram и найдите бота <strong>@BotFather</strong>.</li>
-            <li>Отправьте команду <code>/newbot</code> и следуйте инструкциям для создания бота.</li>
-            <li>Скопируйте выданный <strong>API Token</strong> и вставьте его в поле "Bot Token" выше.</li>
-            <li>Найдите бота <strong>@userinfobot</strong> (или @getidsbot), нажмите "Start", чтобы узнать свой числовой <strong>Chat ID</strong>.</li>
-            <li>Вставьте Chat ID в соответствующее поле и нажмите "Сохранить настройки".</li>
-            <li>Нажмите кнопку "Установить / Обновить Webhook", чтобы Telegram мог отправлять команды боту.</li>
-            <li>Отправьте боту команду <code>/start</code> для проверки связи.</li>
-        </ol>
+    
+    <!-- Доступные команды -->
+    <div class="commands-section" style="margin-top: 30px; background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+        <h2>📋 Доступные команды бота</h2>
+        <div style="display: flex; flex-wrap: wrap; gap: 15px;">
+            <div style="flex: 1; min-width: 200px;">
+                <h4>Основные:</h4>
+                <ul style="margin: 0;">
+                    <li><code>/start</code> - начать работу</li>
+                    <li><code>/help</code> - справка</li>
+                    <li><code>/status</code> - статус системы</li>
+                </ul>
+            </div>
+            <div style="flex: 1; min-width: 200px;">
+                <h4>Данные:</h4>
+                <ul style="margin: 0;">
+                    <li><code>/leads</code> - новые лиды</li>
+                    <li><code>/deals</code> - мои сделки</li>
+                    <li><code>/profile</code> - мой профиль</li>
+                </ul>
+            </div>
+            <div style="flex: 1; min-width: 200px;">
+                <h4>Уведомления:</h4>
+                <ul style="margin: 0;">
+                    <li>🆕 Новые лиды</li>
+                    <li>📋 Новые сделки</li>
+                    <li>🔄 Смена статусов</li>
+                </ul>
+            </div>
+        </div>
     </div>
 </div>
 
+<style>
+.form-field label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 600;
+}
+.description {
+    font-size: 12px;
+    color: #666;
+    margin-top: 5px;
+}
+code {
+    background: #f4f4f4;
+    padding: 2px 6px;
+    border-radius: 3px;
+}
+.employees-table table {
+    margin-top: 10px;
+}
+</style>
+
 <script>
 jQuery(document).ready(function($) {
-    $('#akpp-set-webhook-btn').on('click', function() {
-        const $btn = $(this);
-        const $status = $('#akpp-webhook-status');
+    
+    // Сохранение настроек
+    $('#telegram-settings-form').on('submit', function(e) {
+        e.preventDefault();
         
-        $btn.prop('disabled', true).text('Установка вебхука...');
-        $status.html('<span class="akpp-loading"></span> Обработка запроса к Telegram API...').css('color', 'var(--akpp-text-secondary)');
-
-        $.post(akppCRM.ajax_url, {
-            action: 'akpp_set_telegram_webhook',
-            nonce: akppCRM.nonce
-        }, function(response) {
-            if (response.success) {
-                $status.html('✅ ' + response.data.message).css('color', 'var(--akpp-success)');
-            } else {
-                $status.html('❌ Ошибка: ' + response.data.message).css('color', 'var(--akpp-danger)');
+        var form = $(this);
+        var submitBtn = $('#save-telegram-btn');
+        var messageDiv = $('#telegram-message');
+        var botToken = $('#bot_token').val();
+        
+        if (!botToken) {
+            showMessage('Введите Bot Token', 'error');
+            return;
+        }
+        
+        submitBtn.prop('disabled', true).text('⏳ Сохранение...');
+        messageDiv.hide();
+        
+        $.ajax({
+            url: ajaxurl,
+            type: 'POST',
+            data: {
+                action: 'akpp_save_telegram_settings',
+                bot_token: botToken,
+                nonce: $('#telegram_nonce').val()
+            },
+            dataType: 'json',
+            success: function(response) {
+                if (response.success) {
+                    showMessage(response.data.message, 'success');
+                    setTimeout(function() {
+                        location.reload();
+                    }, 1500);
+                } else {
+                    showMessage(response.data.message, 'error');
+                    submitBtn.prop('disabled', false).text('💾 Сохранить настройки');
+                }
+            },
+            error: function() {
+                showMessage('Ошибка соединения', 'error');
+                submitBtn.prop('disabled', false).text('💾 Сохранить настройки');
             }
-        }).fail(function() {
-            $status.html('❌ Ошибка сети при запросе к API.').css('color', 'var(--akpp-danger)');
-        }).always(function() {
-            $btn.prop('disabled', false).text('🔄 Установить / Обновить Webhook');
         });
     });
-
-    // Автоскрытие уведомлений WordPress
-    setTimeout(function() {
-        $('.notice.is-dismissible').fadeOut(500, function() {
-            $(this).remove();
+    
+    // Тестовое сообщение
+    $('#test-telegram-btn').on('click', function() {
+        var btn = $(this);
+        var messageDiv = $('#telegram-message');
+        
+        btn.prop('disabled', true).text('⏳ Отправка...');
+        messageDiv.hide();
+        
+        $.ajax({
+            url: ajaxurl,
+            type: 'POST',
+            data: {
+                action: 'akpp_send_test_telegram',
+                nonce: $('#telegram_nonce').val()
+            },
+            dataType: 'json',
+            success: function(response) {
+                if (response.success) {
+                    showMessage('Тестовое сообщение отправлено. Проверьте Telegram бота.', 'success');
+                } else {
+                    showMessage(response.data.message, 'error');
+                }
+                btn.prop('disabled', false).text('📨 Отправить тестовое сообщение');
+            },
+            error: function() {
+                showMessage('Ошибка отправки', 'error');
+                btn.prop('disabled', false).text('📨 Отправить тестовое сообщение');
+            }
         });
-    }, 4000);
+    });
+    
+    // Установка webhook
+    $('#set-webhook-btn').on('click', function() {
+        var btn = $(this);
+        var messageDiv = $('#telegram-message');
+        
+        btn.prop('disabled', true).text('⏳ Установка...');
+        messageDiv.hide();
+        
+        $.ajax({
+            url: ajaxurl,
+            type: 'POST',
+            data: {
+                action: 'akpp_set_telegram_webhook',
+                nonce: $('#telegram_nonce').val()
+            },
+            dataType: 'json',
+            success: function(response) {
+                if (response.success) {
+                    showMessage(response.data.message, 'success');
+                } else {
+                    showMessage(response.data.message, 'error');
+                }
+                btn.prop('disabled', false).text('🔗 Установить webhook');
+            },
+            error: function() {
+                showMessage('Ошибка установки webhook', 'error');
+                btn.prop('disabled', false).text('🔗 Установить webhook');
+            }
+        });
+    });
+    
+    function showMessage(msg, type) {
+        var messageDiv = $('#telegram-message');
+        var className = type === 'success' ? 'notice-success' : (type === 'error' ? 'notice-error' : 'notice-warning');
+        messageDiv.removeClass('notice-success notice-error notice-warning').addClass(className).html('<p>' + msg + '</p>').show();
+        setTimeout(function() {
+            messageDiv.fadeOut();
+        }, 5000);
+    }
 });
 </script>
