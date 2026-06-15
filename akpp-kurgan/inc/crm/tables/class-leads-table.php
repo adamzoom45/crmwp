@@ -1,325 +1,397 @@
 <?php
-if (!defined('ABSPATH')) exit;
+/**
+ * Класс для таблицы лидов в админке
+ * 
+ * @package AKPP45_CRM
+ */
+
+if (!defined('ABSPATH')) {
+    exit;
+}
 
 if (!class_exists('WP_List_Table')) {
-    require_once(ABSPATH . 'wp-admin/includes/class-wp-list-table.php');
+    require_once ABSPATH . 'wp-admin/includes/class-wp-list-table.php';
 }
 
 class AKPP_Leads_Table extends WP_List_Table {
     
-    private $sources = [
-        'site'     => '🌐 Сайт',
-        'avito'    => '🟢 Авито',
-        'telegram' => '🔵 Telegram',
-        'call'     => '📞 Звонок'
-    ];
-
-    private $statuses = [
-        'new'       => 'Новый',
-        'contacted' => 'На связи',
-        'converted' => 'Конвертирован в сделку',
-        'rejected'  => 'Отклонен'
-    ];
-
+    private $table_name;
+    
     public function __construct() {
         parent::__construct([
-            'singular' => __('Лид', 'akpp-crm'),
-            'plural'   => __('Лиды', 'akpp-crm'),
-            'ajax'     => false
+            'singular' => 'lead',
+            'plural' => 'leads',
+            'ajax' => false
         ]);
-    }
-
-    /**
-     * Получение данных о лидах из БД с учетом фильтров
-     */
-    public function get_leads() {
+        
         global $wpdb;
-        $table_name = $wpdb->prefix . 'akpp_leads';
-        $employees_table = $wpdb->prefix . 'akpp_employees';
-
-        $per_page = $this->get_items_per_page('leads_per_page', 20);
-        $current_page = $this->get_pagenum();
-        $search = isset($_REQUEST['s']) ? sanitize_text_field($_REQUEST['s']) : '';
-        $source_filter = isset($_REQUEST['source']) ? sanitize_text_field($_REQUEST['source']) : '';
-        $status_filter = isset($_REQUEST['status']) ? sanitize_text_field($_REQUEST['status']) : '';
-        $orderby = isset($_REQUEST['orderby']) ? sanitize_sql_orderby($_REQUEST['orderby']) : 'created_at';
-        $order = isset($_REQUEST['order']) && $_REQUEST['order'] === 'asc' ? 'ASC' : 'DESC'; // По умолчанию новые сверху
-
-        // Построение условий WHERE
-        $where_clauses = ["1=1"];
-        $prepare_args = [];
-
-        if (!empty($search)) {
-            $search_like = '%' . $wpdb->esc_like($search) . '%';
-            $where_clauses[] = "(name LIKE %s OR phone LIKE %s OR message LIKE %s)";
-            $prepare_args[] = $search_like;
-            $prepare_args[] = $search_like;
-            $prepare_args[] = $search_like;
-        }
-
-        if (!empty($source_filter) && array_key_exists($source_filter, $this->sources)) {
-            $where_clauses[] = "source = %s";
-            $prepare_args[] = $source_filter;
-        }
-
-        if (!empty($status_filter) && array_key_exists($status_filter, $this->statuses)) {
-            $where_clauses[] = "status = %s";
-            $prepare_args[] = $status_filter;
-        }
-
-        $where_sql = implode(' AND ', $where_clauses);
-
-        // Общее количество записей
-        $count_query = "SELECT COUNT(*) FROM $table_name WHERE $where_sql";
-        $total_items = empty($prepare_args) ? $wpdb->get_var($count_query) : $wpdb->get_var($wpdb->prepare($count_query, $prepare_args));
-
-        // Данные для текущей страницы (с JOIN для получения имени сотрудника)
-        $offset = ($current_page - 1) * $per_page;
-        $prepare_args[] = $per_page;
-        $prepare_args[] = $offset;
-
-        $query = "
-            SELECT l.*, e.full_name as assigned_name 
-            FROM $table_name l 
-            LEFT JOIN $employees_table e ON l.assigned_to = e.id 
-            WHERE $where_sql 
-            ORDER BY l.$orderby $order 
-            LIMIT %d OFFSET %d
-        ";
-        $data = $wpdb->get_results($wpdb->prepare($query, $prepare_args), ARRAY_A);
-
-        $this->set_pagination_args([
-            'total_items' => $total_items,
-            'per_page'    => $per_page,
-            'total_pages' => ceil($total_items / $per_page)
-        ]);
-
-        return $data;
+        $this->table_name = $wpdb->prefix . 'akpp_leads';
     }
-
+    
     /**
-     * Подготовка элементов
+     * Получение данных для таблицы
      */
     public function prepare_items() {
-        $columns = $this->get_columns();
-        $hidden = [];
-        $sortable = $this->get_sortable_columns();
-
-        $this->_column_headers = [$columns, $hidden, $sortable];
+        global $wpdb;
+        
+        $per_page = 20;
+        $current_page = $this->get_pagenum();
+        $offset = ($current_page - 1) * $per_page;
+        
+        // Фильтры
+        $status_filter = isset($_GET['status_filter']) ? sanitize_text_field($_GET['status_filter']) : 'all';
+        $source_filter = isset($_GET['source_filter']) ? sanitize_text_field($_GET['source_filter']) : 'all';
+        $search = isset($_GET['s']) ? sanitize_text_field($_GET['s']) : '';
+        
+        // Построение WHERE
+        $where = [];
+        $params = [];
+        
+        if ($status_filter !== 'all') {
+            $where[] = "status = %s";
+            $params[] = $status_filter;
+        }
+        
+        if ($source_filter !== 'all') {
+            $where[] = "source = %s";
+            $params[] = $source_filter;
+        }
+        
+        if (!empty($search)) {
+            $where[] = "(client_name LIKE '%%%s%%' OR client_phone LIKE '%%%s%%' OR client_email LIKE '%%%s%%')";
+            $params[] = $search;
+            $params[] = $search;
+            $params[] = $search;
+        }
+        
+        $where_clause = !empty($where) ? "WHERE " . implode(" AND ", $where) : "";
+        
+        // Сортировка
+        $orderby = isset($_GET['orderby']) ? sanitize_sql_orderby($_GET['orderby']) : 'created_at';
+        $order = isset($_GET['order']) && strtoupper($_GET['order']) === 'ASC' ? 'ASC' : 'DESC';
+        
+        // Получение общего количества
+        $count_query = "SELECT COUNT(*) FROM {$this->table_name} {$where_clause}";
+        if (!empty($params)) {
+            $count_query = $wpdb->prepare($count_query, $params);
+        }
+        $total_items = $wpdb->get_var($count_query);
+        
+        // Получение данных
+        $query = "SELECT * FROM {$this->table_name} {$where_clause} ORDER BY {$orderby} {$order} LIMIT %d OFFSET %d";
+        $params[] = $per_page;
+        $params[] = $offset;
+        
+        $query = $wpdb->prepare($query, $params);
+        $this->items = $wpdb->get_results($query);
+        
+        // Настройка пагинации
+        $this->set_pagination_args([
+            'total_items' => $total_items,
+            'per_page' => $per_page,
+            'total_pages' => ceil($total_items / $per_page)
+        ]);
+        
         $this->process_bulk_action();
-        $this->items = $this->get_leads();
     }
-
+    
     /**
      * Определение колонок
      */
     public function get_columns() {
         return [
-            'cb'        => '<input type="checkbox" />',
-            'id'        => __('ID', 'akpp-crm'),
-            'source'    => __('Источник', 'akpp-crm'),
-            'name'      => __('Клиент', 'akpp-crm'),
-            'phone'     => __('Телефон', 'akpp-crm'),
-            'message'   => __('Сообщение', 'akpp-crm'),
-            'status'    => __('Статус', 'akpp-crm'),
-            'assigned'  => __('Гид/Менеджер', 'akpp-crm'),
-            'date'      => __('Дата', 'akpp-crm'),
-            'actions'   => __('Действия', 'akpp-crm')
+            'cb' => '<input type="checkbox" />',
+            'id' => 'ID',
+            'client_name' => 'Клиент',
+            'contact' => 'Контакты',
+            'car_brand' => 'Автомобиль',
+            'source' => 'Источник',
+            'guide' => 'Гид',
+            'status' => 'Статус',
+            'created_at' => 'Дата',
+            'actions' => 'Действия'
         ];
     }
-
+    
     /**
      * Сортируемые колонки
      */
     public function get_sortable_columns() {
         return [
-            'id'   => ['id', true],
-            'date' => ['created_at', false]
+            'id' => ['id', false],
+            'client_name' => ['client_name', false],
+            'created_at' => ['created_at', true],
+            'status' => ['status', false],
+            'source' => ['source', false]
         ];
     }
-
-    /**
-     * Дополнительная навигация (Фильтры по источнику и статусу)
-     */
-    public function extra_tablenav($which) {
-        if ($which === 'top') {
-            $current_source = isset($_REQUEST['source']) ? sanitize_text_field($_REQUEST['source']) : '';
-            $current_status = isset($_REQUEST['status']) ? sanitize_text_field($_REQUEST['status']) : '';
-            ?>
-            <div class="alignleft actions">
-                <select name="source">
-                    <option value=""><?php _e('Все источники', 'akpp-crm'); ?></option>
-                    <?php foreach ($this->sources as $value => $label) : ?>
-                        <option value="<?php echo esc_attr($value); ?>" <?php selected($current_source, $value); ?>>
-                            <?php echo esc_html($label); ?>
-                        </option>
-                    <?php endforeach; ?>
-                </select>
-
-                <select name="status">
-                    <option value=""><?php _e('Все статусы', 'akpp-crm'); ?></option>
-                    <?php foreach ($this->statuses as $value => $label) : ?>
-                        <option value="<?php echo esc_attr($value); ?>" <?php selected($current_status, $value); ?>>
-                            <?php echo esc_html($label); ?>
-                        </option>
-                    <?php endforeach; ?>
-                </select>
-
-                <?php submit_button(__('Фильтр', 'akpp-crm'), '', 'filter_action', false); ?>
-            </div>
-            <?php
-        }
-    }
-
-    /**
-     * Колонка с чекбоксом
-     */
-    public function column_cb($item) {
-        return sprintf('<input type="checkbox" name="lead[]" value="%s" />', $item['id']);
-    }
-
-    /**
-     * Колонка ID
-     */
-    public function column_id($item) {
-        return '<strong>#' . esc_html($item['id']) . '</strong>';
-    }
-
-    /**
-     * Колонка Источник
-     */
-    public function column_source($item) {
-        $badges = [
-            'site'     => '<span class="akpp-badge akpp-badge-primary">Сайт</span>',
-            'avito'    => '<span class="akpp-badge akpp-badge-success">Авито</span>',
-            'telegram' => '<span class="akpp-badge akpp-badge-info">Telegram</span>',
-            'call'     => '<span class="akpp-badge akpp-badge-warning">Звонок</span>'
-        ];
-        return isset($badges[$item['source']]) ? $badges[$item['source']] : esc_html($item['source']);
-    }
-
-    /**
-     * Колонка Клиент
-     */
-    public function column_name($item) {
-        return !empty($item['name']) ? esc_html($item['name']) : '<span class="akpp-text-muted">Аноним</span>';
-    }
-
-    /**
-     * Колонка Телефон
-     */
-    public function column_phone($item) {
-        if (!empty($item['phone'])) {
-            return '<a href="tel:' . esc_attr($item['phone']) . '">' . esc_html($item['phone']) . '</a>';
-        }
-        return '<span class="akpp-text-muted">—</span>';
-    }
-
-    /**
-     * Колонка Сообщение (обрезанное)
-     */
-    public function column_message($item) {
-        return !empty($item['message']) ? wp_kses_post(wp_trim_words($item['message'], 10, '...')) : '<span class="akpp-text-muted">—</span>';
-    }
-
-    /**
-     * Колонка Статус
-     */
-    public function column_status($item) {
-        $badges = [
-            'new'       => '<span class="akpp-badge akpp-badge-info">Новый</span>',
-            'contacted' => '<span class="akpp-badge akpp-badge-warning">На связи</span>',
-            'converted' => '<span class="akpp-badge akpp-badge-success">Конвертирован</span>',
-            'rejected'  => '<span class="akpp-badge akpp-badge-danger">Отклонен</span>'
-        ];
-        return isset($badges[$item['status']]) ? $badges[$item['status']] : esc_html($item['status']);
-    }
-
-    /**
-     * Колонка Назначенный сотрудник
-     */
-    public function column_assigned($item) {
-        return !empty($item['assigned_name']) ? esc_html($item['assigned_name']) : '<span class="akpp-text-muted">Не назначен</span>';
-    }
-
-    /**
-     * Колонка Дата
-     */
-    public function column_date($item) {
-        return date('d.m.Y H:i', strtotime($item['created_at']));
-    }
-
-    /**
-     * Колонка Действия
-     */
-    public function column_actions($item) {
-        $delete_url = wp_nonce_url(
-            add_query_arg(['page' => 'akpp-leads', 'action' => 'delete', 'id' => $item['id']], admin_url('admin.php')), 
-            'akpp_delete_lead_' . $item['id']
-        );
-
-        return sprintf(
-            '<a href="%s" class="button button-small button-link-delete" onclick="return confirm(\'Удалить этот лид?\');">Удалить</a>',
-            esc_url($delete_url)
-        );
-    }
-
-    /**
-     * Значение по умолчанию
-     */
-    public function column_default($item, $column_name) {
-        return isset($item[$column_name]) ? esc_html($item[$column_name]) : '—';
-    }
-
+    
     /**
      * Массовые действия
      */
     public function get_bulk_actions() {
         return [
-            'contacted' => __('Отметить как "На связи"', 'akpp-crm'),
-            'converted' => __('Отметить как "Конвертирован"', 'akpp-crm'),
-            'rejected'  => __('Отметить как "Отклонен"', 'akpp-crm'),
-            'delete'    => __('Удалить', 'akpp-crm')
+            'delete' => 'Удалить',
+            'change_status_new' => 'Изменить статус на "Новый"',
+            'change_status_contacted' => 'Изменить статус на "Связались"',
+            'change_status_converted' => 'Изменить статус на "Конвертирован"',
+            'change_status_lost' => 'Изменить статус на "Потерян"'
         ];
     }
-
+    
     /**
      * Обработка массовых действий
      */
     public function process_bulk_action() {
         global $wpdb;
-        $table_name = $wpdb->prefix . 'akpp_leads';
-
-        $action = $this->current_action();
         
-        // Одиночное действие
-        if (in_array($action, ['contacted', 'converted', 'rejected', 'delete']) && isset($_GET['id'])) {
-            $id = intval($_GET['id']);
-            if ($action === 'delete') {
-                check_admin_referer('akpp_delete_lead_' . $id);
-                $wpdb->delete($table_name, ['id' => $id]);
-            } else {
-                check_admin_referer('akpp_update_lead_status_' . $id);
-                $wpdb->update($table_name, ['status' => $action], ['id' => $id]);
-            }
-            wp_redirect(add_query_arg(['page' => 'akpp-leads', 'updated' => '1'], admin_url('admin.php')));
-            exit;
+        if (!$this->current_action()) return;
+        
+        $lead_ids = isset($_GET['lead']) ? array_map('intval', $_GET['lead']) : [];
+        
+        if (empty($lead_ids)) return;
+        
+        switch ($this->current_action()) {
+            case 'delete':
+                $ids_placeholder = implode(',', array_fill(0, count($lead_ids), '%d'));
+                $wpdb->query($wpdb->prepare(
+                    "DELETE FROM {$this->table_name} WHERE id IN ({$ids_placeholder})",
+                    $lead_ids
+                ));
+                echo '<div class="notice notice-success"><p>Лиды удалены</p></div>';
+                break;
+                
+            case 'change_status_new':
+                $this->bulk_update_status($lead_ids, 'new');
+                break;
+                
+            case 'change_status_contacted':
+                $this->bulk_update_status($lead_ids, 'contacted');
+                break;
+                
+            case 'change_status_converted':
+                $this->bulk_update_status($lead_ids, 'converted');
+                break;
+                
+            case 'change_status_lost':
+                $this->bulk_update_status($lead_ids, 'lost');
+                break;
         }
-
-        // Массовое действие
-        if (in_array($action, ['contacted', 'converted', 'rejected', 'delete']) && isset($_POST['lead']) && is_array($_POST['lead'])) {
-            check_admin_referer('bulk-' . $this->_args['plural']);
-            $ids = array_map('intval', $_POST['lead']);
-            $ids_str = implode(',', $ids);
-
-            if ($action === 'delete') {
-                $wpdb->query("DELETE FROM $table_name WHERE id IN ($ids_str)");
-            } else {
-                $wpdb->query($wpdb->prepare("UPDATE $table_name SET status = %s WHERE id IN ($ids_str)", $action));
-            }
+    }
+    
+    /**
+     * Массовое обновление статуса
+     */
+    private function bulk_update_status($ids, $status) {
+        global $wpdb;
+        
+        $ids_placeholder = implode(',', array_fill(0, count($ids), '%d'));
+        $wpdb->query($wpdb->prepare(
+            "UPDATE {$this->table_name} SET status = %s, updated_at = %s WHERE id IN ({$ids_placeholder})",
+            $status,
+            current_time('mysql'),
+            ...$ids
+        ));
+        
+        echo '<div class="notice notice-success"><p>Статус обновлен для ' . count($ids) . ' лидов</p></div>';
+    }
+    
+    /**
+     * Отображение колонки cb (чекбокс)
+     */
+    protected function column_cb($item) {
+        return sprintf('<input type="checkbox" name="lead[]" value="%s" />', $item->id);
+    }
+    
+    /**
+     * Отображение колонки ID
+     */
+    protected function column_id($item) {
+        return sprintf(
+            '<a href="?page=akpp-crm-leads&action=view&id=%d">#%d</a>',
+            $item->id,
+            $item->id
+        );
+    }
+    
+    /**
+     * Отображение колонки клиента
+     */
+    protected function column_client_name($item) {
+        $name = esc_html($item->client_name);
+        
+        // Если есть сделка, показываем ссылку
+        if ($item->deal_id) {
+            return sprintf(
+                '<strong>%s</strong><br><small>Сделка #%d</small>',
+                $name,
+                $item->deal_id
+            );
+        }
+        
+        return $name;
+    }
+    
+    /**
+     * Отображение колонки контактов
+     */
+    protected function column_contact($item) {
+        $contact = '';
+        
+        if ($item->client_phone) {
+            $contact .= '<div>📞 ' . esc_html($item->client_phone) . '</div>';
+        }
+        if ($item->client_email) {
+            $contact .= '<div>✉️ ' . esc_html($item->client_email) . '</div>';
+        }
+        
+        return !empty($contact) ? $contact : '—';
+    }
+    
+    /**
+     * Отображение колонки автомобиля
+     */
+    protected function column_car_brand($item) {
+        return !empty($item->car_brand) ? esc_html($item->car_brand) : '—';
+    }
+    
+    /**
+     * Отображение колонки источника
+     */
+    protected function column_source($item) {
+        $sources = [
+            'site_form' => '🌐 Форма на сайте',
+            'avito' => '📱 Авито',
+            'telegram' => '📨 Telegram',
+            'phone' => '📞 Телефон',
+            'manual' => '✍️ Вручную'
+        ];
+        
+        $source_label = $sources[$item->source] ?? $item->source;
+        
+        // Для Авито показываем диалог
+        if ($item->source === 'avito' && $item->avito_dialog_id) {
+            $source_label .= sprintf(
+                '<br><small><a href="?page=akpp-crm-avito-dialogs&dialog=%s">Диалог</a></small>',
+                urlencode($item->avito_dialog_id)
+            );
+        }
+        
+        return $source_label;
+    }
+    
+    /**
+     * Отображение колонки гида
+     */
+    protected function column_guide($item) {
+        global $wpdb;
+        
+        if (!$item->guide_id) {
+            return '—';
+        }
+        
+        $guide = $wpdb->get_var($wpdb->prepare(
+            "SELECT name FROM {$wpdb->prefix}akpp_employees WHERE id = %d",
+            $item->guide_id
+        ));
+        
+        return $guide ? esc_html($guide) : '—';
+    }
+    
+    /**
+     * Отображение колонки статуса
+     */
+    protected function column_status($item) {
+        $statuses = [
+            'new' => ['label' => '🆕 Новый', 'class' => 'status-new'],
+            'contacted' => ['label' => '📞 Связались', 'class' => 'status-contacted'],
+            'converted' => ['label' => '✅ Конвертирован', 'class' => 'status-converted'],
+            'lost' => ['label' => '❌ Потерян', 'class' => 'status-lost']
+        ];
+        
+        $status = $statuses[$item->status] ?? ['label' => $item->status, 'class' => ''];
+        
+        return sprintf(
+            '<span class="status-badge %s">%s</span>',
+            esc_attr($status['class']),
+            esc_html($status['label'])
+        );
+    }
+    
+    /**
+     * Отображение колонки даты
+     */
+    protected function column_created_at($item) {
+        return date_i18n(get_option('date_format') . ' ' . get_option('time_format'), strtotime($item->created_at));
+    }
+    
+    /**
+     * Отображение колонки действий
+     */
+    protected function column_actions($item) {
+        $actions = sprintf(
+            '<button class="button button-small view-lead" data-id="%d">👁️ Просмотр</button> ',
+            $item->id
+        );
+        
+        if (!$item->deal_id) {
+            $actions .= sprintf(
+                '<a href="?page=akpp-crm-deal-form&lead_id=%d" class="button button-small">➕ В сделку</a> ',
+                $item->id
+            );
+        }
+        
+        $actions .= sprintf(
+            '<button class="button button-small delete-lead" data-id="%d">🗑️ Удалить</button>',
+            $item->id
+        );
+        
+        return $actions;
+    }
+    
+    /**
+     * Отображение по умолчанию для неизвестных колонок
+     */
+    protected function column_default($item, $column_name) {
+        return isset($item->$column_name) ? esc_html($item->$column_name) : '—';
+    }
+    
+    /**
+     * Фильтры над таблицей
+     */
+    protected function extra_tablenav($which) {
+        if ($which !== 'top') return;
+        
+        $status_filter = isset($_GET['status_filter']) ? sanitize_text_field($_GET['status_filter']) : 'all';
+        $source_filter = isset($_GET['source_filter']) ? sanitize_text_field($_GET['source_filter']) : 'all';
+        ?>
+        <div class="alignleft actions">
+            <select name="status_filter">
+                <option value="all" <?php selected($status_filter, 'all'); ?>>Все статусы</option>
+                <option value="new" <?php selected($status_filter, 'new'); ?>>🆕 Новый</option>
+                <option value="contacted" <?php selected($status_filter, 'contacted'); ?>>📞 Связались</option>
+                <option value="converted" <?php selected($status_filter, 'converted'); ?>>✅ Конвертирован</option>
+                <option value="lost" <?php selected($status_filter, 'lost'); ?>>❌ Потерян</option>
+            </select>
             
-            wp_redirect(add_query_arg(['page' => 'akpp-leads', 'updated' => count($ids)], admin_url('admin.php')));
-            exit;
-        }
+            <select name="source_filter">
+                <option value="all" <?php selected($source_filter, 'all'); ?>>Все источники</option>
+                <option value="site_form" <?php selected($source_filter, 'site_form'); ?>>🌐 Форма на сайте</option>
+                <option value="avito" <?php selected($source_filter, 'avito'); ?>>📱 Авито</option>
+                <option value="telegram" <?php selected($source_filter, 'telegram'); ?>>📨 Telegram</option>
+                <option value="phone" <?php selected($source_filter, 'phone'); ?>>📞 Телефон</option>
+                <option value="manual" <?php selected($source_filter, 'manual'); ?>>✍️ Вручную</option>
+            </select>
+            
+            <input type="submit" name="filter_action" class="button" value="Фильтровать">
+        </div>
+        <?php
+    }
+    
+    /**
+     * Отображение, если нет данных
+     */
+    public function no_items() {
+        echo 'Нет лидов для отображения';
     }
 }
