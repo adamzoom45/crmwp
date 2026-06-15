@@ -1,182 +1,385 @@
 <?php
-if (!defined('ABSPATH')) exit;
+/**
+ * Класс для универсального парсинга контента с внешних сайтов
+ * 
+ * @package AKPP45_CRM
+ */
+
+if (!defined('ABSPATH')) {
+    exit;
+}
 
 class AKPP_Parser {
     
-    public function __construct() {
-        // AJAX хук для запуска парсинга из админки
-        add_action('wp_ajax_akpp_parse_url', [$this, 'ajax_parse_url']);
+    private static $instance = null;
+    private $user_agents = [
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36',
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36',
+        'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36'
+    ];
+    
+    public static function get_instance() {
+        if (self::$instance === null) {
+            self::$instance = new self();
+        }
+        return self::$instance;
     }
-
+    
+    private function __construct() {}
+    
     /**
-     * Основная логика парсинга URL
-     *
+     * Парсинг URL
+     * 
      * @param string $url URL для парсинга
-     * @return array Результат парсинга или ошибка
+     * @return array|false Результат парсинга или false
      */
     public function parse($url) {
-        // 1. Валидация URL
         $url = esc_url_raw($url);
-        if (!filter_var($url, FILTER_VALIDATE_URL)) {
-            return ['error' => 'Некорректный URL'];
-        }
-
-        // 2. Получение содержимого страницы
-        $response = wp_remote_get($url, [
-            'timeout' => 15,
-            'headers' => [
-                'User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-            ]
-        ]);
-
-        if (is_wp_error($response)) {
-            return ['error' => 'Ошибка получения страницы: ' . $response->get_error_message()];
-        }
-
-        $html = wp_remote_retrieve_body($response);
-        if (empty($html)) {
-            return ['error' => 'Получен пустой ответ от сервера'];
-        }
-
-        // 3. Парсинг HTML с помощью DOMDocument
-        libxml_use_internal_errors(true);
-        $dom = new DOMDocument();
-        // Подавляем предупреждения о некорректном HTML
-        @$dom->loadHTML(mb_convert_encoding($html, 'HTML-ENTITIES', 'UTF-8'), LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD);
-        libxml_clear_errors();
-
-        // 4. Извлечение заголовка
-        $title = 'Без заголовка';
-        $title_nodes = $dom->getElementsByTagName('title');
-        if ($title_nodes->length > 0) {
-            $title = trim($title_nodes->item(0)->nodeValue);
-        }
-
-        // 5. Извлечение изображений
-        $images = [];
-        $img_nodes = $dom->getElementsByTagName('img');
-        foreach ($img_nodes as $img) {
-            $src = $img->getAttribute('src');
-            if (!empty($src)) {
-                // Преобразуем относительные ссылки в абсолютные
-                $images[] = $this->make_absolute_url($src, $url);
-            }
-        }
-        // Убираем дубликаты
-        $images = array_unique($images);
-
-        // 6. Очистка контента (удаление скриптов, стилей, навигации)
-        $this->remove_unwanted_tags($dom, ['script', 'style', 'noscript', 'iframe', 'nav', 'footer', 'header']);
-        
-        // Пытаемся найти основной контент (main, article, или просто body)
-        $content_node = $dom->getElementsByTagName('main')->item(0) 
-                     ?: $dom->getElementsByTagName('article')->item(0) 
-                     ?: $dom->getElementsByTagName('body')->item(0);
-        
-        $content = '';
-        if ($content_node) {
-            $content = $this->get_inner_html($content_node);
-            // Дополнительная очистка от лишних пробелов
-            $content = preg_replace('/\s+/', ' ', $content);
-        }
-
-        // 7. Сохранение в базу данных
-        global $wpdb;
-        $table = $wpdb->prefix . 'akpp_parser_items';
-        
-        $inserted = $wpdb->insert($table, [
-            'source_url' => $url,
-            'title' => sanitize_text_field($title),
-            'content' => wp_kses_post($content), // Разрешаем только безопасные HTML теги
-            'status' => 'pending'
-        ]);
-
-        if (!$inserted) {
-            return ['error' => 'Ошибка сохранения в базу данных'];
-        }
-
-        $item_id = $wpdb->insert_id;
-
-        // 8. Формирование ответа
-        return [
-            'success' => true,
-            'id' => $item_id,
-            'title' => $title,
-            'content_preview' => wp_trim_words(strip_tags($content), 50, '...'),
-            'images_count' => count($images),
-            'images' => array_slice($images, 0, 5) // Возвращаем только первые 5 для превью
-        ];
-    }
-
-    /**
-     * AJAX обработчик для запуска парсинга
-     */
-    public function ajax_parse_url() {
-        check_ajax_referer('akpp_crm_nonce', 'nonce');
-        
-        if (!current_user_can('manage_options')) {
-            wp_send_json_error(['message' => 'Недостаточно прав']);
-        }
-
-        $url = sanitize_text_field($_POST['url'] ?? '');
         
         if (empty($url)) {
-            wp_send_json_error(['message' => 'URL не указан']);
+            $this->log_error('URL не передан');
+            return false;
         }
-
-        $result = $this->parse($url);
-
-        if (isset($result['error'])) {
-            wp_send_json_error(['message' => $result['error']]);
-        } else {
-            wp_send_json_success($result);
+        
+        // Проверяем, не парсили ли уже этот URL
+        $existing = $this->get_existing_parse($url);
+        if ($existing) {
+            $this->log_event("Используем кэшированный результат для {$url}");
+            return $existing;
         }
+        
+        // Получаем содержимое страницы
+        $content = $this->fetch_content($url);
+        if (!$content) {
+            return false;
+        }
+        
+        // Извлекаем данные
+        $parsed_data = $this->extract_data($content, $url);
+        
+        // Сохраняем результат
+        $item_id = $this->save_parse_result($url, $parsed_data);
+        $parsed_data['id'] = $item_id;
+        
+        return $parsed_data;
     }
-
+    
     /**
-     * Удаление нежелательных тегов из DOM
+     * Получение содержимого страницы
      */
-    private function remove_unwanted_tags($dom, $tags) {
-        foreach ($tags as $tag) {
-            $elements = $dom->getElementsByTagName($tag);
-            // Итерируемся в обратном порядке, чтобы не сбить индексы при удалении
-            for ($i = $elements->length - 1; $i >= 0; $i--) {
-                $element = $elements->item($i);
-                $element->parentNode->removeChild($element);
+    private function fetch_content($url) {
+        $random_ua = $this->user_agents[array_rand($this->user_agents)];
+        
+        $args = [
+            'timeout' => 30,
+            'redirection' => 5,
+            'httpversion' => '1.1',
+            'user-agent' => $random_ua,
+            'headers' => [
+                'Accept' => 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+                'Accept-Language' => 'ru-RU,ru;q=0.8,en-US;q=0.5,en;q=0.3',
+                'Accept-Encoding' => 'gzip, deflate',
+                'Connection' => 'keep-alive'
+            ]
+        ];
+        
+        $response = wp_remote_get($url, $args);
+        
+        if (is_wp_error($response)) {
+            $this->log_error('Ошибка запроса: ' . $response->get_error_message());
+            return false;
+        }
+        
+        $status_code = wp_remote_retrieve_response_code($response);
+        
+        if ($status_code !== 200) {
+            $this->log_error("HTTP ошибка: {$status_code}");
+            return false;
+        }
+        
+        $content = wp_remote_retrieve_body($response);
+        
+        // Декодируем контент
+        $encoding = mb_detect_encoding($content, ['UTF-8', 'CP1251', 'KOI8-R'], true);
+        if ($encoding !== 'UTF-8') {
+            $content = mb_convert_encoding($content, 'UTF-8', $encoding);
+        }
+        
+        return $content;
+    }
+    
+    /**
+     * Извлечение данных из HTML
+     */
+    private function extract_data($html, $url) {
+        $dom = new DOMDocument();
+        libxml_use_internal_errors(true);
+        $dom->loadHTML($html);
+        libxml_clear_errors();
+        
+        $xpath = new DOMXPath($dom);
+        
+        // Извлекаем заголовок
+        $title = $this->extract_title($xpath, $dom);
+        
+        // Извлекаем основной текст
+        $text = $this->extract_main_text($xpath);
+        
+        // Извлекаем изображения
+        $images = $this->extract_images($xpath, $url);
+        
+        // Определяем тип контента (АКПП, запчасть, масло и т.д.)
+        $content_type = $this->determine_content_type($title, $text);
+        
+        // Извлекаем ключевую информацию
+        $key_data = $this->extract_key_data($text, $content_type);
+        
+        return [
+            'url' => $url,
+            'title' => $title,
+            'text' => $text,
+            'images' => $images,
+            'content_type' => $content_type,
+            'key_data' => $key_data,
+            'parsed_at' => current_time('mysql')
+        ];
+    }
+    
+    /**
+     * Извлечение заголовка
+     */
+    private function extract_title($xpath, $dom) {
+        // Пробуем получить title
+        $title_nodes = $xpath->query('//title');
+        if ($title_nodes->length > 0) {
+            return trim($title_nodes->item(0)->nodeValue);
+        }
+        
+        // Пробуем получить h1
+        $h1_nodes = $xpath->query('//h1');
+        if ($h1_nodes->length > 0) {
+            return trim($h1_nodes->item(0)->nodeValue);
+        }
+        
+        return '';
+    }
+    
+    /**
+     * Извлечение основного текста
+     */
+    private function extract_main_text($xpath) {
+        // Ищем основные блоки контента
+        $selectors = [
+            '//article',
+            '//main',
+            '//div[@class="content"]',
+            '//div[@class="post-content"]',
+            '//div[@class="entry-content"]',
+            '//div[@class="article-content"]',
+            '//body'
+        ];
+        
+        $text = '';
+        
+        foreach ($selectors as $selector) {
+            $nodes = $xpath->query($selector);
+            if ($nodes->length > 0) {
+                $text = trim($nodes->item(0)->textContent);
+                if (strlen($text) > 200) {
+                    break;
+                }
             }
         }
+        
+        // Очищаем текст
+        $text = preg_replace('/\s+/', ' ', $text);
+        $text = strip_tags($text);
+        
+        return $text;
     }
-
+    
     /**
-     * Получение внутреннего HTML узла
+     * Извлечение изображений
      */
-    private function get_inner_html($node) {
-        $innerHTML = '';
-        $children = $node->childNodes;
-        foreach ($children as $child) {
-            $innerHTML .= $child->ownerDocument->saveHTML($child);
+    private function extract_images($xpath, $base_url) {
+        $images = [];
+        $img_nodes = $xpath->query('//img');
+        
+        foreach ($img_nodes as $img) {
+            $src = $img->getAttribute('src');
+            if (empty($src)) continue;
+            
+            // Преобразуем относительные URL в абсолютные
+            if (strpos($src, 'http') !== 0) {
+                $src = rtrim($base_url, '/') . '/' . ltrim($src, '/');
+            }
+            
+            $alt = $img->getAttribute('alt');
+            
+            $images[] = [
+                'url' => $src,
+                'alt' => $alt
+            ];
+            
+            if (count($images) >= 10) break;
         }
-        return $innerHTML;
+        
+        return $images;
     }
-
+    
     /**
-     * Преобразование относительного URL в абсолютный
+     * Определение типа контента
      */
-    private function make_absolute_url($url, $base) {
-        if (filter_var($url, FILTER_VALIDATE_URL)) {
-            return $url;
+    private function determine_content_type($title, $text) {
+        $content = strtolower($title . ' ' . $text);
+        
+        $keywords = [
+            'transmission' => ['акпп', 'автоматическая коробка', 'automatic transmission', 'transmission', 'гидротрансформатор'],
+            'part' => ['запчасть', 'деталь', 'ремкомплект', 'фрикцион', 'соленоид', 'гидроблок'],
+            'oil' => ['масло', 'atf', 'cvt', 'dct', 'трансмиссионное масло'],
+            'service' => ['ремонт', 'диагностика', 'обслуживание', 'восстановление']
+        ];
+        
+        foreach ($keywords as $type => $words) {
+            foreach ($words as $word) {
+                if (strpos($content, $word) !== false) {
+                    return $type;
+                }
+            }
         }
         
-        $base_parts = parse_url($base);
-        $base_path = isset($base_parts['path']) ? dirname($base_parts['path']) : '/';
+        return 'general';
+    }
+    
+    /**
+     * Извлечение ключевых данных (номера, цены, характеристики)
+     */
+    private function extract_key_data($text, $content_type) {
+        $data = [
+            'codes' => [],
+            'prices' => [],
+            'specifications' => []
+        ];
         
-        if (strpos($url, '/') === 0) {
-            return $base_parts['scheme'] . '://' . $base_parts['host'] . $url;
+        // Извлекаем коды/артикулы
+        preg_match_all('/[A-Z0-9]{4,15}/', $text, $codes);
+        $data['codes'] = array_unique($codes[0]);
+        
+        // Извлекаем цены
+        preg_match_all('/(\d+[\s]?[\d]*)\s?₽?руб?/i', $text, $prices);
+        $data['prices'] = array_unique($prices[1]);
+        
+        // Извлекаем спецификации
+        $spec_patterns = [
+            'volume' => '/(\d+\.?\d*)\s?л/i',
+            'power' => '/(\d+)\s?л\.с\./i',
+            'year' => '/20\d{2}/'
+        ];
+        
+        foreach ($spec_patterns as $key => $pattern) {
+            preg_match_all($pattern, $text, $matches);
+            if (!empty($matches[1])) {
+                $data['specifications'][$key] = array_unique($matches[1]);
+            }
         }
         
-        return $base_parts['scheme'] . '://' . $base_parts['host'] . $base_path . '/' . ltrim($url, '/');
+        return $data;
+    }
+    
+    /**
+     * Получение существующего результата парсинга
+     */
+    private function get_existing_parse($url) {
+        global $wpdb;
+        
+        $table = $wpdb->prefix . 'akpp_parser_items';
+        
+        $item = $wpdb->get_row($wpdb->prepare(
+            "SELECT * FROM {$table} WHERE url = %s ORDER BY id DESC LIMIT 1",
+            $url
+        ));
+        
+        if ($item && !empty($item->parsed_data)) {
+            return json_decode($item->parsed_data, true);
+        }
+        
+        return false;
+    }
+    
+    /**
+     * Сохранение результата парсинга
+     */
+    private function save_parse_result($url, $data) {
+        global $wpdb;
+        
+        $table = $wpdb->prefix . 'akpp_parser_items';
+        
+        $wpdb->insert(
+            $table,
+            [
+                'url' => $url,
+                'title' => $data['title'],
+                'content' => $data['text'],
+                'images' => json_encode($data['images']),
+                'parsed_data' => json_encode($data),
+                'content_type' => $data['content_type'],
+                'status' => 'pending',
+                'created_at' => current_time('mysql')
+            ],
+            ['%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s']
+        );
+        
+        return $wpdb->insert_id;
+    }
+    
+    /**
+     * Обновление статуса с результатами AI
+     */
+    public function update_with_ai($item_id, $ai_result) {
+        global $wpdb;
+        
+        $table = $wpdb->prefix . 'akpp_parser_items';
+        
+        $wpdb->update(
+            $table,
+            [
+                'ai_analysis' => json_encode($ai_result),
+                'status' => 'ai_processed',
+                'updated_at' => current_time('mysql')
+            ],
+            ['id' => $item_id],
+            ['%s', '%s', '%s'],
+            ['%d']
+        );
+        
+        return true;
+    }
+    
+    /**
+     * Получение списка необработанных элементов
+     */
+    public function get_pending_items($limit = 10) {
+        global $wpdb;
+        
+        $table = $wpdb->prefix . 'akpp_parser_items';
+        
+        return $wpdb->get_results(
+            "SELECT * FROM {$table} 
+            WHERE status = 'pending' 
+            ORDER BY created_at ASC 
+            LIMIT {$limit}"
+        );
+    }
+    
+    private function log_error($message) {
+        if (defined('WP_DEBUG_LOG') && WP_DEBUG_LOG) {
+            error_log('[AKPP_PARSER] ОШИБКА: ' . $message);
+        }
+    }
+    
+    private function log_event($message) {
+        if (defined('WP_DEBUG_LOG') && WP_DEBUG_LOG) {
+            error_log('[AKPP_PARSER] СОБЫТИЕ: ' . $message);
+        }
     }
 }
-
-// Инициализация
-new AKPP_Parser();
