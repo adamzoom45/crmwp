@@ -1,292 +1,462 @@
 <?php
-if (!defined('ABSPATH')) exit;
+/**
+ * Класс для регистрации и авторизации пользователей CRM
+ * 
+ * @package AKPP45_CRM
+ */
+
+if (!defined('ABSPATH')) {
+    exit;
+}
 
 class AKPP_Auth {
     
-    public function __construct() {
-        // AJAX хуки для фронтенда (доступны неавторизованным и авторизованным)
-        add_action('wp_ajax_nopriv_akpp_register_user', [$this, 'register_user']);
-        add_action('wp_ajax_nopriv_akpp_login_user', [$this, 'login_user']);
-        
-        // AJAX хуки только для авторизованных
-        add_action('wp_ajax_akpp_logout_user', [$this, 'logout_user']);
-        add_action('wp_ajax_akpp_update_profile', [$this, 'update_profile']);
-        
-        // Шорткоды для вывода форм на фронтенде
-        add_shortcode('akpp_register_form', [$this, 'render_register_form']);
-        add_shortcode('akpp_login_form', [$this, 'render_login_form']);
-        add_shortcode('akpp_profile_form', [$this, 'render_profile_form']);
+    private static $instance = null;
+    
+    public static function get_instance() {
+        if (self::$instance === null) {
+            self::$instance = new self();
+        }
+        return self::$instance;
     }
-
+    
+    private function __construct() {
+        add_action('init', [$this, 'init_session']);
+        add_action('wp_logout', [$this, 'logout']);
+        add_action('wp_ajax_akpp_register', [$this, 'ajax_register']);
+        add_action('wp_ajax_nopriv_akpp_register', [$this, 'ajax_register']);
+        add_action('wp_ajax_akpp_login', [$this, 'ajax_login']);
+        add_action('wp_ajax_nopriv_akpp_login', [$this, 'ajax_login']);
+        add_action('wp_ajax_akpp_logout', [$this, 'ajax_logout']);
+        add_action('wp_ajax_akpp_get_profile', [$this, 'ajax_get_profile']);
+        add_action('wp_ajax_akpp_update_profile', [$this, 'ajax_update_profile']);
+        add_action('wp_ajax_akpp_update_password', [$this, 'ajax_update_password']);
+        add_action('wp_ajax_nopriv_akpp_reset_password', [$this, 'ajax_reset_password']);
+    }
+    
     /**
-     * Регистрация нового клиента
+     * Инициализация сессии
      */
-    public function register_user() {
-        // Проверка nonce не требуется для nopriv, но можно добавить свою логику защиты (например, honeypot или капча)
+    public function init_session() {
+        if (!session_id() && !headers_sent()) {
+            session_start();
+        }
+    }
+    
+    /**
+     * Регистрация пользователя
+     */
+    public function ajax_register() {
+        if (!check_ajax_referer('akpp_client_register_nonce', 'nonce', false)) {
+            wp_send_json_error('Неверный security токен');
+            return;
+        }
         
-        $full_name = sanitize_text_field($_POST['full_name'] ?? '');
-        $phone = sanitize_text_field($_POST['phone'] ?? '');
-        $email = sanitize_email($_POST['email'] ?? '');
-        $car_info = sanitize_text_field($_POST['car_info'] ?? '');
-        $problem = sanitize_textarea_field($_POST['problem'] ?? '');
-
-        // Валидация
-        if (empty($full_name) || empty($phone) || empty($email)) {
-            wp_send_json_error(['message' => 'Заполните все обязательные поля (ФИО, Телефон, Email)']);
+        $name = isset($_POST['name']) ? sanitize_text_field($_POST['name']) : '';
+        $phone = isset($_POST['phone']) ? sanitize_text_field($_POST['phone']) : '';
+        $email = isset($_POST['email']) ? sanitize_email($_POST['email']) : '';
+        $car_brand = isset($_POST['car_brand']) ? sanitize_text_field($_POST['car_brand']) : '';
+        $problem = isset($_POST['problem']) ? sanitize_textarea_field($_POST['problem']) : '';
+        
+        if (empty($name)) {
+            wp_send_json_error('Введите ФИО');
+            return;
         }
-
-        if (!is_email($email)) {
-            wp_send_json_error(['message' => 'Некорректный формат Email']);
+        
+        if (empty($phone)) {
+            wp_send_json_error('Введите номер телефона');
+            return;
         }
-
-        // Проверка существования email
-        if (email_exists($email)) {
-            wp_send_json_error(['message' => 'Пользователь с таким Email уже зарегистрирован']);
+        
+        if (empty($email) || !is_email($email)) {
+            wp_send_json_error('Введите корректный email');
+            return;
         }
-
-        // Генерация случайного пароля
-        $password = wp_generate_password(12, true, true);
-        $username = sanitize_user('client_' . time() . '_' . wp_rand(100, 999));
-
-        // Создание пользователя WordPress
-        $user_id = wp_create_user($username, $password, $email);
-
-        if (is_wp_error($user_id)) {
-            wp_send_json_error(['message' => 'Ошибка регистрации: ' . $user_id->get_error_message()]);
-        }
-
-        // Назначаем роль "client" (если она существует, иначе subscriber)
-        $user = new WP_User($user_id);
-        $user->set_role('subscriber');
-        $user->first_name = $full_name;
-
-        // Сохранение дополнительных данных в нашу таблицу
+        
         global $wpdb;
-        $wpdb->insert(
-            $wpdb->prefix . 'akpp_site_users',
+        $table_users = $wpdb->prefix . 'akpp_site_users';
+        $table_leads = $wpdb->prefix . 'akpp_leads';
+        
+        // Проверка существующего пользователя
+        $existing = $wpdb->get_var($wpdb->prepare(
+            "SELECT id FROM {$table_users} WHERE email = %s",
+            $email
+        ));
+        
+        if ($existing) {
+            wp_send_json_error('Пользователь с таким email уже зарегистрирован');
+            return;
+        }
+        
+        // Генерация пароля
+        $password = wp_generate_password(12, true, true);
+        $hashed_password = wp_hash_password($password);
+        
+        // Создание пользователя
+        $inserted = $wpdb->insert(
+            $table_users,
             [
-                'wp_user_id' => $user_id,
-                'full_name' => $full_name,
+                'name' => $name,
+                'email' => $email,
                 'phone' => $phone,
-                'car_info' => $car_info
+                'password' => $hashed_password,
+                'car_brand' => $car_brand,
+                'role' => 'client',
+                'status' => 'active',
+                'created_at' => current_time('mysql')
             ],
-            ['%d', '%s', '%s', '%s']
+            ['%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s']
         );
-
-        // Отправка email с данными для входа
+        
+        if (!$inserted) {
+            wp_send_json_error('Ошибка создания пользователя');
+            return;
+        }
+        
+        $user_id = $wpdb->insert_id;
+        
+        // Создание лида
+        $wpdb->insert(
+            $table_leads,
+            [
+                'client_id' => $user_id,
+                'client_name' => $name,
+                'client_phone' => $phone,
+                'client_email' => $email,
+                'car_brand' => $car_brand,
+                'problem' => $problem,
+                'status' => 'new',
+                'source' => 'site_form',
+                'created_at' => current_time('mysql')
+            ],
+            ['%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s']
+        );
+        
+        // Отправка email
         if (class_exists('AKPP_Email')) {
-            $email_class = new AKPP_Email();
-            $email_class->send_welcome_email($email, $full_name, $password);
+            AKPP_Email::get_instance()->send_welcome($email, $name, $password);
         }
-
-        // Автоматическая авторизация после регистрации (опционально)
-        wp_set_auth_cookie($user_id, true);
-
+        
+        // Push уведомление гиду
+        $this->notify_guide_new_lead($name, $phone);
+        
         wp_send_json_success([
-            'message' => 'Регистрация успешна! Данные для входа отправлены на ваш Email.',
-            'redirect' => home_url('/profile/')
+            'message' => 'Регистрация успешна! Пароль отправлен на email.'
         ]);
     }
-
+    
     /**
-     * Авторизация клиента
+     * Авторизация пользователя
      */
-    public function login_user() {
-        $login = sanitize_text_field($_POST['login'] ?? ''); // Email или username
-        $password = sanitize_text_field($_POST['password'] ?? '');
-        $remember = isset($_POST['remember']) ? true : false;
-
-        if (empty($login) || empty($password)) {
-            wp_send_json_error(['message' => 'Введите логин и пароль']);
+    public function ajax_login() {
+        if (!check_ajax_referer('akpp_client_login_nonce', 'nonce', false)) {
+            wp_send_json_error('Неверный security токен');
+            return;
         }
-
-        $creds = [
-            'user_login'    => $login,
-            'user_password' => $password,
-            'remember'      => $remember
-        ];
-
-        $user = wp_signon($creds, is_ssl());
-
-        if (is_wp_error($user)) {
-            wp_send_json_error(['message' => 'Неверный логин или пароль']);
+        
+        $email = isset($_POST['email']) ? sanitize_email($_POST['email']) : '';
+        $password = isset($_POST['password']) ? $_POST['password'] : '';
+        $remember = isset($_POST['remember']) ? (int)$_POST['remember'] : 0;
+        
+        if (empty($email) || empty($password)) {
+            wp_send_json_error('Введите email и пароль');
+            return;
         }
-
+        
+        global $wpdb;
+        $table_users = $wpdb->prefix . 'akpp_site_users';
+        
+        $user = $wpdb->get_row($wpdb->prepare(
+            "SELECT * FROM {$table_users} WHERE email = %s AND status = 'active'",
+            $email
+        ));
+        
+        if (!$user) {
+            wp_send_json_error('Пользователь не найден');
+            return;
+        }
+        
+        if (!wp_check_password($password, $user->password)) {
+            wp_send_json_error('Неверный пароль');
+            return;
+        }
+        
+        // Установка сессии
+        $_SESSION['akpp_user_id'] = $user->id;
+        $_SESSION['akpp_user_name'] = $user->name;
+        $_SESSION['akpp_user_role'] = $user->role;
+        
+        // Обновление времени последнего входа
+        $wpdb->update(
+            $table_users,
+            ['last_login' => current_time('mysql')],
+            ['id' => $user->id],
+            ['%s'],
+            ['%d']
+        );
+        
+        // Установка cookie для "запомнить меня"
+        if ($remember) {
+            $token = wp_generate_password(64, false);
+            setcookie('akpp_auth_token', $token, time() + 30 * DAY_IN_SECONDS, COOKIEPATH, COOKIE_DOMAIN);
+            update_user_meta($user->id, 'akpp_auth_token', wp_hash_password($token));
+        }
+        
         wp_send_json_success([
-            'message' => 'Вы успешно вошли в систему',
-            'redirect' => home_url('/profile/')
+            'message' => 'Вход выполнен успешно',
+            'redirect_url' => home_url('/crm-profile'),
+            'user' => [
+                'id' => $user->id,
+                'name' => $user->name,
+                'email' => $user->email,
+                'role' => $user->role
+            ]
         ]);
     }
-
+    
+    /**
+     * Проверка авторизации
+     */
+    public static function is_logged_in() {
+        return isset($_SESSION['akpp_user_id']) && $_SESSION['akpp_user_id'] > 0;
+    }
+    
+    /**
+     * Получение текущего пользователя
+     */
+    public static function get_current_user() {
+        if (!self::is_logged_in()) {
+            return null;
+        }
+        
+        global $wpdb;
+        $table_users = $wpdb->prefix . 'akpp_site_users';
+        
+        return $wpdb->get_row($wpdb->prepare(
+            "SELECT id, name, email, phone, car_brand, role, created_at, last_login 
+            FROM {$table_users} 
+            WHERE id = %d AND status = 'active'",
+            $_SESSION['akpp_user_id']
+        ));
+    }
+    
     /**
      * Выход из системы
      */
-    public function logout_user() {
-        check_ajax_referer('akpp_crm_nonce', 'nonce');
-        wp_logout();
+    public function ajax_logout() {
+        if (!check_ajax_referer('akpp_logout_nonce', 'nonce', false)) {
+            wp_send_json_error('Неверный security токен');
+            return;
+        }
+        
+        $this->logout();
+        
         wp_send_json_success([
-            'message' => 'Вы вышли из системы',
-            'redirect' => home_url('/login/')
+            'message' => 'Выход выполнен',
+            'redirect_url' => home_url('/crm-login')
         ]);
     }
-
+    
     /**
-     * Обновление профиля клиента
+     * Выход из системы
      */
-    public function update_profile() {
-        check_ajax_referer('akpp_crm_nonce', 'nonce');
-        
-        $user_id = get_current_user_id();
-        if (!$user_id) {
-            wp_send_json_error(['message' => 'Необходима авторизация']);
+    public function logout() {
+        $_SESSION = [];
+        session_destroy();
+        setcookie('akpp_auth_token', '', time() - 3600, COOKIEPATH, COOKIE_DOMAIN);
+    }
+    
+    /**
+     * Получение профиля пользователя
+     */
+    public function ajax_get_profile() {
+        if (!check_ajax_referer('akpp_get_profile_nonce', 'nonce', false)) {
+            wp_send_json_error('Неверный security токен');
+            return;
         }
-
-        $full_name = sanitize_text_field($_POST['full_name'] ?? '');
-        $phone = sanitize_text_field($_POST['phone'] ?? '');
-        $car_info = sanitize_text_field($_POST['car_info'] ?? '');
-
-        // Обновляем данные пользователя WP
-        wp_update_user([
-            'ID' => $user_id,
-            'first_name' => $full_name
+        
+        $user = self::get_current_user();
+        
+        if (!$user) {
+            wp_send_json_error('Пользователь не авторизован');
+            return;
+        }
+        
+        wp_send_json_success($user);
+    }
+    
+    /**
+     * Обновление профиля пользователя
+     */
+    public function ajax_update_profile() {
+        if (!check_ajax_referer('akpp_update_profile_nonce', 'nonce', false)) {
+            wp_send_json_error('Неверный security токен');
+            return;
+        }
+        
+        $user = self::get_current_user();
+        
+        if (!$user) {
+            wp_send_json_error('Пользователь не авторизован');
+            return;
+        }
+        
+        $name = isset($_POST['name']) ? sanitize_text_field($_POST['name']) : '';
+        $phone = isset($_POST['phone']) ? sanitize_text_field($_POST['phone']) : '';
+        $car_brand = isset($_POST['car_brand']) ? sanitize_text_field($_POST['car_brand']) : '';
+        
+        if (empty($name)) {
+            wp_send_json_error('Введите ФИО');
+            return;
+        }
+        
+        global $wpdb;
+        $table_users = $wpdb->prefix . 'akpp_site_users';
+        
+        $wpdb->update(
+            $table_users,
+            [
+                'name' => $name,
+                'phone' => $phone,
+                'car_brand' => $car_brand
+            ],
+            ['id' => $user->id],
+            ['%s', '%s', '%s'],
+            ['%d']
+        );
+        
+        $_SESSION['akpp_user_name'] = $name;
+        
+        wp_send_json_success([
+            'message' => 'Профиль успешно обновлен'
         ]);
-
-        // Обновляем данные в нашей таблице
-        global $wpdb;
-        $table = $wpdb->prefix . 'akpp_site_users';
+    }
+    
+    /**
+     * Обновление пароля
+     */
+    public function ajax_update_password() {
+        if (!check_ajax_referer('akpp_update_password_nonce', 'nonce', false)) {
+            wp_send_json_error('Неверный security токен');
+            return;
+        }
         
-        // Проверяем, есть ли запись
-        $exists = $wpdb->get_var($wpdb->prepare("SELECT id FROM $table WHERE wp_user_id = %d", $user_id));
+        $user = self::get_current_user();
         
-        if ($exists) {
-            $wpdb->update(
-                $table,
-                ['full_name' => $full_name, 'phone' => $phone, 'car_info' => $car_info],
-                ['wp_user_id' => $user_id]
-            );
-        } else {
-            $wpdb->insert(
-                $table,
-                ['wp_user_id' => $user_id, 'full_name' => $full_name, 'phone' => $phone, 'car_info' => $car_info]
-            );
+        if (!$user) {
+            wp_send_json_error('Пользователь не авторизован');
+            return;
         }
-
-        wp_send_json_success(['message' => 'Профиль успешно обновлен']);
-    }
-
-    /**
-     * Шорткод: Форма регистрации
-     */
-    public function render_register_form() {
-        if (is_user_logged_in()) {
-            return '<p>Вы уже зарегистрированы. <a href="' . home_url('/profile/') . '">Перейти в профиль</a></p>';
-        }
-        ob_start();
-        ?>
-        <form id="akpp-register-form" class="akpp-form">
-            <h3>Регистрация клиента</h3>
-            <div class="form-group">
-                <label>ФИО *</label>
-                <input type="text" name="full_name" required>
-            </div>
-            <div class="form-group">
-                <label>Телефон *</label>
-                <input type="tel" name="phone" required>
-            </div>
-            <div class="form-group">
-                <label>Email *</label>
-                <input type="email" name="email" required>
-            </div>
-            <div class="form-group">
-                <label>Марка и модель авто</label>
-                <input type="text" name="car_info" placeholder="Например: Toyota Camry 2018">
-            </div>
-            <div class="form-group">
-                <label>Описание проблемы</label>
-                <textarea name="problem" rows="3"></textarea>
-            </div>
-            <button type="submit" class="akpp-btn">Зарегистрироваться</button>
-            <div class="akpp-form-message"></div>
-        </form>
-        <?php
-        return ob_get_clean();
-    }
-
-    /**
-     * Шорткод: Форма входа
-     */
-    public function render_login_form() {
-        if (is_user_logged_in()) {
-            return '<p>Вы уже вошли. <a href="' . home_url('/profile/') . '">Перейти в профиль</a></p>';
-        }
-        ob_start();
-        ?>
-        <form id="akpp-login-form" class="akpp-form">
-            <h3>Вход в личный кабинет</h3>
-            <div class="form-group">
-                <label>Email или Логин</label>
-                <input type="text" name="login" required>
-            </div>
-            <div class="form-group">
-                <label>Пароль</label>
-                <input type="password" name="password" required>
-            </div>
-            <div class="form-group">
-                <label><input type="checkbox" name="remember"> Запомнить меня</label>
-            </div>
-            <button type="submit" class="akpp-btn">Войти</button>
-            <div class="akpp-form-message"></div>
-        </form>
-        <?php
-        return ob_get_clean();
-    }
-
-    /**
-     * Шорткод: Профиль клиента
-     */
-    public function render_profile_form() {
-        if (!is_user_logged_in()) {
-            return '<p>Для просмотра профиля необходимо <a href="' . home_url('/login/') . '">войти</a>.</p>';
-        }
-
-        $user_id = get_current_user_id();
+        
+        $old_password = isset($_POST['old_password']) ? $_POST['old_password'] : '';
+        $new_password = isset($_POST['new_password']) ? $_POST['new_password'] : '';
+        $confirm_password = isset($_POST['confirm_password']) ? $_POST['confirm_password'] : '';
+        
         global $wpdb;
-        $user_data = $wpdb->get_row($wpdb->prepare(
-            "SELECT * FROM {$wpdb->prefix}akpp_site_users WHERE wp_user_id = %d",
-            $user_id
+        $table_users = $wpdb->prefix . 'akpp_site_users';
+        
+        $db_user = $wpdb->get_row($wpdb->prepare(
+            "SELECT password FROM {$table_users} WHERE id = %d",
+            $user->id
         ));
-
-        $full_name = $user_data ? $user_data->full_name : '';
-        $phone = $user_data ? $user_data->phone : '';
-        $car_info = $user_data ? $user_data->car_info : '';
-
-        ob_start();
-        ?>
-        <div class="akpp-profile-container">
-            <h3>Мой профиль</h3>
-            <form id="akpp-profile-form" class="akpp-form">
-                <?php wp_nonce_field('akpp_crm_nonce', 'nonce'); ?>
-                <div class="form-group">
-                    <label>ФИО</label>
-                    <input type="text" name="full_name" value="<?php echo esc_attr($full_name); ?>" required>
-                </div>
-                <div class="form-group">
-                    <label>Телефон</label>
-                    <input type="tel" name="phone" value="<?php echo esc_attr($phone); ?>">
-                </div>
-                <div class="form-group">
-                    <label>Информация об авто</label>
-                    <input type="text" name="car_info" value="<?php echo esc_attr($car_info); ?>">
-                </div>
-                <button type="submit" class="akpp-btn">Сохранить изменения</button>
-                <button type="button" id="akpp-logout-btn" class="akpp-btn akpp-btn-danger">Выйти</button>
-                <div class="akpp-form-message"></div>
-            </form>
-        </div>
-        <?php
-        return ob_get_clean();
+        
+        if (!wp_check_password($old_password, $db_user->password)) {
+            wp_send_json_error('Неверный текущий пароль');
+            return;
+        }
+        
+        if (strlen($new_password) < 6) {
+            wp_send_json_error('Новый пароль должен содержать не менее 6 символов');
+            return;
+        }
+        
+        if ($new_password !== $confirm_password) {
+            wp_send_json_error('Пароли не совпадают');
+            return;
+        }
+        
+        $hashed_password = wp_hash_password($new_password);
+        
+        $wpdb->update(
+            $table_users,
+            ['password' => $hashed_password],
+            ['id' => $user->id],
+            ['%s'],
+            ['%d']
+        );
+        
+        wp_send_json_success([
+            'message' => 'Пароль успешно изменен'
+        ]);
+    }
+    
+    /**
+     * Сброс пароля
+     */
+    public function ajax_reset_password() {
+        if (!check_ajax_referer('akpp_reset_password_nonce', 'nonce', false)) {
+            wp_send_json_error('Неверный security токен');
+            return;
+        }
+        
+        $email = isset($_POST['email']) ? sanitize_email($_POST['email']) : '';
+        
+        if (empty($email) || !is_email($email)) {
+            wp_send_json_error('Введите корректный email');
+            return;
+        }
+        
+        global $wpdb;
+        $table_users = $wpdb->prefix . 'akpp_site_users';
+        
+        $user = $wpdb->get_row($wpdb->prepare(
+            "SELECT id, name FROM {$table_users} WHERE email = %s",
+            $email
+        ));
+        
+        if (!$user) {
+            wp_send_json_error('Пользователь с таким email не найден');
+            return;
+        }
+        
+        $new_password = wp_generate_password(12, true, true);
+        $hashed_password = wp_hash_password($new_password);
+        
+        $wpdb->update(
+            $table_users,
+            ['password' => $hashed_password],
+            ['id' => $user->id],
+            ['%s'],
+            ['%d']
+        );
+        
+        if (class_exists('AKPP_Email')) {
+            AKPP_Email::get_instance()->send_password_reset($email, $user->name, $new_password);
+        }
+        
+        wp_send_json_success([
+            'message' => 'Новый пароль отправлен на ваш email'
+        ]);
+    }
+    
+    /**
+     * Уведомление гида о новом лиде
+     */
+    private function notify_guide_new_lead($name, $phone) {
+        global $wpdb;
+        $table_employees = $wpdb->prefix . 'akpp_employees';
+        
+        $guide = $wpdb->get_row(
+            "SELECT id, telegram_chat_id FROM {$table_employees} 
+            WHERE role = 'guide' AND is_active = 1 
+            ORDER BY id ASC LIMIT 1"
+        );
+        
+        if ($guide && $guide->telegram_chat_id && class_exists('AKPP_Telegram')) {
+            $message = "🆕 <b>Новый лид!</b>\n\n";
+            $message .= "👤 Клиент: {$name}\n";
+            $message .= "📞 Телефон: {$phone}";
+            AKPP_Telegram::get_instance()->send_message($guide->telegram_chat_id, $message);
+        }
     }
 }
-
-// Инициализация
-new AKPP_Auth();
