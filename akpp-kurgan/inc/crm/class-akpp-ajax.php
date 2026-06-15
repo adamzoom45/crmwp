@@ -1061,4 +1061,439 @@ class AKPP_AJAX {
             error_log('[AKPP_AJAX] ' . $message);
         }
     }
+    /**
+ * ДОПОЛНЕНИЕ К ФАЙЛУ class-akpp-ajax.php
+ * Добавьте эти методы для поддержки сделок и запчастей
+ */
+
+/**
+ * Сохранение сделки (полная версия с авто-списанием)
+ */
+public function ajax_save_deal() {
+    if (!check_ajax_referer('akpp_save_deal_nonce', 'nonce', false)) {
+        wp_send_json_error('Неверный security токен');
+        return;
+    }
+    
+    if (!current_user_can('manage_options')) {
+        wp_send_json_error('Недостаточно прав');
+        return;
+    }
+    
+    global $wpdb;
+    
+    // Получаем данные формы
+    $client_id = isset($_POST['client_id']) ? intval($_POST['client_id']) : 0;
+    $employee_id = isset($_POST['employee_id']) ? intval($_POST['employee_id']) : 0;
+    $vehicle_id = isset($_POST['vehicle_id']) ? intval($_POST['vehicle_id']) : 0;
+    $vin = isset($_POST['vin']) ? sanitize_text_field($_POST['vin']) : '';
+    $make = isset($_POST['make']) ? sanitize_text_field($_POST['make']) : '';
+    $model = isset($_POST['model']) ? sanitize_text_field($_POST['model']) : '';
+    $year = isset($_POST['year']) ? intval($_POST['year']) : 0;
+    $problem_description = isset($_POST['problem_description']) ? sanitize_textarea_field($_POST['problem_description']) : '';
+    $status = isset($_POST['status']) ? sanitize_text_field($_POST['status']) : 'new';
+    
+    // Данные для расчета оплаты
+    $work_cost = isset($_POST['work_cost']) ? floatval($_POST['work_cost']) : 0;
+    $work_hours = isset($_POST['work_hours']) ? floatval($_POST['work_hours']) : 0;
+    $standard_hours = isset($_POST['standard_hours']) ? floatval($_POST['standard_hours']) : 1;
+    $percent = isset($_POST['percent']) ? floatval($_POST['percent']) : 0;
+    
+    // Расчет оплаты сотрудника
+    $payment_amount = $work_cost * ($work_hours / $standard_hours) * ($percent / 100);
+    $payment_amount = round($payment_amount);
+    
+    // Общая сумма сделки
+    $parts_total = 0;
+    $parts_data = isset($_POST['parts']) ? json_decode(stripslashes($_POST['parts']), true) : [];
+    
+    foreach ($parts_data as $part) {
+        $parts_total += $part['price'] * $part['quantity'];
+    }
+    
+    $total_amount = $parts_total + $work_cost;
+    
+    // Начинаем транзакцию
+    $wpdb->query('START TRANSACTION');
+    
+    try {
+        // 1. Создаем или обновляем автомобиль
+        if (!$vehicle_id && $vin) {
+            $table_vehicles = $wpdb->prefix . 'akpp_vehicles';
+            $wpdb->insert(
+                $table_vehicles,
+                [
+                    'vin' => $vin,
+                    'make' => $make,
+                    'model' => $model,
+                    'year' => $year,
+                    'created_at' => current_time('mysql')
+                ],
+                ['%s', '%s', '%s', '%d', '%s']
+            );
+            $vehicle_id = $wpdb->insert_id;
+        }
+        
+        // 2. Создаем сделку
+        $table_deals = $wpdb->prefix . 'akpp_deals';
+        $wpdb->insert(
+            $table_deals,
+            [
+                'client_id' => $client_id,
+                'employee_id' => $employee_id,
+                'vehicle_id' => $vehicle_id,
+                'vin' => $vin,
+                'make' => $make,
+                'model' => $model,
+                'year' => $year,
+                'problem_description' => $problem_description,
+                'status' => $status,
+                'work_cost' => $work_cost,
+                'work_hours' => $work_hours,
+                'standard_hours' => $standard_hours,
+                'employee_percent' => $percent,
+                'payment_amount' => $payment_amount,
+                'parts_total' => $parts_total,
+                'total_amount' => $total_amount,
+                'created_at' => current_time('mysql'),
+                'updated_at' => current_time('mysql')
+            ],
+            ['%d', '%d', '%d', '%s', '%s', '%s', '%d', '%s', '%s', '%d', '%d', '%d', '%d', '%d', '%d', '%s', '%s']
+        );
+        
+        $deal_id = $wpdb->insert_id;
+        
+        if (!$deal_id) {
+            throw new Exception('Ошибка создания сделки');
+        }
+        
+        // 3. Сохраняем запчасти и списываем со склада
+        $table_deal_parts = $wpdb->prefix . 'akpp_deal_parts';
+        $table_parts = $wpdb->prefix . 'akpp_parts';
+        
+        foreach ($parts_data as $part) {
+            // Проверяем остаток
+            $stock = $wpdb->get_var($wpdb->prepare(
+                "SELECT quantity FROM {$table_parts} WHERE id = %d",
+                $part['id']
+            ));
+            
+            if ($stock < $part['quantity']) {
+                throw new Exception('Недостаточно запчасти на складе: ' . $part['name']);
+            }
+            
+            // Списываем со склада
+            $wpdb->query($wpdb->prepare(
+                "UPDATE {$table_parts} SET quantity = quantity - %d WHERE id = %d",
+                $part['quantity'],
+                $part['id']
+            ));
+            
+            // Записываем в сделку
+            $wpdb->insert(
+                $table_deal_parts,
+                [
+                    'deal_id' => $deal_id,
+                    'part_id' => $part['id'],
+                    'part_name' => $part['name'],
+                    'part_sku' => $part['sku'],
+                    'quantity' => $part['quantity'],
+                    'price' => $part['price'],
+                    'total' => $part['price'] * $part['quantity']
+                ],
+                ['%d', '%d', '%s', '%s', '%d', '%d', '%d']
+            );
+        }
+        
+        // 4. Обновляем статус лида
+        if ($client_id) {
+            $table_leads = $wpdb->prefix . 'akpp_leads';
+            $wpdb->update(
+                $table_leads,
+                ['status' => 'converted', 'deal_id' => $deal_id],
+                ['client_id' => $client_id],
+                ['%s', '%d'],
+                ['%d']
+            );
+        }
+        
+        // 5. Отправляем уведомления
+        $this->notify_deal_created($client_id, $deal_id);
+        $this->notify_employee_assigned($employee_id, $deal_id);
+        
+        // Фиксируем транзакцию
+        $wpdb->query('COMMIT');
+        
+        $this->log_event("Сделка #{$deal_id} создана. Сумма: {$total_amount} ₽");
+        
+        wp_send_json_success([
+            'message' => 'Сделка успешно сохранена',
+            'deal_id' => $deal_id,
+            'redirect_url' => admin_url('admin.php?page=akpp-crm-deals&action=view&id=' . $deal_id)
+        ]);
+        
+    } catch (Exception $e) {
+        $wpdb->query('ROLLBACK');
+        $this->log_error('Ошибка сохранения сделки: ' . $e->getMessage());
+        wp_send_json_error($e->getMessage());
+    }
+}
+
+/**
+ * Получение процента сотрудника
+ */
+public function ajax_get_employee_percent() {
+    if (!check_ajax_referer('akpp_get_employee_percent_nonce', 'nonce', false)) {
+        wp_send_json_error('Неверный security токен');
+        return;
+    }
+    
+    $employee_id = isset($_POST['employee_id']) ? intval($_POST['employee_id']) : 0;
+    
+    if (!$employee_id) {
+        wp_send_json_error('ID сотрудника не передан');
+        return;
+    }
+    
+    global $wpdb;
+    $table_employees = $wpdb->prefix . 'akpp_employees';
+    
+    $employee = $wpdb->get_row($wpdb->prepare(
+        "SELECT percent FROM {$table_employees} WHERE id = %d",
+        $employee_id
+    ));
+    
+    if ($employee) {
+        wp_send_json_success(['percent' => $employee->percent]);
+    } else {
+        wp_send_json_success(['percent' => 0]);
+    }
+}
+
+/**
+ * Получение сделки для редактирования
+ */
+public function ajax_get_deal() {
+    if (!check_ajax_referer('akpp_get_deal_nonce', 'nonce', false)) {
+        wp_send_json_error('Неверный security токен');
+        return;
+    }
+    
+    $deal_id = isset($_POST['deal_id']) ? intval($_POST['deal_id']) : 0;
+    
+    if (!$deal_id) {
+        wp_send_json_error('ID сделки не передан');
+        return;
+    }
+    
+    global $wpdb;
+    $table_deals = $wpdb->prefix . 'akpp_deals';
+    $table_deal_parts = $wpdb->prefix . 'akpp_deal_parts';
+    
+    $deal = $wpdb->get_row($wpdb->prepare(
+        "SELECT * FROM {$table_deals} WHERE id = %d",
+        $deal_id
+    ));
+    
+    if (!$deal) {
+        wp_send_json_error('Сделка не найдена');
+        return;
+    }
+    
+    $parts = $wpdb->get_results($wpdb->prepare(
+        "SELECT * FROM {$table_deal_parts} WHERE deal_id = %d",
+        $deal_id
+    ));
+    
+    wp_send_json_success([
+        'deal' => $deal,
+        'parts' => $parts
+    ]);
+}
+
+/**
+ * Обновление статуса сделки
+ */
+public function ajax_update_deal_status() {
+    if (!check_ajax_referer('akpp_update_deal_status_nonce', 'nonce', false)) {
+        wp_send_json_error('Неверный security токен');
+        return;
+    }
+    
+    $deal_id = isset($_POST['deal_id']) ? intval($_POST['deal_id']) : 0;
+    $status = isset($_POST['status']) ? sanitize_text_field($_POST['status']) : '';
+    
+    if (!$deal_id || !$status) {
+        wp_send_json_error('Неверные данные');
+        return;
+    }
+    
+    global $wpdb;
+    $table_deals = $wpdb->prefix . 'akpp_deals';
+    
+    $old_status = $wpdb->get_var($wpdb->prepare(
+        "SELECT status FROM {$table_deals} WHERE id = %d",
+        $deal_id
+    ));
+    
+    $wpdb->update(
+        $table_deals,
+        [
+            'status' => $status,
+            'updated_at' => current_time('mysql')
+        ],
+        ['id' => $deal_id],
+        ['%s', '%s'],
+        ['%d']
+    );
+    
+    // Уведомляем клиента об изменении статуса
+    $deal = $wpdb->get_row($wpdb->prepare(
+        "SELECT client_id FROM {$table_deals} WHERE id = %d",
+        $deal_id
+    ));
+    
+    if ($deal && $deal->client_id) {
+        $this->notify_client_status_change($deal->client_id, $deal_id, $old_status, $status);
+    }
+    
+    $this->log_event("Статус сделки #{$deal_id} изменен: {$old_status} → {$status}");
+    
+    wp_send_json_success([
+        'message' => 'Статус сделки обновлен',
+        'old_status' => $old_status,
+        'new_status' => $status
+    ]);
+}
+
+/**
+ * Удаление сделки (с возвратом запчастей на склад)
+ */
+public function ajax_delete_deal() {
+    if (!check_ajax_referer('akpp_delete_deal_nonce', 'nonce', false)) {
+        wp_send_json_error('Неверный security токен');
+        return;
+    }
+    
+    if (!current_user_can('manage_options')) {
+        wp_send_json_error('Недостаточно прав');
+        return;
+    }
+    
+    $deal_id = isset($_POST['deal_id']) ? intval($_POST['deal_id']) : 0;
+    
+    if (!$deal_id) {
+        wp_send_json_error('ID сделки не передан');
+        return;
+    }
+    
+    global $wpdb;
+    $table_deals = $wpdb->prefix . 'akpp_deals';
+    $table_deal_parts = $wpdb->prefix . 'akpp_deal_parts';
+    $table_parts = $wpdb->prefix . 'akpp_parts';
+    
+    // Начинаем транзакцию
+    $wpdb->query('START TRANSACTION');
+    
+    try {
+        // Получаем запчасти сделки
+        $parts = $wpdb->get_results($wpdb->prepare(
+            "SELECT * FROM {$table_deal_parts} WHERE deal_id = %d",
+            $deal_id
+        ));
+        
+        // Возвращаем запчасти на склад
+        foreach ($parts as $part) {
+            $wpdb->query($wpdb->prepare(
+                "UPDATE {$table_parts} SET quantity = quantity + %d WHERE id = %d",
+                $part->quantity,
+                $part->part_id
+            ));
+        }
+        
+        // Удаляем запчасти сделки
+        $wpdb->delete($table_deal_parts, ['deal_id' => $deal_id], ['%d']);
+        
+        // Удаляем сделку
+        $wpdb->delete($table_deals, ['id' => $deal_id], ['%d']);
+        
+        $wpdb->query('COMMIT');
+        
+        $this->log_event("Сделка #{$deal_id} удалена, запчасти возвращены на склад");
+        
+        wp_send_json_success(['message' => 'Сделка удалена, запчасти возвращены на склад']);
+        
+    } catch (Exception $e) {
+        $wpdb->query('ROLLBACK');
+        wp_send_json_error('Ошибка удаления сделки: ' . $e->getMessage());
+    }
+}
+
+/**
+ * Уведомление о создании сделки
+ */
+private function notify_deal_created($client_id, $deal_id) {
+    if (!class_exists('AKPP_Push')) {
+        require_once AKPP_CRM_PATH . 'class-akpp-push.php';
+    }
+    
+    $push = AKPP_Push::get_instance();
+    $push->send_to_client(
+        $client_id,
+        '🔧 Создана новая сделка',
+        "По вашему обращению создана сделка №{$deal_id}. Специалист скоро свяжется с вами.",
+        ['type' => 'deal', 'deal_id' => $deal_id]
+    );
+}
+
+/**
+ * Уведомление о назначении сотрудника
+ */
+private function notify_employee_assigned($employee_id, $deal_id) {
+    if (!class_exists('AKPP_Push')) {
+        require_once AKPP_CRM_PATH . 'class-akpp-push.php';
+    }
+    
+    $push = AKPP_Push::get_instance();
+    $push->send_to_employee(
+        $employee_id,
+        '📋 Новая сделка назначена',
+        "Вам назначена сделка №{$deal_id}. Приступайте к работе.",
+        ['type' => 'deal', 'deal_id' => $deal_id]
+    );
+}
+
+/**
+ * Уведомление об изменении статуса сделки
+ */
+private function notify_client_status_change($client_id, $deal_id, $old_status, $new_status) {
+    $status_labels = [
+        'new' => 'Новая',
+        'diagnostic' => 'Диагностика',
+        'in_work' => 'В работе',
+        'completed' => 'Выполнена',
+        'rejected' => 'Отклонена'
+    ];
+    
+    $old_label = $status_labels[$old_status] ?? $old_status;
+    $new_label = $status_labels[$new_status] ?? $new_status;
+    
+    if (!class_exists('AKPP_Push')) {
+        require_once AKPP_CRM_PATH . 'class-akpp-push.php';
+    }
+    
+    $push = AKPP_Push::get_instance();
+    $push->send_to_client(
+        $client_id,
+        '🔄 Статус заказа изменен',
+        "Статус вашей сделки №{$deal_id}: {$old_label} → {$new_label}",
+        ['type' => 'deal', 'deal_id' => $deal_id, 'status' => $new_status]
+    );
+}
+
+private function log_error($message) {
+    if (defined('WP_DEBUG_LOG') && WP_DEBUG_LOG) {
+        error_log('[AKPP_DEAL] ОШИБКА: ' . $message);
+    }
+}
 }
