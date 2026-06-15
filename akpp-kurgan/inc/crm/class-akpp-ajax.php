@@ -11,14 +11,8 @@ if (!defined('ABSPATH')) {
 
 class AKPP_AJAX {
     
-    /**
-     * Экземпляр класса (Singleton)
-     */
     private static $instance = null;
     
-    /**
-     * Получить экземпляр класса
-     */
     public static function get_instance() {
         if (self::$instance === null) {
             self::$instance = new self();
@@ -26,16 +20,10 @@ class AKPP_AJAX {
         return self::$instance;
     }
     
-    /**
-     * Конструктор - регистрация всех AJAX обработчиков
-     */
     private function __construct() {
         $this->register_handlers();
     }
     
-    /**
-     * Регистрация всех AJAX обработчиков
-     */
     private function register_handlers() {
         // Сделки
         add_action('wp_ajax_akpp_save_deal', [$this, 'ajax_save_deal']);
@@ -112,121 +100,70 @@ class AKPP_AJAX {
         add_action('wp_ajax_akpp_send_avito_message', [$this, 'ajax_send_avito_message']);
     }
     
-    /**
-     * Сохранение сделки
-     */
     public function ajax_save_deal() {
         wp_send_json_success(['message' => 'Сделка сохранена']);
     }
     
-    /**
-     * Получение сделки
-     */
     public function ajax_get_deal() {
         wp_send_json_success([]);
     }
     
-    /**
-     * Удаление сделки
-     */
     public function ajax_delete_deal() {
         wp_send_json_success(['message' => 'Сделка удалена']);
     }
     
-    /**
-     * Обновление статуса сделки
-     */
     public function ajax_update_deal_status() {
         wp_send_json_success(['message' => 'Статус обновлен']);
     }
     
-    /**
-     * Сохранение сотрудника
-     */
     public function ajax_save_employee() {
         wp_send_json_success(['message' => 'Сотрудник сохранен']);
     }
     
-    /**
-     * Получение сотрудника
-     */
     public function ajax_get_employee() {
         wp_send_json_success([]);
     }
     
-    /**
-     * Удаление сотрудника
-     */
     public function ajax_delete_employee() {
         wp_send_json_success(['message' => 'Сотрудник удален']);
     }
     
-    /**
-     * Сохранение авто
-     */
     public function ajax_save_vehicle() {
         wp_send_json_success(['message' => 'Авто сохранено']);
     }
     
-    /**
-     * Получение авто
-     */
     public function ajax_get_vehicle() {
         wp_send_json_success([]);
     }
     
-    /**
-     * Удаление авто
-     */
     public function ajax_delete_vehicle() {
         wp_send_json_success(['message' => 'Авто удалено']);
     }
     
-    /**
-     * Сохранение АКПП
-     */
     public function ajax_save_transmission() {
         wp_send_json_success(['message' => 'АКПП сохранена']);
     }
     
-    /**
-     * Получение АКПП
-     */
     public function ajax_get_transmission() {
         wp_send_json_success([]);
     }
     
-    /**
-     * Удаление АКПП
-     */
     public function ajax_delete_transmission() {
         wp_send_json_success(['message' => 'АКПП удалена']);
     }
     
-    /**
-     * Сохранение запчасти
-     */
     public function ajax_save_part() {
         wp_send_json_success(['message' => 'Запчасть сохранена']);
     }
     
-    /**
-     * Получение запчасти
-     */
     public function ajax_get_part() {
         wp_send_json_success([]);
     }
     
-    /**
-     * Удаление запчасти
-     */
     public function ajax_delete_part() {
         wp_send_json_success(['message' => 'Запчасть удалена']);
     }
     
-    /**
-     * Поиск запчастей
-     */
     public function ajax_search_parts() {
         global $wpdb;
         
@@ -253,79 +190,46 @@ class AKPP_AJAX {
         wp_send_json_success($results);
     }
     
-    /**
-     * Сохранение масла
-     */
     public function ajax_save_oil() {
         wp_send_json_success(['message' => 'Масло сохранено']);
     }
     
-    /**
-     * Получение масла
-     */
     public function ajax_get_oil() {
         wp_send_json_success([]);
     }
     
-    /**
-     * Удаление масла
-     */
     public function ajax_delete_oil() {
         wp_send_json_success(['message' => 'Масло удалено']);
     }
     
-    /**
-     * Сохранение лида
-     */
     public function ajax_save_lead() {
         wp_send_json_success(['message' => 'Лид сохранен']);
     }
     
-    /**
-     * Получение лида
-     */
     public function ajax_get_lead() {
         wp_send_json_success([]);
     }
     
-    /**
-     * Удаление лида
-     */
     public function ajax_delete_lead() {
         wp_send_json_success(['message' => 'Лид удален']);
     }
     
-    /**
-     * Обновление статуса лида
-     */
     public function ajax_update_lead_status() {
         wp_send_json_success(['message' => 'Статус лида обновлен']);
     }
     
-    /**
-     * Сохранение пользователя
-     */
     public function ajax_save_site_user() {
         wp_send_json_success(['message' => 'Пользователь сохранен']);
     }
     
-    /**
-     * Получение пользователя
-     */
     public function ajax_get_site_user() {
         wp_send_json_success([]);
     }
     
-    /**
-     * Удаление пользователя
-     */
     public function ajax_delete_site_user() {
         wp_send_json_success(['message' => 'Пользователь удален']);
     }
     
-    /**
-     * Отправка сообщения в чат
-     */
     public function ajax_send_chat_message() {
         global $wpdb;
         
@@ -355,9 +259,6 @@ class AKPP_AJAX {
         wp_send_json_success(['message' => 'Сообщение отправлено']);
     }
     
-    /**
-     * Получение сообщений чата
-     */
     public function ajax_get_chat_messages() {
         global $wpdb;
         
@@ -392,9 +293,6 @@ class AKPP_AJAX {
         wp_send_json_success($results);
     }
     
-    /**
-     * Парсинг URL
-     */
     public function ajax_parse_url() {
         $url = isset($_POST['url']) ? esc_url_raw($_POST['url']) : '';
         
@@ -410,9 +308,6 @@ class AKPP_AJAX {
         ]);
     }
     
-    /**
-     * Одобрение результата парсинга
-     */
     public function ajax_approve_parser_item() {
         $item_id = isset($_POST['item_id']) ? intval($_POST['item_id']) : 0;
         
@@ -424,9 +319,6 @@ class AKPP_AJAX {
         wp_send_json_success(['message' => 'Элемент одобрен']);
     }
     
-    /**
-     * Декодирование VIN
-     */
     public function ajax_decode_vin() {
         $vin = isset($_POST['vin']) ? sanitize_text_field($_POST['vin']) : '';
         
@@ -444,9 +336,6 @@ class AKPP_AJAX {
         ]);
     }
     
-    /**
-     * Регистрация пользователя
-     */
     public function ajax_register() {
         $name = isset($_POST['name']) ? sanitize_text_field($_POST['name']) : '';
         $phone = isset($_POST['phone']) ? sanitize_text_field($_POST['phone']) : '';
@@ -462,9 +351,6 @@ class AKPP_AJAX {
         wp_send_json_success(['message' => 'Регистрация успешна! Пароль отправлен на email']);
     }
     
-    /**
-     * Авторизация пользователя
-     */
     public function ajax_login() {
         $email = isset($_POST['email']) ? sanitize_email($_POST['email']) : '';
         $password = isset($_POST['password']) ? $_POST['password'] : '';
@@ -477,9 +363,6 @@ class AKPP_AJAX {
         wp_send_json_success(['message' => 'Вход выполнен']);
     }
     
-    /**
-     * Сохранение push токена
-     */
     public function ajax_save_push_token() {
         global $wpdb;
         
@@ -507,9 +390,6 @@ class AKPP_AJAX {
         wp_send_json_success(['message' => 'Push токен сохранен']);
     }
     
-    /**
-     * Сохранение настроек Telegram
-     */
     public function ajax_save_telegram_settings() {
         $bot_token = isset($_POST['bot_token']) ? sanitize_text_field($_POST['bot_token']) : '';
         $chat_id = isset($_POST['chat_id']) ? sanitize_text_field($_POST['chat_id']) : '';
@@ -520,9 +400,6 @@ class AKPP_AJAX {
         wp_send_json_success(['message' => 'Настройки Telegram сохранены']);
     }
     
-    /**
-     * Отправка тестового сообщения в Telegram
-     */
     public function ajax_send_test_telegram() {
         $bot_token = get_option('akpp_telegram_bot_token', '');
         $chat_id = get_option('akpp_telegram_chat_id', '');
@@ -535,9 +412,6 @@ class AKPP_AJAX {
         wp_send_json_success(['message' => 'Тестовое сообщение отправлено']);
     }
     
-    /**
-     * Сохранение настроек Авито
-     */
     public function ajax_save_avito_settings() {
         if (!check_ajax_referer('akpp_avito_settings_nonce', 'akpp_avito_nonce', false)) {
             wp_send_json_error('Неверный security токен');
@@ -571,9 +445,6 @@ class AKPP_AJAX {
         }
     }
     
-    /**
-     * Обновление токена Авито
-     */
     public function ajax_refresh_avito_token() {
         if (!check_ajax_referer('akpp_refresh_token_nonce', 'nonce', false)) {
             wp_send_json_error('Неверный security токен');
@@ -599,9 +470,6 @@ class AKPP_AJAX {
         }
     }
     
-    /**
-     * Отправка сообщения в Авито
-     */
     public function ajax_send_avito_message() {
         if (!check_ajax_referer('akpp_send_avito_message_nonce', 'nonce', false)) {
             wp_send_json_error('Неверный security токен');
