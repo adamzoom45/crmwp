@@ -71,6 +71,10 @@ class AKPP_AJAX {
         // Чат
         add_action('wp_ajax_akpp_send_chat_message', [$this, 'ajax_send_chat_message']);
         add_action('wp_ajax_akpp_get_chat_messages', [$this, 'ajax_get_chat_messages']);
+        add_action('wp_ajax_akpp_get_unread_counts', [$this, 'ajax_get_unread_counts']);
+        add_action('wp_ajax_akpp_typing_status', [$this, 'ajax_typing_status']);
+        add_action('wp_ajax_akpp_get_typing_status', [$this, 'ajax_get_typing_status']);
+        add_action('wp_ajax_akpp_get_chat_history', [$this, 'ajax_get_chat_history']);
         
         // Парсер
         add_action('wp_ajax_akpp_parse_url', [$this, 'ajax_parse_url']);
@@ -251,23 +255,37 @@ class AKPP_AJAX {
     // ==================== ЧАТ ====================
     
     public function ajax_send_chat_message() {
-        global $wpdb;
-        
-        $message = isset($_POST['message']) ? sanitize_textarea_field($_POST['message']) : '';
-        $receiver_id = isset($_POST['receiver_id']) ? intval($_POST['receiver_id']) : 0;
-        $user_id = get_current_user_id();
-        
-        if (empty($message) || !$receiver_id) {
-            wp_send_json_error('Неверные данные');
+        if (!check_ajax_referer('akpp_send_chat_nonce', 'nonce', false)) {
+            wp_send_json_error('Неверный security токен');
             return;
         }
         
-        $table_chat = $wpdb->prefix . 'akpp_chat_messages';
+        $message = isset($_POST['message']) ? sanitize_textarea_field($_POST['message']) : '';
+        $receiver_id = isset($_POST['receiver_id']) ? intval($_POST['receiver_id']) : 0;
+        $sender_id = get_current_user_id();
+        
+        if (empty($message)) {
+            wp_send_json_error('Сообщение не может быть пустым');
+            return;
+        }
+        
+        if (!$receiver_id) {
+            wp_send_json_error('Получатель не указан');
+            return;
+        }
+        
+        if (!$sender_id) {
+            wp_send_json_error('Вы не авторизованы');
+            return;
+        }
+        
+        global $wpdb;
+        $table_messages = $wpdb->prefix . 'akpp_chat_messages';
         
         $wpdb->insert(
-            $table_chat,
+            $table_messages,
             [
-                'sender_id' => $user_id,
+                'sender_id' => $sender_id,
                 'receiver_id' => $receiver_id,
                 'message' => $message,
                 'is_read' => 0,
@@ -276,51 +294,63 @@ class AKPP_AJAX {
             ['%d', '%d', '%s', '%d', '%s']
         );
         
-        // Отправляем push уведомление получателю
-        $this->notify_new_message($receiver_id, $user_id, $message);
+        $message_id = $wpdb->insert_id;
         
-        wp_send_json_success(['message' => 'Сообщение отправлено']);
+        $this->notify_new_message_v2($receiver_id, $sender_id, $message);
+        
+        wp_send_json_success([
+            'message' => 'Сообщение отправлено',
+            'message_id' => $message_id
+        ]);
     }
     
     public function ajax_get_chat_messages() {
-        global $wpdb;
+        if (!check_ajax_referer('akpp_get_chat_nonce', 'nonce', false)) {
+            wp_send_json_error('Неверный security токен');
+            return;
+        }
         
-        $user_id = get_current_user_id();
+        $current_user_id = get_current_user_id();
         $with_user = isset($_POST['with_user']) ? intval($_POST['with_user']) : 0;
         $last_id = isset($_POST['last_id']) ? intval($_POST['last_id']) : 0;
         
-        $table_chat = $wpdb->prefix . 'akpp_chat_messages';
+        if (!$current_user_id || !$with_user) {
+            wp_send_json_error('Неверные данные');
+            return;
+        }
+        
+        global $wpdb;
+        $table_messages = $wpdb->prefix . 'akpp_chat_messages';
         
         if ($last_id > 0) {
             $results = $wpdb->get_results(
                 $wpdb->prepare(
-                    "SELECT * FROM {$table_chat} 
+                    "SELECT * FROM {$table_messages} 
                     WHERE ((sender_id = %d AND receiver_id = %d) OR (sender_id = %d AND receiver_id = %d))
                     AND id > %d
                     ORDER BY created_at ASC",
-                    $user_id, $with_user, $with_user, $user_id, $last_id
+                    $current_user_id, $with_user, $with_user, $current_user_id, $last_id
                 )
             );
         } else {
             $results = $wpdb->get_results(
                 $wpdb->prepare(
-                    "SELECT * FROM {$table_chat} 
+                    "SELECT * FROM {$table_messages} 
                     WHERE ((sender_id = %d AND receiver_id = %d) OR (sender_id = %d AND receiver_id = %d))
                     ORDER BY created_at ASC
-                    LIMIT 50",
-                    $user_id, $with_user, $with_user, $user_id
+                    LIMIT 100",
+                    $current_user_id, $with_user, $with_user, $current_user_id
                 )
             );
         }
         
-        // Отмечаем сообщения как прочитанные
-        if ($with_user > 0) {
+        if (!empty($results)) {
             $wpdb->update(
-                $table_chat,
+                $table_messages,
                 ['is_read' => 1],
                 [
                     'sender_id' => $with_user,
-                    'receiver_id' => $user_id,
+                    'receiver_id' => $current_user_id,
                     'is_read' => 0
                 ],
                 ['%d'],
@@ -329,6 +359,131 @@ class AKPP_AJAX {
         }
         
         wp_send_json_success($results);
+    }
+    
+    public function ajax_get_unread_counts() {
+        if (!check_ajax_referer('akpp_get_unread_nonce', 'nonce', false)) {
+            wp_send_json_error('Неверный security токен');
+            return;
+        }
+        
+        $current_user_id = get_current_user_id();
+        
+        if (!$current_user_id) {
+            wp_send_json_error('Пользователь не авторизован');
+            return;
+        }
+        
+        global $wpdb;
+        $table_messages = $wpdb->prefix . 'akpp_chat_messages';
+        
+        $results = $wpdb->get_results($wpdb->prepare(
+            "SELECT sender_id, COUNT(*) as unread_count 
+            FROM {$table_messages} 
+            WHERE receiver_id = %d AND is_read = 0 
+            GROUP BY sender_id",
+            $current_user_id
+        ));
+        
+        $unread_counts = [];
+        foreach ($results as $row) {
+            $unread_counts[$row->sender_id] = (int)$row->unread_count;
+        }
+        
+        wp_send_json_success($unread_counts);
+    }
+    
+    public function ajax_typing_status() {
+        if (!check_ajax_referer('akpp_typing_nonce', 'nonce', false)) {
+            wp_send_json_error('Неверный security токен');
+            return;
+        }
+        
+        $receiver_id = isset($_POST['receiver_id']) ? intval($_POST['receiver_id']) : 0;
+        $is_typing = isset($_POST['is_typing']) ? intval($_POST['is_typing']) : 0;
+        $sender_id = get_current_user_id();
+        
+        if (!$sender_id || !$receiver_id) {
+            wp_send_json_error('Неверные данные');
+            return;
+        }
+        
+        $key = 'akpp_typing_' . $receiver_id . '_' . $sender_id;
+        
+        if ($is_typing) {
+            set_transient($key, $sender_id, 5);
+        } else {
+            delete_transient($key);
+        }
+        
+        wp_send_json_success(['success' => true]);
+    }
+    
+    public function ajax_get_typing_status() {
+        if (!check_ajax_referer('akpp_typing_nonce', 'nonce', false)) {
+            wp_send_json_error('Неверный security токен');
+            return;
+        }
+        
+        $user_id = isset($_POST['user_id']) ? intval($_POST['user_id']) : 0;
+        $current_user_id = get_current_user_id();
+        
+        if (!$current_user_id || !$user_id) {
+            wp_send_json_error('Неверные данные');
+            return;
+        }
+        
+        $key = 'akpp_typing_' . $current_user_id . '_' . $user_id;
+        $typing_sender_id = get_transient($key);
+        
+        if ($typing_sender_id) {
+            global $wpdb;
+            $table_users = $wpdb->prefix . 'akpp_site_users';
+            
+            $sender = $wpdb->get_row($wpdb->prepare(
+                "SELECT name FROM {$table_users} WHERE id = %d",
+                $typing_sender_id
+            ));
+            
+            wp_send_json_success([
+                'is_typing' => true,
+                'sender_name' => $sender ? $sender->name : 'Пользователь'
+            ]);
+        } else {
+            wp_send_json_success(['is_typing' => false]);
+        }
+    }
+    
+    public function ajax_get_chat_history() {
+        if (!check_ajax_referer('akpp_chat_history_nonce', 'nonce', false)) {
+            wp_send_json_error('Неверный security токен');
+            return;
+        }
+        
+        $current_user_id = get_current_user_id();
+        $with_user = isset($_POST['with_user']) ? intval($_POST['with_user']) : 0;
+        $limit = isset($_POST['limit']) ? intval($_POST['limit']) : 50;
+        $offset = isset($_POST['offset']) ? intval($_POST['offset']) : 0;
+        
+        if (!$current_user_id || !$with_user) {
+            wp_send_json_error('Неверные данные');
+            return;
+        }
+        
+        global $wpdb;
+        $table_messages = $wpdb->prefix . 'akpp_chat_messages';
+        
+        $results = $wpdb->get_results(
+            $wpdb->prepare(
+                "SELECT * FROM {$table_messages} 
+                WHERE ((sender_id = %d AND receiver_id = %d) OR (sender_id = %d AND receiver_id = %d))
+                ORDER BY created_at DESC
+                LIMIT %d OFFSET %d",
+                $current_user_id, $with_user, $with_user, $current_user_id, $limit, $offset
+            )
+        );
+        
+        wp_send_json_success(array_reverse($results));
     }
     
     // ==================== ПАРСЕР ====================
@@ -773,17 +928,21 @@ class AKPP_AJAX {
         $this->log_event("Push уведомление отправлено гиду {$guide_id} по лиду {$client_name}");
     }
     
-    private function notify_new_message($receiver_id, $sender_id, $message) {
+    private function notify_new_message_v2($receiver_id, $sender_id, $message) {
         global $wpdb;
         
         $table_users = $wpdb->prefix . 'akpp_site_users';
         
         $sender = $wpdb->get_row($wpdb->prepare(
-            "SELECT name FROM {$table_users} WHERE id = %d",
+            "SELECT name, role FROM {$table_users} WHERE id = %d",
             $sender_id
         ));
         
-        $sender_name = $sender ? $sender->name : 'Пользователь';
+        if (!$sender) {
+            return;
+        }
+        
+        $sender_name = $sender->name;
         $message_preview = mb_substr($message, 0, 50) . (mb_strlen($message) > 50 ? '...' : '');
         
         if (!class_exists('AKPP_Push')) {
@@ -792,12 +951,12 @@ class AKPP_AJAX {
         
         $push = AKPP_Push::get_instance();
         
-        $user = $wpdb->get_row($wpdb->prepare(
+        $receiver = $wpdb->get_row($wpdb->prepare(
             "SELECT role FROM {$table_users} WHERE id = %d",
             $receiver_id
         ));
         
-        if ($user && $user->role === 'client') {
+        if ($receiver && $receiver->role === 'client') {
             $push->send_to_client(
                 $receiver_id,
                 '📩 Новое сообщение от ' . $sender_name,
