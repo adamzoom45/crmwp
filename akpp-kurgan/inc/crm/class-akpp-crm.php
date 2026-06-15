@@ -1,272 +1,303 @@
 <?php
 /**
- * АКПП45 CRM - Основной класс ядра
- * Инициализация, подключение файлов, хуки и меню админ-панели.
- *
- * @package AKPP_CRM
- * @version 4.2
+ * Главный класс CRM АКПП45
+ * 
+ * @package AKPP45_CRM
  */
 
 if (!defined('ABSPATH')) {
-    exit; // Защита от прямого доступа
+    exit;
 }
 
 class AKPP_CRM {
-
-    /**
-     * Единственный экземпляр класса (Singleton)
-     */
+    
     private static $instance = null;
-
-    /**
-     * Получение экземпляра
-     */
+    
     public static function get_instance() {
-        if (null === self::$instance) {
+        if (self::$instance === null) {
             self::$instance = new self();
         }
         return self::$instance;
     }
-
-    /**
-     * Конструктор
-     */
+    
     private function __construct() {
-        // 1. Подключение необходимых файлов
-        $this->includes();
-
-        // 2. Хуки инициализации
-        add_action('admin_menu', [$this, 'register_admin_menus']);
-        add_action('admin_init', [$this, 'handle_bulk_actions']);
+        $this->define_constants();
+        $this->load_dependencies();
+        $this->init_hooks();
+    }
+    
+    private function define_constants() {
+        define('AKPP_CRM_PATH', dirname(__FILE__) . '/');
+        define('AKPP_CRM_URL', get_template_directory_uri() . '/inc/crm/');
+        define('AKPP_CRM_VERSION', '4.2');
+    }
+    
+    private function load_dependencies() {
+        require_once AKPP_CRM_PATH . 'class-akpp-install.php';
+        require_once AKPP_CRM_PATH . 'class-akpp-ajax.php';
+        require_once AKPP_CRM_PATH . 'class-akpp-auth.php';
+        require_once AKPP_CRM_PATH . 'class-akpp-email.php';
+        require_once AKPP_CRM_PATH . 'class-akpp-push.php';
+        require_once AKPP_CRM_PATH . 'class-akpp-telegram.php';
+        require_once AKPP_CRM_PATH . 'class-akpp-avito.php';
+        require_once AKPP_CRM_PATH . 'class-akpp-webhook.php';
+        require_once AKPP_CRM_PATH . 'class-akpp-parser.php';
+        require_once AKPP_CRM_PATH . 'class-akpp-cron.php';
         
-        // 3. Здесь можно добавить другие хуки (enqueue_scripts, ajax_handlers и т.д.)
+        require_once AKPP_CRM_PATH . 'decoders/class-vin-decoder.php';
+        require_once AKPP_CRM_PATH . 'decoders/class-body-decoder.php';
+        require_once AKPP_CRM_PATH . 'decoders/class-deal-calculator.php';
+        require_once AKPP_CRM_PATH . 'ai/class-ai-analyzer.php';
+        
+        require_once AKPP_CRM_PATH . 'tables/class-deals-table.php';
+        require_once AKPP_CRM_PATH . 'tables/class-employees-table.php';
+        require_once AKPP_CRM_PATH . 'tables/class-vehicles-table.php';
+        require_once AKPP_CRM_PATH . 'tables/class-transmissions-table.php';
+        require_once AKPP_CRM_PATH . 'tables/class-leads-table.php';
+        require_once AKPP_CRM_PATH . 'tables/class-parts-table.php';
+        require_once AKPP_CRM_PATH . 'tables/class-oils-table.php';
+        require_once AKPP_CRM_PATH . 'tables/class-parser-table.php';
+        require_once AKPP_CRM_PATH . 'tables/class-users-table.php';
+        require_once AKPP_CRM_PATH . 'tables/class-avito-dialogs-table.php';
+    }
+    
+    private function init_hooks() {
+        add_action('init', [$this, 'init']);
+        add_action('admin_menu', [$this, 'add_admin_menus']);
         add_action('admin_enqueue_scripts', [$this, 'enqueue_admin_assets']);
-    }
-
-    /**
-     * Подключение файлов ядра и новых классов
-     */
-    private function includes() {
-        $inc_dir = get_template_directory() . '/inc/';
-        $crm_dir = $inc_dir . 'crm/';
-
-        // --- СУЩЕСТВУЮЩИЕ ФАЙЛЫ (оставьте ваши текущие подключения здесь) ---
-        // require_once $crm_dir . 'class-akpp-database.php';
-        // require_once $crm_dir . 'class-akpp-api.php';
-        // require_once $crm_dir . 'class-akpp-email.php';
-        // require_once $crm_dir . 'class-deal-calculator.php';
-
-        // --- НОВЫЕ КЛАССЫ ТАБЛИЦ (Приоритет 1) ---
-        require_once $crm_dir . 'tables/class-users-table.php';
-        require_once $crm_dir . 'tables/class-avito-dialogs-table.php';
+        add_action('wp_enqueue_scripts', [$this, 'enqueue_frontend_assets']);
         
-        // --- ДРУГИЕ ТАБЛИЦЫ (если есть) ---
-        // require_once $crm_dir . 'tables/class-deals-table.php';
-        // require_once $crm_dir . 'tables/class-warehouse-table.php';
+        // Инициализация компонентов
+        add_action('init', [$this, 'init_components']);
     }
-
-    /**
-     * Подключение стилей и скриптов в админке
-     */
-    public function enqueue_admin_assets($hook) {
-        // Подключаем стили только на наших страницах CRM
-        if (strpos($hook, 'akpp-') !== false) {
-            wp_enqueue_style(
-                'akpp-crm-admin',
-                get_template_directory_uri() . '/inc/crm/assets/css/admin.css',
-                [],
-                '4.2.0'
-            );
-            
-            // Скрипт для подтверждения действий
-            wp_enqueue_script(
-                'akpp-crm-admin-js',
-                get_template_directory_uri() . '/inc/crm/assets/js/admin.js',
-                ['jquery'],
-                '4.2.0',
-                true
-            );
+    
+    public function init() {
+        // Создание таблиц при активации
+        if (is_admin()) {
+            $install = AKPP_Install::get_instance();
+            $install->create_tables();
         }
     }
-
-    /**
-     * Регистрация пунктов меню в админ-панели
-     */
-    public function register_admin_menus() {
-        // Главное меню CRM (если его ещё нет, создаём)
+    
+    public function init_components() {
+        // Инициализация AJAX
+        AKPP_AJAX::get_instance();
+        
+        // Инициализация Cron
+        AKPP_Cron::get_instance();
+        
+        // Инициализация Webhook
+        AKPP_Webhook::get_instance();
+    }
+    
+    public function add_admin_menus() {
         add_menu_page(
-            __('АКПП CRM', 'akpp-crm'),
-            __('АКПП CRM', 'akpp-crm'),
+            'АКПП45 CRM',
+            'CRM',
             'manage_options',
-            'akpp-crm-dashboard',
-            [$this, 'render_dashboard_page'],
-            'dashicons-chart-area',
-            30
+            'akpp-crm',
+            [$this, 'render_dashboard'],
+            'dashicons-car',
+            25
         );
-
-        // Подменю: Дашборд
+        
         add_submenu_page(
-            'akpp-crm-dashboard',
-            __('Дашборд', 'akpp-crm'),
-            __('Дашборд', 'akpp-crm'),
+            'akpp-crm',
+            'Панель',
+            '📊 Панель',
             'manage_options',
-            'akpp-crm-dashboard',
-            [$this, 'render_dashboard_page']
+            'akpp-crm',
+            [$this, 'render_dashboard']
         );
-
-        // =====================================================================
-        // НОВЫЕ ПУНКТЫ МЕНЮ (Приоритет 1)
-        // =====================================================================
-
-        // 1. Клиенты сайта
+        
         add_submenu_page(
-            'akpp-crm-dashboard',
-            __('Клиенты сайта', 'akpp-crm'),
-            __('Клиенты', 'akpp-crm'),
+            'akpp-crm',
+            'Сделки',
+            '💰 Сделки',
             'manage_options',
-            'akpp-users',
-            [$this, 'render_users_page']
+            'akpp-crm-deals',
+            [$this, 'render_deals']
         );
-
-        // 2. Диалоги Авито
+        
         add_submenu_page(
-            'akpp-crm-dashboard',
-            __('Диалоги Авито', 'akpp-crm'),
-            __('Авито чаты', 'akpp-crm'),
+            'akpp-crm',
+            'Новая сделка',
+            '➕ Новая',
             'manage_options',
-            'akpp-avito-dialogs',
-            [$this, 'render_avito_dialogs_page']
+            'akpp-crm-deal-form',
+            [$this, 'render_deal_form']
         );
-
-        // 3. Настройки Авито (заглушка для будущего)
+        
         add_submenu_page(
-            'akpp-crm-dashboard',
-            __('Настройки Авито', 'akpp-crm'),
-            __('Настройки Авито', 'akpp-crm'),
+            'akpp-crm',
+            'Сотрудники',
+            '👥 Сотрудники',
             'manage_options',
-            'akpp-avito-settings',
-            [$this, 'render_avito_settings_page']
+            'akpp-crm-employees',
+            [$this, 'render_employees']
+        );
+        
+        add_submenu_page(
+            'akpp-crm',
+            'Авто',
+            '🚗 Авто',
+            'manage_options',
+            'akpp-crm-vehicles',
+            [$this, 'render_vehicles']
+        );
+        
+        add_submenu_page(
+            'akpp-crm',
+            'АКПП',
+            '⚙️ АКПП',
+            'manage_options',
+            'akpp-crm-transmissions',
+            [$this, 'render_transmissions']
+        );
+        
+        add_submenu_page(
+            'akpp-crm',
+            'Склад',
+            '📦 Склад',
+            'manage_options',
+            'akpp-crm-parts',
+            [$this, 'render_parts']
+        );
+        
+        add_submenu_page(
+            'akpp-crm',
+            'Масла',
+            '🛢️ Масла',
+            'manage_options',
+            'akpp-crm-oils',
+            [$this, 'render_oils']
+        );
+        
+        add_submenu_page(
+            'akpp-crm',
+            'Парсер',
+            '🤖 Парсер',
+            'manage_options',
+            'akpp-crm-parser',
+            [$this, 'render_parser']
+        );
+        
+        add_submenu_page(
+            'akpp-crm',
+            'Лиды',
+            '📋 Лиды',
+            'manage_options',
+            'akpp-crm-leads',
+            [$this, 'render_leads']
+        );
+        
+        add_submenu_page(
+            'akpp-crm',
+            'Пользователи',
+            '👤 Пользователи',
+            'manage_options',
+            'akpp-crm-users',
+            [$this, 'render_users']
+        );
+        
+        add_submenu_page(
+            'akpp-crm',
+            'Авито чаты',
+            '💬 Авито чаты',
+            'manage_options',
+            'akpp-crm-avito-dialogs',
+            [$this, 'render_avito_dialogs']
+        );
+        
+        add_submenu_page(
+            'akpp-crm',
+            'Telegram',
+            '📱 Telegram',
+            'manage_options',
+            'akpp-crm-telegram',
+            [$this, 'render_telegram']
         );
     }
-
-    /**
-     * Обработка массовых действий (вызывается до рендеринга)
-     */
-    public function handle_bulk_actions() {
-        // Этот метод гарантирует, что process_bulk_action() в таблицах 
-        // отработает до вывода HTML, чтобы редиректы сработали корректно.
-        if (isset($_GET['page']) && in_array($_GET['page'], ['akpp-users', 'akpp-avito-dialogs'])) {
-            if ($_GET['page'] === 'akpp-users') {
-                $table = new AKPP_Users_Table();
-                $table->process_bulk_action();
-            } elseif ($_GET['page'] === 'akpp-avito-dialogs') {
-                $table = new AKPP_Avito_Dialogs_Table();
-                $table->process_bulk_action();
-            }
+    
+    public function enqueue_admin_assets($hook) {
+        if (strpos($hook, 'akpp-crm') === false) {
+            return;
+        }
+        
+        wp_enqueue_style('akpp-admin-css', AKPP_CRM_URL . 'assets/css/admin.css', [], AKPP_CRM_VERSION);
+        wp_enqueue_script('akpp-admin-js', AKPP_CRM_URL . 'assets/js/admin.js', ['jquery'], AKPP_CRM_VERSION, true);
+        
+        wp_localize_script('akpp-admin-js', 'akpp_ajax', [
+            'ajax_url' => admin_url('admin-ajax.php'),
+            'nonce' => wp_create_nonce('akpp_admin_nonce')
+        ]);
+    }
+    
+    public function enqueue_frontend_assets() {
+        if (!is_page('crm-login') && !is_page('crm-register') && !is_page('crm-profile') && !is_page('crm-chat')) {
+            return;
+        }
+        
+        wp_enqueue_style('akpp-frontend-css', AKPP_CRM_URL . 'assets/css/frontend.css', [], AKPP_CRM_VERSION);
+        wp_enqueue_script('akpp-frontend-js', AKPP_CRM_URL . 'assets/js/auth.js', ['jquery'], AKPP_CRM_VERSION, true);
+        wp_enqueue_script('akpp-chat-js', AKPP_CRM_URL . 'assets/js/chat.js', ['jquery'], AKPP_CRM_VERSION, true);
+    }
+    
+    public function render_dashboard() {
+        include AKPP_CRM_PATH . 'templates/dashboard.php';
+    }
+    
+    public function render_deals() {
+        include AKPP_CRM_PATH . 'templates/deals.php';
+    }
+    
+    public function render_deal_form() {
+        include AKPP_CRM_PATH . 'templates/deal-form.php';
+    }
+    
+    public function render_employees() {
+        include AKPP_CRM_PATH . 'templates/employees.php';
+    }
+    
+    public function render_vehicles() {
+        include AKPP_CRM_PATH . 'templates/vehicles.php';
+    }
+    
+    public function render_transmissions() {
+        include AKPP_CRM_PATH . 'templates/transmissions.php';
+    }
+    
+    public function render_parts() {
+        include AKPP_CRM_PATH . 'templates/parts.php';
+    }
+    
+    public function render_oils() {
+        include AKPP_CRM_PATH . 'templates/oils.php';
+    }
+    
+    public function render_parser() {
+        include AKPP_CRM_PATH . 'templates/parser.php';
+    }
+    
+    public function render_leads() {
+        include AKPP_CRM_PATH . 'templates/leads.php';
+    }
+    
+    public function render_users() {
+        include AKPP_CRM_PATH . 'templates/users.php';
+    }
+    
+    public function render_avito_dialogs() {
+        $tab = isset($_GET['tab']) ? sanitize_text_field($_GET['tab']) : 'dialogs';
+        
+        if ($tab === 'settings') {
+            include AKPP_CRM_PATH . 'templates/avito-settings.php';
+        } else {
+            include AKPP_CRM_PATH . 'templates/avito-dialogs.php';
         }
     }
-
-    // =========================================================================
-    // МЕТОДЫ РЕНДЕРИНГА СТРАНИЦ
-    // =========================================================================
-
-    /**
-     * Рендер страницы Дашборда (заглушка)
-     */
-    public function render_dashboard_page() {
-        ?>
-        <div class="wrap">
-            <h1><?php _e('Дашборд АКПП CRM', 'akpp-crm'); ?></h1>
-            <p><?php _e('Добро пожаловать в панель управления. Выберите раздел в меню слева.', 'akpp-crm'); ?></p>
-        </div>
-        <?php
-    }
-
-    /**
-     * Рендер страницы "Клиенты сайта"
-     */
-    public function render_users_page() {
-        if (!current_user_can('manage_options')) {
-            wp_die(__('Недостаточно прав для доступа к этой странице.', 'akpp-crm'));
-        }
-
-        $users_table = new AKPP_Users_Table();
-        $users_table->prepare_items(); // Подготовка данных ДО вывода уведомлений
-
-        // Обработка уведомлений об удалении
-        if (isset($_GET['deleted'])) {
-            $count = intval($_GET['deleted']);
-            $message = $count > 1 
-                ? sprintf(__('Успешно удалено клиентов: %d', 'akpp-crm'), $count)
-                : __('Клиент успешно удалён.', 'akpp-crm');
-            
-            echo '<div class="notice notice-success is-dismissible"><p>' . esc_html($message) . '</p></div>';
-        }
-        ?>
-        <div class="wrap">
-            <h1 class="wp-heading-inline"><?php _e('Клиенты сайта', 'akpp-crm'); ?></h1>
-            <hr class="wp-header-end">
-            
-            <form method="post">
-                <?php $users_table->display(); ?>
-            </form>
-        </div>
-        <?php
-    }
-
-    /**
-     * Рендер страницы "Диалоги Авито"
-     */
-    public function render_avito_dialogs_page() {
-        if (!current_user_can('manage_options')) {
-            wp_die(__('Недостаточно прав для доступа к этой странице.', 'akpp-crm'));
-        }
-
-        $dialogs_table = new AKPP_Avito_Dialogs_Table();
-        $dialogs_table->prepare_items();
-
-        // Обработка уведомлений об обновлениях
-        if (isset($_GET['updated'])) {
-            $count = intval($_GET['updated']);
-            $message = $count > 1 
-                ? sprintf(__('Действие успешно выполнено для %d диалогов.', 'akpp-crm'), $count)
-                : __('Действие успешно выполнено.', 'akpp-crm');
-            
-            echo '<div class="notice notice-success is-dismissible"><p>' . esc_html($message) . '</p></div>';
-        }
-        ?>
-        <div class="wrap">
-            <h1 class="wp-heading-inline"><?php _e('Диалоги Авито', 'akpp-crm'); ?></h1>
-            <a href="<?php echo esc_url(admin_url('admin.php?page=akpp-avito-settings')); ?>" class="page-title-action">
-                <?php _e('⚙️ Настройки API', 'akpp-crm'); ?>
-            </a>
-            <hr class="wp-header-end">
-            
-            <form method="post">
-                <?php $dialogs_table->display(); ?>
-            </form>
-        </div>
-        <?php
-    }
-
-    /**
-     * Рендер страницы "Настройки Авито" (заглушка для Приоритета 2)
-     */
-    public function render_avito_settings_page() {
-        if (!current_user_can('manage_options')) {
-            wp_die(__('Недостаточно прав для доступа к этой странице.', 'akpp-crm'));
-        }
-        ?>
-        <div class="wrap">
-            <h1><?php _e('Настройки интеграции с Авито', 'akpp-crm'); ?></h1>
-            <p><?php _e('Здесь будут поля для Client ID, Client Secret и настройки Webhook (Фаза 2).', 'akpp-crm'); ?></p>
-        </div>
-        <?php
+    
+    public function render_telegram() {
+        include AKPP_CRM_PATH . 'templates/telegram.php';
     }
 }
-
-// Инициализация плагина/темы
-function akpp_crm_init() {
-    return AKPP_CRM::get_instance();
-}
-add_action('plugins_loaded', 'akpp_crm_init'); // Или 'after_setup_theme', если это строго тема
