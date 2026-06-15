@@ -181,7 +181,7 @@ jQuery(document).ready(function($) {
         });
     });
     
-    // Отправка по Enter (Ctrl+Enter)
+    // Отправка по Ctrl+Enter
     $('#akpp-message-text').on('keydown', function(e) {
         if (e.ctrlKey && e.keyCode === 13) {
             $('#akpp-send-message-form').submit();
