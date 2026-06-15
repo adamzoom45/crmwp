@@ -1,6 +1,6 @@
 <?php
 /**
- * Главный класс CRM АКПП45 (ПОЛНЫЙ ФАЙЛ)
+ * Главный класс CRM АКПП45
  * 
  * @package AKPP45_CRM
  */
@@ -26,29 +26,47 @@ class AKPP_CRM {
         $this->init_hooks();
     }
     
+    /**
+     * Определение констант
+     */
     private function define_constants() {
         define('AKPP_CRM_PATH', dirname(__FILE__) . '/');
         define('AKPP_CRM_URL', get_template_directory_uri() . '/inc/crm/');
         define('AKPP_CRM_VERSION', '4.2');
     }
     
+    /**
+     * Загрузка зависимостей
+     */
     private function load_dependencies() {
+        // Ядро
+        require_once AKPP_CRM_PATH . 'class-akpp-db.php';
         require_once AKPP_CRM_PATH . 'class-akpp-install.php';
         require_once AKPP_CRM_PATH . 'class-akpp-ajax.php';
+        
+        // Интеграции
+        require_once AKPP_CRM_PATH . 'class-akpp-avito.php';
+        require_once AKPP_CRM_PATH . 'class-akpp-webhook.php';
+        require_once AKPP_CRM_PATH . 'class-akpp-telegram.php';
+        require_once AKPP_CRM_PATH . 'class-akpp-parser.php';
+        
+        // Пользователи и уведомления
         require_once AKPP_CRM_PATH . 'class-akpp-auth.php';
         require_once AKPP_CRM_PATH . 'class-akpp-email.php';
         require_once AKPP_CRM_PATH . 'class-akpp-push.php';
-        require_once AKPP_CRM_PATH . 'class-akpp-telegram.php';
-        require_once AKPP_CRM_PATH . 'class-akpp-avito.php';
-        require_once AKPP_CRM_PATH . 'class-akpp-webhook.php';
-        require_once AKPP_CRM_PATH . 'class-akpp-parser.php';
-        require_once AKPP_CRM_PATH . 'class-akpp-cron.php';
         
+        // Декодеры
         require_once AKPP_CRM_PATH . 'decoders/class-vin-decoder.php';
         require_once AKPP_CRM_PATH . 'decoders/class-body-decoder.php';
         require_once AKPP_CRM_PATH . 'decoders/class-deal-calculator.php';
+        
+        // AI
         require_once AKPP_CRM_PATH . 'ai/class-ai-analyzer.php';
         
+        // Cron
+        require_once AKPP_CRM_PATH . 'class-akpp-cron.php';
+        
+        // Таблицы WP_List_Table
         require_once AKPP_CRM_PATH . 'tables/class-deals-table.php';
         require_once AKPP_CRM_PATH . 'tables/class-employees-table.php';
         require_once AKPP_CRM_PATH . 'tables/class-vehicles-table.php';
@@ -61,18 +79,21 @@ class AKPP_CRM {
         require_once AKPP_CRM_PATH . 'tables/class-avito-dialogs-table.php';
     }
     
+    /**
+     * Инициализация хуков
+     */
     private function init_hooks() {
         add_action('init', [$this, 'init']);
         add_action('admin_menu', [$this, 'add_admin_menus']);
         add_action('admin_enqueue_scripts', [$this, 'enqueue_admin_assets']);
         add_action('wp_enqueue_scripts', [$this, 'enqueue_frontend_assets']);
-        
-        // Регистрация страниц фронтенда
-        add_action('init', [$this, 'register_frontend_pages']);
-        
         add_action('init', [$this, 'init_components']);
+        add_action('init', [$this, 'register_frontend_pages']);
     }
     
+    /**
+     * Инициализация
+     */
     public function init() {
         if (is_admin()) {
             $install = AKPP_Install::get_instance();
@@ -80,10 +101,22 @@ class AKPP_CRM {
         }
     }
     
+    /**
+     * Инициализация компонентов
+     */
     public function init_components() {
         AKPP_AJAX::get_instance();
-        AKPP_Cron::get_instance();
+        AKPP_Avito::get_instance();
         AKPP_Webhook::get_instance();
+        AKPP_Telegram::get_instance();
+        AKPP_Parser::get_instance();
+        AKPP_Auth::get_instance();
+        AKPP_Email::get_instance();
+        AKPP_Push::get_instance();
+        AKPP_VIN_Decoder::get_instance();
+        AKPP_Deal_Calculator::get_instance();
+        AKPP_AI_Analyzer::get_instance();
+        AKPP_Cron::get_instance();
     }
     
     /**
@@ -99,11 +132,17 @@ class AKPP_CRM {
         add_action('template_include', [$this, 'load_frontend_template']);
     }
     
+    /**
+     * Добавление query vars
+     */
     public function add_query_vars($vars) {
         $vars[] = 'akpp_page';
         return $vars;
     }
     
+    /**
+     * Загрузка шаблонов фронтенда
+     */
     public function load_frontend_template($template) {
         $page = get_query_var('akpp_page');
         
@@ -131,6 +170,9 @@ class AKPP_CRM {
         return $template;
     }
     
+    /**
+     * Добавление меню админки
+     */
     public function add_admin_menus() {
         add_menu_page(
             'АКПП45 CRM',
@@ -260,6 +302,9 @@ class AKPP_CRM {
         );
     }
     
+    /**
+     * Подключение стилей и скриптов админки
+     */
     public function enqueue_admin_assets($hook) {
         if (strpos($hook, 'akpp-crm') === false) {
             return;
@@ -274,6 +319,9 @@ class AKPP_CRM {
         ]);
     }
     
+    /**
+     * Подключение стилей и скриптов фронтенда
+     */
     public function enqueue_frontend_assets() {
         $page = get_query_var('akpp_page');
         
@@ -308,6 +356,8 @@ class AKPP_CRM {
     }
     
     public function render_deals() {
+        $table = new AKPP_Deals_Table();
+        $table->prepare_items();
         include AKPP_CRM_PATH . 'templates/deals.php';
     }
     
@@ -316,34 +366,50 @@ class AKPP_CRM {
     }
     
     public function render_employees() {
+        $table = new AKPP_Employees_Table();
+        $table->prepare_items();
         include AKPP_CRM_PATH . 'templates/employees.php';
     }
     
     public function render_vehicles() {
+        $table = new AKPP_Vehicles_Table();
+        $table->prepare_items();
         include AKPP_CRM_PATH . 'templates/vehicles.php';
     }
     
     public function render_transmissions() {
+        $table = new AKPP_Transmissions_Table();
+        $table->prepare_items();
         include AKPP_CRM_PATH . 'templates/transmissions.php';
     }
     
     public function render_parts() {
+        $table = new AKPP_Parts_Table();
+        $table->prepare_items();
         include AKPP_CRM_PATH . 'templates/parts.php';
     }
     
     public function render_oils() {
+        $table = new AKPP_Oils_Table();
+        $table->prepare_items();
         include AKPP_CRM_PATH . 'templates/oils.php';
     }
     
     public function render_parser() {
+        $table = new AKPP_Parser_Table();
+        $table->prepare_items();
         include AKPP_CRM_PATH . 'templates/parser.php';
     }
     
     public function render_leads() {
+        $table = new AKPP_Leads_Table();
+        $table->prepare_items();
         include AKPP_CRM_PATH . 'templates/leads.php';
     }
     
     public function render_users() {
+        $table = new AKPP_Users_Table();
+        $table->prepare_items();
         include AKPP_CRM_PATH . 'templates/users.php';
     }
     
@@ -353,6 +419,8 @@ class AKPP_CRM {
         if ($tab === 'settings') {
             include AKPP_CRM_PATH . 'templates/avito-settings.php';
         } else {
+            $table = new AKPP_Avito_Dialogs_Table();
+            $table->prepare_items();
             include AKPP_CRM_PATH . 'templates/avito-dialogs.php';
         }
     }
