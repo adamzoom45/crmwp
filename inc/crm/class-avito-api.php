@@ -4,7 +4,7 @@
  * Реализует OAuth 2.0 (Client Credentials), управление токенами и базовые запросы.
  *
  * @package AKPP_CRM
- * @version 4.2
+ * @version 4.3
  */
 
 if (!defined('ABSPATH')) {
@@ -14,7 +14,7 @@ if (!defined('ABSPATH')) {
 class AKPP_Avito_API {
 
     /**
-     * Единственный экземпляр класса
+     * Единственный экземпляр класса (Singleton)
      */
     private static $instance = null;
 
@@ -27,7 +27,7 @@ class AKPP_Avito_API {
     private $api_base_url   = 'https://api.avito.ru';
 
     /**
-     * Конструктор
+     * Конструктор (защищен для Singleton)
      */
     private function __construct() {
         $this->client_id     = get_option('akpp_avito_client_id', '');
@@ -35,7 +35,7 @@ class AKPP_Avito_API {
     }
 
     /**
-     * Получение экземпляра (Singleton)
+     * Получение экземпляра
      */
     public static function get_instance() {
         if (null === self::$instance) {
@@ -92,7 +92,7 @@ class AKPP_Avito_API {
         $body = json_decode(wp_remote_retrieve_body($response), true);
 
         if ($response_code !== 200 || !isset($body['access_token'])) {
-            $error_msg = isset($body['error_description']) ? $body['error_description'] : 'Unknown API error';
+            $error_msg = isset($body['error_description']) ? $body['error_description'] : 'Unknown API error (Code: ' . $response_code . ')';
             $this->log_error('Token Fetch Failed', $error_msg);
             return new WP_Error('avito_token_error', $error_msg);
         }
@@ -105,6 +105,7 @@ class AKPP_Avito_API {
         ];
 
         update_option('akpp_avito_token_data', $token_data);
+        $this->log_info('Token successfully refreshed');
 
         return $body['access_token'];
     }
@@ -127,10 +128,11 @@ class AKPP_Avito_API {
         $url = $this->api_base_url . $endpoint;
         
         $args = [
-            'method'  => $method,
+            'method'  => strtoupper($method),
             'headers' => [
                 'Authorization' => 'Bearer ' . $token,
                 'Content-Type'  => 'application/json',
+                'Accept'        => 'application/json',
             ],
             'timeout' => 15,
         ];
@@ -149,26 +151,74 @@ class AKPP_Avito_API {
         $response_code = wp_remote_retrieve_response_code($response);
         $response_body = json_decode(wp_remote_retrieve_body($response), true);
 
-        // Обработка ошибок API (например, 401 Unauthorized -> токен протух, но мы его уже обновили, так что это другая ошибка)
+        // Обработка ошибок API (например, 401 Unauthorized)
         if ($response_code >= 400) {
             $error_msg = isset($response_body['error']) ? $response_body['error'] : 'API Error';
-            $this->log_error("API Error $response_code ($endpoint)", $error_msg);
+            $error_desc = isset($response_body['error_description']) ? $response_body['error_description'] : '';
+            
+            $this->log_error("API Error $response_code ($endpoint)", $error_msg . ' ' . $error_desc);
+            
+            // Если токен протух (401), пробуем обновить его один раз и повторить запрос
+            if ($response_code === 401) {
+                delete_option('akpp_avito_token_data'); // Удаляем протухший токен
+                $new_token = $this->fetch_new_token();
+                
+                if (!is_wp_error($new_token)) {
+                    $args['headers']['Authorization'] = 'Bearer ' . $new_token;
+                    $retry_response = wp_remote_request($url, $args);
+                    
+                    if (!is_wp_error($retry_response)) {
+                        $retry_code = wp_remote_retrieve_response_code($retry_response);
+                        $retry_body = json_decode(wp_remote_retrieve_body($retry_response), true);
+                        
+                        if ($retry_code < 400) {
+                            return $retry_body;
+                        }
+                    }
+                }
+            }
+            
             return new WP_Error('avito_api_error', $error_msg, ['status' => $response_code, 'data' => $response_body]);
         }
 
-        return $response_body;
+        return $response_body ?: [];
     }
 
     /**
-     * Пример метода: Отправка сообщения в диалог
+     * Получение списка диалогов
      *
-     * @param int    $dialog_id ID диалога в Авито
-     * @param string $message   Текст сообщения
-     * @param string $type      Тип сообщения: 'text' или 'image'
+     * @param int $limit Количество диалогов (макс. 100)
      * @return array|WP_Error
      */
-    public function send_message($dialog_id, $message, $type = 'text') {
-        $endpoint = "/messages/1/dialogs/{$dialog_id}/messages";
+    public function get_dialogs($limit = 50) {
+        $limit = min(100, max(1, intval($limit)));
+        $endpoint = "/messages/1/dialogs?limit={$limit}";
+        return $this->make_request($endpoint, 'GET');
+    }
+
+    /**
+     * Получение сообщений конкретного диалога
+     *
+     * @param int $avito_dialog_id ID диалога в Авито
+     * @param int $limit Количество сообщений
+     * @return array|WP_Error
+     */
+    public function get_dialog_messages($avito_dialog_id, $limit = 50) {
+        $limit = min(100, max(1, intval($limit)));
+        $endpoint = "/messages/1/dialogs/{$avito_dialog_id}/messages?limit={$limit}";
+        return $this->make_request($endpoint, 'GET');
+    }
+
+    /**
+     * Отправка сообщения в диалог
+     *
+     * @param int    $avito_dialog_id ID диалога в Авито
+     * @param string $message         Текст сообщения
+     * @param string $type            Тип сообщения: 'text' или 'image'
+     * @return array|WP_Error
+     */
+    public function send_message($avito_dialog_id, $message, $type = 'text') {
+        $endpoint = "/messages/1/dialogs/{$avito_dialog_id}/messages";
         
         $payload = [
             'type'    => $type,
@@ -179,25 +229,21 @@ class AKPP_Avito_API {
     }
 
     /**
-     * Пример метода: Получение списка диалогов
-     *
-     * @param int $limit Количество диалогов
-     * @return array|WP_Error
-     */
-    public function get_dialogs($limit = 50) {
-        $endpoint = "/messages/1/dialogs?limit={$limit}";
-        return $this->make_request($endpoint, 'GET');
-    }
-
-    /**
      * Логирование ошибок (для отладки)
      *
      * @param string $context Контекст ошибки
-     * @param string $message Текст ошибки
+     * @param string $msg     Текст ошибки
      */
-    private function log_error($context, $message) {
-        // В продакшене лучше использовать error_log или кастомную таблицу логов
-        // Здесь используем стандартный error_log WordPress
-        error_log(sprintf('[AKPP Avito API] %s: %s', $context, $message));
+    private function log_error($context, $msg) {
+        error_log(sprintf('[AKPP Avito API] ERROR: %s - %s', $context, $msg));
+    }
+
+    /**
+     * Логирование информационных сообщений
+     *
+     * @param string $msg Текст сообщения
+     */
+    private function log_info($msg) {
+        error_log(sprintf('[AKPP Avito API] INFO: %s', $msg));
     }
 }
