@@ -1,17 +1,17 @@
 <?php
 /**
  * АКПП45 CRM - Форма регистрации клиента (Frontend)
- * Шаблон формы с валидацией, защитой от спама и AJAX-отправкой.
+ * Шаблон формы с валидацией, защитой от спама (honeypot) и AJAX-отправкой.
  *
  * @package AKPP_CRM
- * @version 4.2
+ * @version 4.3
  */
 
 if (!defined('ABSPATH')) {
     exit; // Защита от прямого доступа
 }
 
-// Если пользователь уже авторизован, показываем сообщение вместо формы
+// Если пользователь уже авторизован, показываем приветствие вместо формы
 if (is_user_logged_in()) {
     $current_user = wp_get_current_user();
     ?>
@@ -20,8 +20,8 @@ if (is_user_logged_in()) {
         <p>
             <?php printf(__('Добро пожаловать, <strong>%s</strong>! Вы уже вошли в систему.', 'akpp-crm'), esc_html($current_user->display_name)); ?>
         </p>
-        <a href="<?php echo esc_url(get_permalink(get_page_by_path('chat'))); ?>" class="button button-primary">
-            <?php _e('Перейти в чат', 'akpp-crm'); ?>
+        <a href="<?php echo esc_url(home_url('/profile/')); ?>" class="button button-primary">
+            <?php _e('Перейти в личный кабинет', 'akpp-crm'); ?>
         </a>
     </div>
     <?php
@@ -39,13 +39,15 @@ $reg_nonce = wp_create_nonce('akpp_registration_nonce');
     </div>
 
     <!-- Сообщение об успехе/ошибке (скрыто по умолчанию) -->
-    <div id="akpp-reg-message" class="akpp-reg-message" style="display: none;"></div>
+    <div id="akpp-reg-message" class="akpp-reg-message" style="display: none;" role="alert"></div>
 
     <form id="akpp-registration-form" class="akpp-reg-form" novalidate>
-        <?php wp_nonce_field('akpp_registration_nonce', 'security_nonce'); ?>
+        <!-- Скрытое поле action для AJAX -->
         <input type="hidden" name="action" value="akpp_register_client">
+        <!-- Поле nonce для проверки безопасности -->
+        <input type="hidden" name="security_nonce" value="<?php echo esc_attr($reg_nonce); ?>">
 
-        <!-- Honeypot для защиты от спам-ботов (скрыт через CSS) -->
+        <!-- Honeypot для защиты от спам-ботов (скрыт через CSS, боты его заполняют) -->
         <div class="akpp-honeypot" aria-hidden="true">
             <label for="website_check"><?php _e('Оставьте это поле пустым', 'akpp-crm'); ?></label>
             <input type="text" name="website_check" id="website_check" tabindex="-1" autocomplete="off">
@@ -57,7 +59,7 @@ $reg_nonce = wp_create_nonce('akpp_registration_nonce');
                 <input type="text" name="full_name" id="reg_full_name" required 
                        placeholder="<?php _e('Иванов Иван Иванович', 'akpp-crm'); ?>" 
                        pattern="[А-Яа-яЁёA-Za-z\s\-]{2,50}" 
-                       title="<?php _e('Введите корректное ФИО (минимум 2 символа)', 'akpp-crm'); ?>">
+                       title="<?php _e('Введите корректное ФИО (минимум 2 символа, только буквы)', 'akpp-crm'); ?>">
             </div>
         </div>
 
@@ -71,7 +73,8 @@ $reg_nonce = wp_create_nonce('akpp_registration_nonce');
                 <label for="reg_phone"><?php _e('Телефон', 'akpp-crm'); ?> <span class="required">*</span></label>
                 <input type="tel" name="phone" id="reg_phone" required 
                        placeholder="+7 (999) 123-45-67" 
-                       pattern="[\+]?[0-9\s\-\(\)]{10,20}">
+                       pattern="[\+]?[0-9\s\-\(\)]{10,20}"
+                       title="<?php _e('Введите корректный номер телефона', 'akpp-crm'); ?>">
             </div>
         </div>
 
@@ -103,7 +106,51 @@ $reg_nonce = wp_create_nonce('akpp_registration_nonce');
     </form>
 </div>
 
-<!-- Конфигурация и логика для JS -->
+<!-- Встроенные стили для гарантии корректного отображения -->
+<style>
+    .akpp-registration-container {
+        max-width: 600px;
+        margin: 0 auto;
+        background: #fff;
+        padding: 30px;
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+        border: 1px solid #e2e4e7;
+    }
+    .akpp-reg-header h2 { margin-top: 0; color: #1d2327; font-size: 24px; }
+    .akpp-reg-header p { color: #646970; margin-bottom: 25px; font-size: 15px; }
+    
+    .akpp-form-row { margin-bottom: 20px; }
+    .akpp-form-row-2col { display: flex; gap: 20px; }
+    .akpp-form-row-2col .akpp-form-group { flex: 1; }
+    
+    .akpp-form-group label { display: block; font-weight: 600; margin-bottom: 6px; color: #1d2327; font-size: 14px; }
+    .akpp-form-group input { width: 100%; padding: 10px 12px; border: 1px solid #8c8f94; border-radius: 4px; font-size: 14px; box-sizing: border-box; }
+    .akpp-form-group input:focus { border-color: #2271b1; outline: 2px solid #2271b1; outline-offset: -1px; }
+    .akpp-form-hint { display: block; margin-top: 5px; color: #646970; font-size: 12px; }
+    .required { color: #d63638; }
+    
+    .akpp-honeypot { display: none !important; }
+    
+    .akpp-reg-message { padding: 15px; border-radius: 4px; margin-bottom: 20px; font-weight: 500; font-size: 14px; }
+    .akpp-reg-success { background: #edfaef; color: #00a32a; border: 1px solid #00a32a; }
+    .akpp-reg-error { background: #fcf0f1; color: #d63638; border: 1px solid #d63638; }
+    
+    .akpp-form-actions { margin-top: 30px; }
+    .akpp-form-actions .button { width: 100%; display: flex; align-items: center; justify-content: center; padding: 12px; font-size: 16px; }
+    
+    .akpp-form-footer { margin-top: 20px; text-align: center; font-size: 14px; color: #646970; }
+    .akpp-form-footer a { color: #2271b1; text-decoration: none; font-weight: 500; }
+    .akpp-form-footer a:hover { text-decoration: underline; }
+    .akpp-privacy-hint { font-size: 12px; margin-top: 10px; color: #8c8f94; }
+
+    @media (max-width: 600px) {
+        .akpp-form-row-2col { flex-direction: column; gap: 0; }
+        .akpp-registration-container { padding: 20px; }
+    }
+</style>
+
+<!-- Логика AJAX отправки -->
 <script type="text/javascript">
 (function($) {
     'use strict';
@@ -121,7 +168,7 @@ $reg_nonce = wp_create_nonce('akpp_registration_nonce');
                    .text(text)
                    .slideDown(300);
         
-        // Прокрутка к сообщению
+        // Прокрутка к сообщению для мобильных устройств
         $('html, body').animate({
             scrollTop: $messageBox.offset().top - 50
         }, 500);
@@ -130,21 +177,22 @@ $reg_nonce = wp_create_nonce('akpp_registration_nonce');
     $form.on('submit', function(e) {
         e.preventDefault();
 
-        // Проверка honeypot (если бот его заполнил, молча игнорируем)
+        // 1. Проверка honeypot (если бот его заполнил, молча игнорируем)
         if ($('#website_check').val() !== '') {
+            console.warn('Spam detected via honeypot.');
             return false;
         }
 
-        // Блокировка кнопки и показ лоадера
+        // 2. Блокировка кнопки и показ лоадера
         $submitBtn.prop('disabled', true);
         $btnText.hide();
         $btnLoader.show();
         $messageBox.slideUp(200);
 
-        // Сбор данных формы
+        // 3. Сбор данных формы
         const formData = new FormData(this);
 
-        // AJAX запрос
+        // 4. AJAX запрос
         $.ajax({
             url: '<?php echo admin_url('admin-ajax.php'); ?>',
             type: 'POST',
@@ -170,7 +218,7 @@ $reg_nonce = wp_create_nonce('akpp_registration_nonce');
                 showMessage('error', '<?php _e('Ошибка соединения с сервером. Попробуйте позже.', 'akpp-crm'); ?>');
             },
             complete: function() {
-                // Разблокировка кнопки
+                // 5. Разблокировка кнопки
                 $submitBtn.prop('disabled', false);
                 $btnText.show();
                 $btnLoader.hide();
@@ -180,45 +228,3 @@ $reg_nonce = wp_create_nonce('akpp_registration_nonce');
 
 })(jQuery);
 </script>
-
-<style>
-    /* Базовые стили формы (можно вынести в отдельный CSS файл) */
-    .akpp-registration-container {
-        max-width: 600px;
-        margin: 0 auto;
-        background: #fff;
-        padding: 30px;
-        border-radius: 8px;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.05);
-    }
-    .akpp-reg-header h2 { margin-top: 0; color: #1d2327; }
-    .akpp-reg-header p { color: #646970; margin-bottom: 25px; }
-    
-    .akpp-form-row { margin-bottom: 20px; }
-    .akpp-form-row-2col { display: flex; gap: 20px; }
-    .akpp-form-row-2col .akpp-form-group { flex: 1; }
-    
-    .akpp-form-group label { display: block; font-weight: 600; margin-bottom: 6px; color: #1d2327; }
-    .akpp-form-group input { width: 100%; padding: 10px 12px; border: 1px solid #8c8f94; border-radius: 4px; font-size: 14px; }
-    .akpp-form-group input:focus { border-color: #2271b1; outline: 2px solid #2271b1; outline-offset: -1px; }
-    .akpp-form-hint { display: block; margin-top: 5px; color: #646970; font-size: 12px; }
-    .required { color: #d63638; }
-    
-    .akpp-honeypot { display: none !important; }
-    
-    .akpp-reg-message { padding: 15px; border-radius: 4px; margin-bottom: 20px; font-weight: 500; }
-    .akpp-reg-success { background: #edfaef; color: #00a32a; border: 1px solid #00a32a; }
-    .akpp-reg-error { background: #fcf0f1; color: #d63638; border: 1px solid #d63638; }
-    
-    .akpp-form-actions { margin-top: 30px; }
-    .akpp-form-actions .button { width: 100%; display: flex; align-items: center; justify-content: center; }
-    
-    .akpp-form-footer { margin-top: 20px; text-align: center; font-size: 14px; color: #646970; }
-    .akpp-form-footer a { color: #2271b1; text-decoration: none; }
-    .akpp-form-footer a:hover { text-decoration: underline; }
-    .akpp-privacy-hint { font-size: 12px; margin-top: 10px; color: #8c8f94; }
-
-    @media (max-width: 600px) {
-        .akpp-form-row-2col { flex-direction: column; gap: 0; }
-    }
-</style>
