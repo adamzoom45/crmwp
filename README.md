@@ -60,75 +60,109 @@
 
 ## 🏗️ АРХИТЕКТУРА ФАЙЛОВ
 
-```text
-wp-content/themes/akpp-kurgan/inc/crm/
+akpp-kurgan/ # Корень WordPress темы
 │
-├── class-akpp-crm.php              # Главный класс (Singleton + меню)
-├── class-akpp-install.php          # Создание 16 таблиц БД
-├── class-akpp-ajax.php             # Все AJAX обработчики
-├── class-akpp-telegram.php         # Telegram бот + VPN/SSH
-├── class-akpp-avito.php            # Авито API (OAuth + чат)
-├── class-akpp-parser.php           # Универсальный парсер
-├── class-akpp-auth.php             # Регистрация + авторизация
-├── class-akpp-email.php            # Отправка email
-├── class-akpp-push.php             # Push уведомления (FCM)
-├── class-akpp-webhook.php          # Webhook Авито
+├── style.css # Главный файл стилей темы
+├── functions.php # Настройки темы и подключение CRM
+├── header.php # Шапка сайта
+├── footer.php # Подвал
+├── index.php # Главный шаблон
+├── front-page.php # Шаблон главной страницы
+├── page.php # Шаблон страниц
+├── single.php # Шаблон записей
+├── 404.php # Страница 404
+├── sidebar.php # Сайдбар
+├── search.php # Результаты поиска
+├── archive.php # Архивы
+├── sw.js # Service Worker для Push
 │
-── decoders/
-│   ├── class-vin-decoder.php       # NHTSA API + кэш
-│   ├── class-body-decoder.php      # Toyota/Lexus body number
-│   └── class-deal-calculator.php   # Формула оплаты
+├── assets/ # Статические файлы темы
+│ ├── css/
+│ │ ├── main.css # Основные стили сайта
+│ │ ├── modal.css # Стили модальных окон
+│ │ └── responsive.css # Адаптивные стили
+│ └── js/
+│ ├── main.js # Основные скрипты
+│ ├── modal-auth.js # Скрипты авторизации
+│ └── navigation.js # Скрипты меню
 │
-├── ai/
-│   └── class-ai-analyzer.php       # AI анализ парсинга
+├── template-parts/ # Части шаблонов
+│ └── hero-section.php # Hero-секция главной страницы
 │
-├── tables/                         # WP_List_Table
-│   ├── class-deals-table.php
-│   ├── class-employees-table.php
-│   ├── class-vehicles-table.php
-│   ├── class-transmissions-table.php
-│   ├── class-leads-table.php
-│   ├── class-parts-table.php
-│   ├── class-oils-table.php
-│   ├── class-parser-table.php
-│   ├── class-users-table.php
-│   ── class-avito-dialogs-table.php
+├── languages/ # Файлы переводов
 │
-├── assets/
-│   ├── css/
-│   │   ├── admin.css               # Стили админки (akpp45.ru)
-│   │   └── frontend.css            # Стили фронтенда
-│   └── js/
-│       ├── admin.js
-│       ├── vin-decoder.js
-│       ├── deal-calculator.js
-│       ├── chat.js
-│       ├── avito-chat.js
-│       ├── parser.js
-│       ├── auth.js
-│       └── push.js
+└── inc/crm/ # ⚙️ ЯДРО CRM СИСТЕМЫ
 │
-└── templates/
-    ├── dashboard.php               # Панель + воронка
-    ├── deals.php
-    ├── deal-form.php               # VIN + запчасти со склада
-    ├── employees.php
-    ├── vehicles.php                # 4 рынка
-    ├── transmissions.php
-    ├── parts.php                   # Склад
-    ├── oils.php                    # Масла
-    ├── parser.php                  # Парсер + AI
-    ├── leads.php
-    ├── chat.php
-    ├── avito-dialogs.php
-    ├── avito-settings.php
-    ├── telegram.php
-    ├── users.php
-    └── frontend/
-        ├── register.php
-        ├── login.php
-        ├── profile.php
-        └── chat.php
+├── class-akpp-crm.php # Главный класс (Singleton + меню)
+├── class-akpp-install.php # Установщик таблиц БД (16 таблиц)
+├── class-akpp-db.php # Центральный CRUD-класс для БД
+├── class-akpp-ajax.php # Все AJAX-обработчики
+├── class-akpp-auth.php # Регистрация + авторизация
+├── class-akpp-email.php # Отправка email
+├── class-akpp-push.php # Push-уведомления (FCM)
+├── class-akpp-avito.php # Авито API (OAuth + чат)
+├── class-akpp-webhook.php # Webhook для Авито
+├── class-akpp-telegram.php # Telegram-бот
+├── class-akpp-parser.php # Универсальный парсер
+├── class-akpp-cron.php # Cron-задачи
+│
+├── decoders/ # Декодеры
+│ ├── class-vin-decoder.php # NHTSA API + кэш
+│ ├── class-body-decoder.php # Toyota/Lexus body number
+│ └── class-deal-calculator.php # Калькулятор оплаты
+│
+├── ai/ # AI-анализ
+│ └── class-ai-analyzer.php # Анализ через OpenAI API
+│
+├── tables/ # WP_List_Table для админки
+│ ├── class-deals-table.php
+│ ├── class-employees-table.php
+│ ├── class-vehicles-table.php
+│ ├── class-transmissions-table.php
+│ ├── class-leads-table.php
+│ ├── class-parts-table.php
+│ ├── class-oils-table.php
+│ ├── class-parser-table.php
+│ ├── class-users-table.php
+│ └── class-avito-dialogs-table.php
+│
+├── assets/ # Ассеты CRM (админка и фронтенд)
+│ ├── css/
+│ │ ├── admin.css # Стили админки
+│ │ └── frontend.css # Стили фронтенда CRM
+│ └── js/
+│ ├── admin.js
+│ ├── auth.js
+│ ├── chat.js
+│ ├── vin-decoder.js
+│ ├── deal-calculator.js
+│ ├── parser.js
+│ ├── push.js
+│ └── avito-chat.js
+│
+└── templates/ # Шаблоны страниц CRM
+├── dashboard.php # Панель + воронка
+├── deals.php # Список сделок
+├── deal-form.php # Форма создания сделки
+├── employees.php # Список сотрудников
+├── vehicles.php # База авто
+├── transmissions.php # Каталог АКПП
+├── parts.php # Склад
+├── oils.php # Каталог масел
+├── parser.php # Парсер + AI
+├── leads.php # Лиды
+├── chat.php # Чат CRM
+├── avito-dialogs.php # Авито диалоги
+├── avito-settings.php # Настройки Авито
+├── telegram.php # Настройки Telegram
+├── users.php # Пользователи сайта
+└── frontend/ # Шаблоны для сайта
+├── modal-login.php # Модальное окно входа
+├── modal-register.php # Модальное окно регистрации
+├── register.php
+├── login.php
+├── profile.php
+└── chat.php
 ```
 
 ---
