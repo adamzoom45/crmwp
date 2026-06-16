@@ -4,7 +4,7 @@
  * Обрабатывает отправку сообщений из внутреннего чата CRM и клиентского чата на фронтенде.
  *
  * @package AKPP_CRM
- * @version 4.2
+ * @version 4.3
  */
 
 if (!defined('ABSPATH')) {
@@ -29,7 +29,7 @@ class AKPP_Chat_AJAX {
      */
     public function handle_internal_chat_message() {
         // 1. Проверка безопасности (Nonce)
-        check_ajax_referer('akpp_chat_action', 'akpp_chat_nonce_field');
+        check_ajax_referer('akpp_chat_action_nonce', 'nonce');
 
         // 2. Проверка прав доступа
         if (!current_user_can('edit_posts')) {
@@ -42,7 +42,7 @@ class AKPP_Chat_AJAX {
         $user_id      = get_current_user_id();
 
         if (empty($dialog_id) || empty($message_text)) {
-            wp_send_json_error(['message' => __('Некорректные данные: указан диалог и текст сообщения.', 'akpp-crm')], 400);
+            wp_send_json_error(['message' => __('Некорректные данные: укажите диалог и текст сообщения.', 'akpp-crm')], 400);
         }
 
         global $wpdb;
@@ -51,9 +51,11 @@ class AKPP_Chat_AJAX {
 
         try {
             // 4. Сохранение сообщения в локальную БД (как исходящее)
+            // Примечание: avito_message_id = 0, так как мы ещё не получили ID от Авито (или это внутренний чат)
             $wpdb->insert(
                 $messages_table,
                 [
+                    'avito_message_id' => 0, // Будет обновлено при ответе от API, если это Авито
                     'dialog_id'        => $dialog_id,
                     'author_id'        => $user_id, // ID сотрудника CRM
                     'message_text'     => $message_text,
@@ -61,7 +63,7 @@ class AKPP_Chat_AJAX {
                     'created_at'       => current_time('mysql'),
                     'is_read'          => 1
                 ],
-                ['%d', '%d', '%s', '%s', '%s', '%d']
+                ['%d', '%d', '%d', '%s', '%s', '%s', '%d']
             );
             $message_id = $wpdb->insert_id;
 
@@ -69,34 +71,43 @@ class AKPP_Chat_AJAX {
             $wpdb->update(
                 $dialogs_table,
                 [
-                    'last_message_id'      => $message_id,
-                    'last_message_text'    => wp_trim_words($message_text, 15, '...'),
-                    'last_message_date'    => current_time('mysql'),
+                    'last_message_id'        => $message_id,
+                    'last_message_text'      => wp_trim_words($message_text, 15, '...'),
+                    'last_message_date'      => current_time('mysql'),
                     'last_message_direction' => 'outgoing',
-                    'unread_count'         => 0, // Сбрасываем непрочитанные, так как мы сами написали
-                    'updated_at'           => current_time('mysql')
+                    'unread_count'           => 0, // Сбрасываем непрочитанные, так как мы сами написали
+                    'updated_at'             => current_time('mysql')
                 ],
                 ['id' => $dialog_id],
-                [null, null, '%s', '%s', '%d', '%s'],
+                ['%d', '%s', '%s', '%s', '%d', '%s'],
                 ['%d']
             );
 
-            // 6. Отправка сообщения в Авито через API (если класс доступен)
-            if (class_exists('AKPP_Avito_API')) {
-                $avito_api = AKPP_Avito_API::get_instance();
-                
-                // Получаем avito_dialog_id из нашей БД
-                $avito_dialog_id = $wpdb->get_var($wpdb->prepare(
-                    "SELECT avito_dialog_id FROM $dialogs_table WHERE id = %d",
-                    $dialog_id
-                ));
+            // 6. Отправка сообщения в Авито через API (если класс доступен и это диалог Авито)
+            $avito_dialog_id = $wpdb->get_var($wpdb->prepare(
+                "SELECT avito_dialog_id FROM {$dialogs_table} WHERE id = %d AND avito_dialog_id > 0",
+                $dialog_id
+            ));
 
-                if ($avito_dialog_id) {
-                    $api_response = $avito_api->send_message($avito_dialog_id, $message_text, 'text');
-                    
-                    if (is_wp_error($api_response)) {
-                        // Логируем ошибку, но не прерываем сохранение в локальную БД
-                        error_log('[AKPP Chat AJAX] Avito API Send Error: ' . $api_response->get_error_message());
+            if ($avito_dialog_id && class_exists('AKPP_Avito_API')) {
+                // Запускаем в фоне или асинхронно, чтобы не блокировать ответ пользователю
+                // Но для простоты делаем синхронно с таймаутом
+                $avito_api = AKPP_Avito_API::get_instance();
+                $api_response = $avito_api->send_message($avito_dialog_id, $message_text, 'text');
+                
+                if (is_wp_error($api_response)) {
+                    // Логируем ошибку, но не прерываем сохранение в локальную БД
+                    error_log('[AKPP Chat AJAX] Avito API Send Error: ' . $api_response->get_error_message());
+                } else {
+                    // Если API вернул ID сообщения, обновляем нашу запись
+                    if (isset($api_response['id'])) {
+                        $wpdb->update(
+                            $messages_table,
+                            ['avito_message_id' => intval($api_response['id'])],
+                            ['id' => $message_id],
+                            ['%d'],
+                            ['%d']
+                        );
                     }
                 }
             }
@@ -120,7 +131,7 @@ class AKPP_Chat_AJAX {
      */
     public function handle_frontend_chat_message() {
         // 1. Проверка безопасности
-        check_ajax_referer('akpp_frontend_chat_action', 'akpp_frontend_chat_nonce_field');
+        check_ajax_referer('akpp_frontend_chat_action', 'nonce');
 
         // 2. Проверка авторизации
         if (!is_user_logged_in()) {
@@ -148,15 +159,16 @@ class AKPP_Chat_AJAX {
                     'sender_id'    => $user_id,
                     'sender_name'  => $current_user->display_name,
                     'message_text' => $message_text,
-                    'created_at'   => current_time('mysql'),
-                    'is_read'      => 0 // Менеджер ещё не прочитал
+                    'is_read'      => 0, // Менеджер ещё не прочитал
+                    'dialog_id'    => 0, // Можно привязать к конкретному диалогу, если есть логика
+                    'created_at'   => current_time('mysql')
                 ],
-                ['%d', '%d', '%s', '%s', '%s', '%d']
+                ['%d', '%d', '%s', '%s', '%d', '%d', '%s']
             );
             $message_id = $wpdb->insert_id;
 
             // 5. (Опционально) Здесь можно добавить отправку уведомления менеджеру в Telegram
-            // do_action('akpp_frontend_new_message', $user_id, $message_text);
+            // do_action('akpp_frontend_new_message', $user_id, $message_text, $message_id);
 
             // 6. Успешный ответ
             wp_send_json_success([
