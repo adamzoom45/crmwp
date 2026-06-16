@@ -401,4 +401,15 @@ function akpp45_custom_404() {
 }
 add_action('template_redirect', 'akpp45_custom_404');
 
-// Конец файла functions.php
+// ============================================================
+// РЕГИСТРАЦИЯ CRON ИНТЕРВАЛОВ
+// ============================================================
+
+add_filter('cron_schedules', function($schedules) {
+    $schedules['every_five_minutes'] = [
+        'interval' => 300,
+        'display' => 'Каждые 5 минут'
+    ];
+    return $schedules;
+});
+?>
