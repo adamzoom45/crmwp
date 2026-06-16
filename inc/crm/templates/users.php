@@ -11,7 +11,7 @@ $query = "
     ORDER BY su.id DESC
 ";
 
-$users = $wpdb->get_results($query, ARRAY_A);
+$users = $wpdb->get_results("SELECT * FROM {$wpdb->prefix}akpp_site_users ORDER BY id DESC");
 
 ?>
 
