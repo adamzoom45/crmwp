@@ -4,7 +4,7 @@
  * Принимает, валидирует и сохраняет входящие сообщения через REST API.
  *
  * @package AKPP_CRM
- * @version 4.2
+ * @version 4.3
  */
 
 if (!defined('ABSPATH')) {
@@ -14,10 +14,9 @@ if (!defined('ABSPATH')) {
 class AKPP_Avito_Webhook {
 
     /**
-     * Конструктор
+     * Конструктор: регистрация REST маршрута
      */
     public function __construct() {
-        // Регистрация REST маршрута при инициализации REST API
         add_action('rest_api_init', [$this, 'register_webhook_route']);
     }
 
@@ -33,7 +32,7 @@ class AKPP_Avito_Webhook {
                 'type'   => [
                     'required'          => true,
                     'validate_callback' => function($param) {
-                        return in_array($param, ['message.created', 'message.updated', 'dialog.created']);
+                        return in_array($param, ['message.created', 'message.updated', 'dialog.created'], true);
                     }
                 ],
                 'object' => [
@@ -53,6 +52,7 @@ class AKPP_Avito_Webhook {
     public function handle_incoming_webhook($request) {
         $data = $request->get_json_params();
         
+        // 1. Базовая валидация структуры
         if (empty($data) || empty($data['type']) || empty($data['object'])) {
             return new WP_REST_Response(['error' => 'Invalid payload structure'], 400);
         }
@@ -60,27 +60,26 @@ class AKPP_Avito_Webhook {
         $type   = sanitize_text_field($data['type']);
         $object = $data['object'];
 
-        // Логируем входящий запрос для отладки (опционально)
-        error_log('[AKPP Avito Webhook] Received: ' . $type);
-
         try {
+            // 2. Маршрутизация по типу события
             if ($type === 'message.created' || $type === 'message.updated') {
                 $this->process_message($object);
             } elseif ($type === 'dialog.created') {
                 $this->process_new_dialog($object);
             }
 
-            // Авито ожидает быстрый ответ 200 OK, иначе будет повторять запрос
+            // 3. КРИТИЧЕСКИ ВАЖНО: Быстрый ответ 200 OK, чтобы Авито не делал ретраи
             return new WP_REST_Response(['success' => true, 'message' => 'Webhook processed'], 200);
 
         } catch (Exception $e) {
-            error_log('[AKPP Avito Webhook] Error: ' . $e->getMessage());
-            return new WP_REST_Response(['error' => 'Internal server error'], 500);
+            // Логируем ошибку, но всё равно возвращаем 200, чтобы остановить цикл ретраев Авито
+            error_log('[AKPP Avito Webhook] Exception: ' . $e->getMessage());
+            return new WP_REST_Response(['success' => true, 'message' => 'Logged error, but accepted'], 200);
         }
     }
 
     /**
-     * Обработка нового сообщения
+     * Обработка нового или обновленного сообщения
      *
      * @param array $message_data Данные сообщения от Авито
      */
@@ -90,114 +89,129 @@ class AKPP_Avito_Webhook {
         $messages_table = $wpdb->prefix . 'akpp_avito_messages_cache';
         $dialogs_table  = $wpdb->prefix . 'akpp_avito_dialogs';
 
-        $avito_message_id = intval($message_data['id']);
-        $dialog_id        = intval($message_data['dialog_id']);
-        $author_id        = intval($message_data['author_id']);
+        $avito_message_id = intval($message_data['id'] ?? 0);
+        $avito_dialog_id  = intval($message_data['dialog_id'] ?? 0);
+        $author_id        = intval($message_data['author_id'] ?? 0);
         $text             = sanitize_textarea_field($message_data['text'] ?? '');
         $created_at       = sanitize_text_field($message_data['created_at'] ?? current_time('mysql'));
-        $direction        = ($author_id > 0) ? 'incoming' : 'outgoing'; // Упрощённая логика: если author_id есть, это клиент
 
-        // 1. Сохраняем или обновляем сообщение в кэше
-        // Используем REPLACE INTO или проверку на существование, чтобы избежать дублей при повторных webhook
-        $existing_msg = $wpdb->get_var($wpdb->prepare(
-            "SELECT id FROM $messages_table WHERE avito_message_id = %d",
+        if (!$avito_message_id || !$avito_dialog_id) {
+            throw new Exception('Missing message_id or dialog_id in webhook payload');
+        }
+
+        // 1. ИДЕМПОТЕНТНОСТЬ: Проверка на дубликат
+        $exists = $wpdb->get_var($wpdb->prepare(
+            "SELECT id FROM {$messages_table} WHERE avito_message_id = %d",
             $avito_message_id
         ));
 
-        if (!$existing_msg) {
-            $wpdb->insert(
-                $messages_table,
-                [
-                    'avito_message_id' => $avito_message_id,
-                    'dialog_id'        => $dialog_id,
-                    'author_id'        => $author_id,
-                    'message_text'     => $text,
-                    'direction'        => $direction,
-                    'created_at'       => $created_at,
-                    'is_read'          => ($direction === 'incoming') ? 0 : 1
-                ],
-                ['%d', '%d', '%d', '%s', '%s', '%s', '%d']
-            );
+        if ($exists) {
+            return; // Сообщение уже обработано, выходим тихо
         }
 
-        // 2. Обновляем сводку диалога (последнее сообщение, время, счётчик непрочитанных)
-        $update_data = [
-            'last_message_id'   => $avito_message_id,
-            'last_message_text' => wp_trim_words($text, 15, '...'),
-            'last_message_date' => $created_at,
-            'last_message_direction' => $direction,
-            'updated_at'        => current_time('mysql')
-        ];
+        // 2. Определение направления (если author_id не наш сотрудник, считаем входящим)
+        // В упрощенном виде: если это webhook от Авито, обычно это входящее от клиента
+        $direction = 'incoming'; 
 
-        // Если сообщение входящее, увеличиваем счётчик непрочитанных
-        if ($direction === 'incoming') {
-            // Получаем текущий счётчик
-            $current_unread = (int) $wpdb->get_var($wpdb->prepare(
-                "SELECT unread_count FROM $dialogs_table WHERE avito_dialog_id = %d",
-                $dialog_id
-            ));
-            $update_data['unread_count'] = $current_unread + 1;
-        }
+        // 3. Сохранение сообщения в кэш
+        $wpdb->insert(
+            $messages_table,
+            [
+                'avito_message_id' => $avito_message_id,
+                'dialog_id'        => $avito_dialog_id, // Связь по avito_dialog_id (будет обновлена ниже при наличии локального ID)
+                'author_id'        => $author_id,
+                'message_text'     => $text,
+                'direction'        => $direction,
+                'created_at'       => $created_at,
+                'is_read'          => 0
+            ],
+            ['%d', '%d', '%d', '%s', '%s', '%s', '%d']
+        );
 
-        // Обновляем или создаём запись диалога, если её вдруг нет
-        $dialog_exists = $wpdb->get_var($wpdb->prepare(
-            "SELECT id FROM $dialogs_table WHERE avito_dialog_id = %d",
-            $dialog_id
-        ));
+        // 4. Обновление сводки диалога
+        // Сначала находим наш внутренний ID диалога по avito_dialog_id
+        $local_dialog = $wpdb->get_row($wpdb->prepare(
+            "SELECT id, unread_count FROM {$dialogs_table} WHERE avito_dialog_id = %d",
+            $avito_dialog_id
+        ), ARRAY_A);
 
-        if ($dialog_exists) {
+        if ($local_dialog) {
+            $new_unread_count = $direction === 'incoming' ? (intval($local_dialog['unread_count']) + 1) : 0;
+            
             $wpdb->update(
                 $dialogs_table,
-                $update_data,
-                ['avito_dialog_id' => $dialog_id],
-                null, // Форматы update
+                [
+                    'last_message_id'        => $avito_message_id,
+                    'last_message_text'      => wp_trim_words($text, 15, '...'),
+                    'last_message_date'      => $created_at,
+                    'last_message_direction' => $direction,
+                    'unread_count'           => $new_unread_count,
+                    'updated_at'             => current_time('mysql')
+                ],
+                ['id' => $local_dialog['id']],
+                ['%d', '%s', '%s', '%s', '%d', '%s'],
                 ['%d']
             );
         } else {
-            // Fallback: если диалог ещё не создан в нашей БД, создаём базовую запись
-            $update_data['avito_dialog_id'] = $dialog_id;
-            $update_data['client_id']       = $author_id;
-            $update_data['client_name']     = 'Клиент Авито #' . $author_id;
-            $update_data['status']          = 'active';
-            $update_data['created_at']      = current_time('mysql');
-            
-            $wpdb->insert($dialogs_table, $update_data);
+            // Fallback: Если диалог пришел раньше, чем мы его создали, создаем базовую запись
+            $wpdb->insert(
+                $dialogs_table,
+                [
+                    'avito_dialog_id'        => $avito_dialog_id,
+                    'client_id'              => $author_id,
+                    'client_name'            => 'Клиент Авито #' . $author_id,
+                    'status'                 => 'active',
+                    'unread_count'           => ($direction === 'incoming' ? 1 : 0),
+                    'last_message_id'        => $avito_message_id,
+                    'last_message_text'      => wp_trim_words($text, 15, '...'),
+                    'last_message_date'      => $created_at,
+                    'last_message_direction' => $direction,
+                    'created_at'             => current_time('mysql'),
+                    'updated_at'             => current_time('mysql')
+                ],
+                ['%d', '%d', '%s', '%s', '%d', '%d', '%s', '%s', '%s', '%s', '%s']
+            );
         }
-
-        // 3. (Опционально) Здесь можно добавить триггер отправки Push/Telegram уведомления менеджеру
-        // do_action('akpp_avito_new_message_received', $dialog_id, $text, $author_id);
     }
 
     /**
-     * Обработка создания нового диалога (заглушка для будущей реализации)
+     * Обработка создания нового диалога
      *
-     * @param array $dialog_data
+     * @param array $dialog_data Данные диалога от Авито
      */
     private function process_new_dialog($dialog_data) {
         global $wpdb;
         $dialogs_table = $wpdb->prefix . 'akpp_avito_dialogs';
         
-        $dialog_id = intval($dialog_data['id']);
-        
-        // Проверяем, нет ли уже такого диалога
+        $avito_dialog_id = intval($dialog_data['id'] ?? 0);
+        if (!$avito_dialog_id) {
+            return;
+        }
+
+        // Проверка на существование
         $exists = $wpdb->get_var($wpdb->prepare(
-            "SELECT id FROM $dialogs_table WHERE avito_dialog_id = %d",
-            $dialog_id
+            "SELECT id FROM {$dialogs_table} WHERE avito_dialog_id = %d",
+            $avito_dialog_id
         ));
 
         if (!$exists) {
+            $client_id = intval($dialog_data['user']['id'] ?? 0);
+            $client_name = sanitize_text_field($dialog_data['user']['name'] ?? 'Неизвестный клиент');
+            $item_id = intval($dialog_data['item']['id'] ?? 0);
+
             $wpdb->insert(
                 $dialogs_table,
                 [
-                    'avito_dialog_id' => $dialog_id,
-                    'client_id'       => intval($dialog_data['user_id'] ?? 0),
-                    'client_name'     => sanitize_text_field($dialog_data['user_name'] ?? 'Неизвестный клиент'),
+                    'avito_dialog_id' => $avito_dialog_id,
+                    'avito_item_id'   => $item_id,
+                    'client_id'       => $client_id,
+                    'client_name'     => $client_name,
                     'status'          => 'active',
                     'unread_count'    => 0,
                     'created_at'      => current_time('mysql'),
                     'updated_at'      => current_time('mysql')
                 ],
-                ['%d', '%d', '%s', '%s', '%d', '%s', '%s']
+                ['%d', '%d', '%d', '%s', '%s', '%d', '%s', '%s']
             );
         }
     }
