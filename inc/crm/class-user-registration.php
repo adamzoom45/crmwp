@@ -4,7 +4,7 @@
  * Валидация, создание пользователя WP, запись в кастомную таблицу и отправка email.
  *
  * @package AKPP_CRM
- * @version 4.2
+ * @version 4.3
  */
 
 if (!defined('ABSPATH')) {
@@ -31,6 +31,7 @@ class AKPP_User_Registration {
         check_ajax_referer('akpp_registration_nonce', 'security_nonce');
 
         // 2. Защита от спама (Honeypot)
+        // Если бот заполнил скрытое поле, молча прерываем выполнение
         if (!empty($_POST['website_check'])) {
             wp_send_json_error(['message' => __('Обнаружен спам.', 'akpp-crm')], 403);
         }
@@ -66,7 +67,7 @@ class AKPP_User_Registration {
 
         // 6. Проверка на уникальность Телефона в нашей таблице
         $phone_exists = $wpdb->get_var($wpdb->prepare(
-            "SELECT id FROM $site_users_table WHERE phone = %s",
+            "SELECT id FROM {$site_users_table} WHERE phone = %s",
             $clean_phone
         ));
         if ($phone_exists) {
@@ -74,7 +75,7 @@ class AKPP_User_Registration {
         }
 
         try {
-            // 7. Генерация безопасного пароля (12 символов)
+            // 7. Генерация безопасного пароля (12 символов, буквы и цифры)
             $generated_password = wp_generate_password(12, true, true);
 
             // 8. Создание пользователя в WordPress
@@ -94,18 +95,22 @@ class AKPP_User_Registration {
             }
 
             // 9. Сохранение дополнительных данных в кастомную таблицу
-            $wpdb->insert(
+            $insert_result = $wpdb->insert(
                 $site_users_table,
                 [
-                    'wp_user_id'   => $user_id,
-                    'full_name'    => $full_name,
-                    'phone'        => $clean_phone,
-                    'car_info'     => $car_info,
-                    'registered_at'=> current_time('mysql'),
-                    'status'       => 'active'
+                    'wp_user_id'    => $user_id,
+                    'full_name'     => $full_name,
+                    'phone'         => $clean_phone,
+                    'car_info'      => $car_info,
+                    'status'        => 'active',
+                    'registered_at' => current_time('mysql')
                 ],
                 ['%d', '%s', '%s', '%s', '%s', '%s']
             );
+
+            if ($insert_result === false) {
+                throw new Exception('Ошибка записи в таблицу клиентов: ' . $wpdb->last_error);
+            }
 
             // 10. Отправка приветственного письма
             $this->send_welcome_email($user_id, $email, $full_name, $generated_password);
@@ -113,7 +118,7 @@ class AKPP_User_Registration {
             // 11. Успешный ответ
             wp_send_json_success([
                 'message' => __('Регистрация успешно завершена! Данные для входа отправлены на ваш Email.', 'akpp-crm'),
-                'redirect_url' => get_permalink(get_page_by_path('login')) // Замените на ваш slug страницы входа
+                'redirect_url' => home_url('/login/') // Замените на ваш реальный slug страницы входа, если он другой
             ]);
 
         } catch (Exception $e) {
@@ -121,10 +126,11 @@ class AKPP_User_Registration {
             
             // Откат: если пользователь создан, но запись в кастомную таблицу не прошла, удаляем пользователя
             if (isset($user_id) && !is_wp_error($user_id)) {
+                require_once(ABSPATH . 'wp-admin/includes/user.php');
                 wp_delete_user($user_id);
             }
             
-            wp_send_json_error(['message' => __('Произошла ошибка при регистрации. Попробуйте позже.', 'akpp-crm')], 500);
+            wp_send_json_error(['message' => __('Произошла ошибка при регистрации. Попробуйте позже или свяжитесь с поддержкой.', 'akpp-crm')], 500);
         }
     }
 
@@ -147,7 +153,10 @@ class AKPP_User_Registration {
             $site_name
         );
 
-        $headers = ['Content-Type: text/plain; charset=UTF-8'];
+        $headers = [
+            'Content-Type: text/plain; charset=UTF-8',
+            'From: ' . $site_name . ' <' . get_option('admin_email') . '>'
+        ];
 
         // Отправка письма
         $sent = wp_mail($email, $subject, $message, $headers);
