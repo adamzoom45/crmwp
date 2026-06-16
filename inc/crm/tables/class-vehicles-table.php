@@ -1,0 +1,345 @@
+<?php
+/**
+ * Класс для таблицы автомобилей в админке
+ * 
+ * @package AKPP45_CRM
+ */
+
+if (!defined('ABSPATH')) {
+    exit;
+}
+
+if (!class_exists('WP_List_Table')) {
+    require_once ABSPATH . 'wp-admin/includes/class-wp-list-table.php';
+}
+
+class AKPP_Vehicles_Table extends WP_List_Table {
+    
+    private $table_name;
+    
+    public function __construct() {
+        parent::__construct([
+            'singular' => 'vehicle',
+            'plural' => 'vehicles',
+            'ajax' => false
+        ]);
+        
+        global $wpdb;
+        $this->table_name = $wpdb->prefix . 'akpp_vehicles';
+    }
+    
+    /**
+     * Получение данных для таблицы
+     */
+    public function prepare_items() {
+        global $wpdb;
+        
+        $per_page = 20;
+        $current_page = $this->get_pagenum();
+        $offset = ($current_page - 1) * $per_page;
+        
+        // Фильтры
+        $market_filter = isset($_GET['market_filter']) ? sanitize_text_field($_GET['market_filter']) : 'all';
+        $search = isset($_GET['s']) ? sanitize_text_field($_GET['search']) : '';
+        
+        // Построение WHERE
+        $where = [];
+        $params = [];
+        
+        if ($market_filter !== 'all') {
+            $where[] = "market = %s";
+            $params[] = $market_filter;
+        }
+        
+        if (!empty($search)) {
+            $where[] = "(make LIKE '%%%s%%' OR model LIKE '%%%s%%' OR vin LIKE '%%%s%%')";
+            $params[] = $search;
+            $params[] = $search;
+            $params[] = $search;
+        }
+        
+        $where_clause = !empty($where) ? "WHERE " . implode(" AND ", $where) : "";
+        
+        // Сортировка
+        $orderby = isset($_GET['orderby']) ? sanitize_sql_orderby($_GET['orderby']) : 'make';
+        $order = isset($_GET['order']) && strtoupper($_GET['order']) === 'ASC' ? 'ASC' : 'DESC';
+        
+        // Получение общего количества
+        $count_query = "SELECT COUNT(*) FROM {$this->table_name} {$where_clause}";
+        if (!empty($params)) {
+            $count_query = $wpdb->prepare($count_query, $params);
+        }
+        $total_items = $wpdb->get_var($count_query);
+        
+        // Получение данных
+        $query = "SELECT * FROM {$this->table_name} {$where_clause} ORDER BY {$orderby} {$order} LIMIT %d OFFSET %d";
+        $params[] = $per_page;
+        $params[] = $offset;
+        
+        $query = $wpdb->prepare($query, $params);
+        $this->items = $wpdb->get_results($query);
+        
+        // Настройка пагинации
+        $this->set_pagination_args([
+            'total_items' => $total_items,
+            'per_page' => $per_page,
+            'total_pages' => ceil($total_items / $per_page)
+        ]);
+        
+        $this->process_bulk_action();
+    }
+    
+    /**
+     * Определение колонок
+     */
+    public function get_columns() {
+        return [
+            'cb' => '<input type="checkbox" />',
+            'id' => 'ID',
+            'vin' => 'VIN',
+            'make' => 'Марка',
+            'model' => 'Модель',
+            'year' => 'Год',
+            'engine' => 'Двигатель',
+            'market' => 'Рынок',
+            'created_at' => 'Дата',
+            'actions' => 'Действия'
+        ];
+    }
+    
+    /**
+     * Сортируемые колонки
+     */
+    public function get_sortable_columns() {
+        return [
+            'id' => ['id', false],
+            'make' => ['make', true],
+            'model' => ['model', false],
+            'year' => ['year', false],
+            'market' => ['market', false],
+            'created_at' => ['created_at', true]
+        ];
+    }
+    
+    /**
+     * Массовые действия
+     */
+    public function get_bulk_actions() {
+        return [
+            'delete' => 'Удалить',
+            'export' => 'Экспорт в CSV'
+        ];
+    }
+    
+    /**
+     * Обработка массовых действий
+     */
+    public function process_bulk_action() {
+        global $wpdb;
+        
+        if (!$this->current_action()) return;
+        
+        $vehicle_ids = isset($_GET['vehicle']) ? array_map('intval', $_GET['vehicle']) : [];
+        
+        if (empty($vehicle_ids)) return;
+        
+        $ids_placeholder = implode(',', array_fill(0, count($vehicle_ids), '%d'));
+        
+        switch ($this->current_action()) {
+            case 'delete':
+                $wpdb->query($wpdb->prepare(
+                    "DELETE FROM {$this->table_name} WHERE id IN ({$ids_placeholder})",
+                    $vehicle_ids
+                ));
+                echo '<div class="notice notice-success"><p>Автомобили удалены</p></div>';
+                break;
+                
+            case 'export':
+                $this->export_to_csv($vehicle_ids);
+                break;
+        }
+    }
+    
+    /**
+     * Экспорт в CSV
+     */
+    private function export_to_csv($ids) {
+        global $wpdb;
+        
+        $ids_placeholder = implode(',', array_fill(0, count($ids), '%d'));
+        $vehicles = $wpdb->get_results($wpdb->prepare(
+            "SELECT * FROM {$this->table_name} WHERE id IN ({$ids_placeholder})",
+            $ids
+        ));
+        
+        header('Content-Type: text/csv; charset=utf-8');
+        header('Content-Disposition: attachment; filename="vehicles_export_' . date('Y-m-d') . '.csv"');
+        
+        $output = fopen('php://output', 'w');
+        fputcsv($output, ['ID', 'VIN', 'Марка', 'Модель', 'Год', 'Двигатель', 'Привод', 'Рынок', 'Дата создания']);
+        
+        foreach ($vehicles as $vehicle) {
+            fputcsv($output, [
+                $vehicle->id,
+                $vehicle->vin,
+                $vehicle->make,
+                $vehicle->model,
+                $vehicle->year,
+                $vehicle->engine,
+                $vehicle->drive_type,
+                $vehicle->market,
+                $vehicle->created_at
+            ]);
+        }
+        
+        fclose($output);
+        exit;
+    }
+    
+    /**
+     * Отображение колонки cb (чекбокс)
+     */
+    protected function column_cb($item) {
+        return sprintf('<input type="checkbox" name="vehicle[]" value="%s" />', $item->id);
+    }
+    
+    /**
+     * Отображение колонки ID
+     */
+    protected function column_id($item) {
+        return $item->id;
+    }
+    
+    /**
+     * Отображение колонки VIN
+     */
+    protected function column_vin($item) {
+        if ($item->vin) {
+            return sprintf(
+                '<code>%s</code>',
+                esc_html($item->vin)
+            );
+        }
+        return '—';
+    }
+    
+    /**
+     * Отображение колонки марки
+     */
+    protected function column_make($item) {
+        return '<strong>' . esc_html($item->make) . '</strong>';
+    }
+    
+    /**
+     * Отображение колонки модели
+     */
+    protected function column_model($item) {
+        return esc_html($item->model);
+    }
+    
+    /**
+     * Отображение колонки года
+     */
+    protected function column_year($item) {
+        return $item->year ?: '—';
+    }
+    
+    /**
+     * Отображение колонки двигателя
+     */
+    protected function column_engine($item) {
+        $engine = '';
+        if ($item->engine_cylinders) {
+            $engine .= $item->engine_cylinders . ' cyl. ';
+        }
+        if ($item->engine_model) {
+            $engine .= $item->engine_model;
+        }
+        if ($item->fuel_type) {
+            $engine .= ' (' . $item->fuel_type . ')';
+        }
+        
+        return !empty($engine) ? $engine : '—';
+    }
+    
+    /**
+     * Отображение колонки рынка
+     */
+    protected function column_market($item) {
+        $markets = [
+            'japan' => ['label' => '🇯🇵 Япония', 'class' => 'market-japan'],
+            'asia' => ['label' => '🌏 Азия', 'class' => 'market-asia'],
+            'europe' => ['label' => '🇪🇺 Европа', 'class' => 'market-europe'],
+            'usa' => ['label' => '🇺🇸 США', 'class' => 'market-usa']
+        ];
+        
+        $market = $markets[$item->market] ?? ['label' => $item->market, 'class' => ''];
+        
+        return sprintf(
+            '<span class="market-badge %s">%s</span>',
+            esc_attr($market['class']),
+            esc_html($market['label'])
+        );
+    }
+    
+    /**
+     * Отображение колонки даты
+     */
+    protected function column_created_at($item) {
+        return date_i18n(get_option('date_format'), strtotime($item->created_at));
+    }
+    
+    /**
+     * Отображение колонки действий
+     */
+    protected function column_actions($item) {
+        $actions = sprintf(
+            '<a href="?page=akpp-crm-vehicles&action=edit&id=%d" class="button button-small">✏️ Ред.</a> ',
+            $item->id
+        );
+        
+        $actions .= sprintf(
+            '<button class="button button-small delete-vehicle" data-id="%d">🗑️</button>',
+            $item->id
+        );
+        
+        return $actions;
+    }
+    
+    /**
+     * Отображение по умолчанию для неизвестных колонок
+     */
+    protected function column_default($item, $column_name) {
+        return isset($item->$column_name) ? esc_html($item->$column_name) : '—';
+    }
+    
+    /**
+     * Фильтры над таблицей
+     */
+    protected function extra_tablenav($which) {
+        if ($which !== 'top') return;
+        
+        $market_filter = isset($_GET['market_filter']) ? sanitize_text_field($_GET['market_filter']) : 'all';
+        ?>
+        <div class="alignleft actions">
+            <select name="market_filter">
+                <option value="all" <?php selected($market_filter, 'all'); ?>>Все рынки</option>
+                <option value="japan" <?php selected($market_filter, 'japan'); ?>>🇯🇵 Япония</option>
+                <option value="asia" <?php selected($market_filter, 'asia'); ?>>🌏 Азия</option>
+                <option value="europe" <?php selected($market_filter, 'europe'); ?>>🇪🇺 Европа</option>
+                <option value="usa" <?php selected($market_filter, 'usa'); ?>>🇺🇸 США</option>
+            </select>
+            
+            <input type="submit" name="filter_action" class="button" value="Фильтровать">
+            <a href="?page=akpp-crm-vehicles&action=add" class="button button-primary">➕ Добавить автомобиль</a>
+        </div>
+        <?php
+    }
+    
+    /**
+     * Отображение, если нет данных
+     */
+    public function no_items() {
+        echo 'Нет автомобилей для отображения';
+    }
+}
