@@ -1,233 +1,473 @@
 <?php
 /**
- * АКПП45 - Функции темы и подключение CRM
+ * АКПП Курган - Theme Functions
+ * Корень репозитория = тема WordPress
  *
  * @package AKPP45
- * @version 4.3
+ * @version 5.0.0
  */
 
 if (!defined('ABSPATH')) {
-    exit;
+    exit; // Защита от прямого доступа
 }
 
 // =============================================================================
-// ПОДКЛЮЧЕНИЕ CRM СИСТЕМЫ
+// КОНСТАНТЫ ТЕМЫ
 // =============================================================================
-require_once get_template_directory() . '/inc/crm/class-akpp-crm.php';
-
-// Инициализация CRM после загрузки темы
-add_action('after_setup_theme', function() {
-    if (class_exists('AKPP_CRM')) {
-        AKPP_CRM::get_instance();
-    }
-});
+define('AKPP_THEME_VERSION', '5.0.0');
+define('AKPP_THEME_DIR', get_template_directory());
+define('AKPP_THEME_URI', get_template_directory_uri());
+define('AKPP_CRM_DIR', AKPP_THEME_DIR . '/inc/crm');
+define('AKPP_CRM_URI', AKPP_THEME_URI . '/inc/crm');
 
 // =============================================================================
-// ПОДКЛЮЧЕНИЕ СТИЛЕЙ И СКРИПТОВ
+// 1. ПОДКЛЮЧЕНИЕ CRM СИСТЕМЫ (КРИТИЧЕСКИ ВАЖНО!)
 // =============================================================================
-function akpp45_enqueue_assets() {
-    $theme_uri = get_template_directory_uri();
-    $theme_dir = get_template_directory();
-    
-    // CSS
-    wp_enqueue_style('akpp-style', get_stylesheet_uri(), [], '4.3.0');
-    wp_enqueue_style('akpp-admin', $theme_uri . '/assets/css/admin.css', [], '4.3.0');
-    wp_enqueue_style('akpp-frontend', $theme_uri . '/assets/css/frontend.css', [], '4.3.0');
-    
-    // JS (все из корня темы /assets/js/)
-    wp_enqueue_script('jquery');
-    wp_enqueue_script('akpp-admin', $theme_uri . '/assets/js/admin.js', ['jquery'], '4.3.0', true);
-    wp_enqueue_script('akpp-auth', $theme_uri . '/assets/js/auth.js', ['jquery'], '4.3.0', true);
-    wp_enqueue_script('akpp-deal-calculator', $theme_uri . '/assets/js/deal-calculator.js', ['jquery'], '4.3.0', true);
-    wp_enqueue_script('akpp-vin-decoder', $theme_uri . '/assets/js/vin-decoder.js', ['jquery'], '4.3.0', true);
-    wp_enqueue_script('akpp-chat', $theme_uri . '/assets/js/chat.js', ['jquery'], '4.3.0', true);
-    
-    // Локализация для JS
-    wp_localize_script('akpp-admin', 'akpp_ajax', [
-        'url' => admin_url('admin-ajax.php'),
-        'nonce' => wp_create_nonce('akpp_ajax_nonce')
-    ]);
-    
-    wp_localize_script('akpp-deal-calculator', 'akpp_deal', [
-        'ajax_url' => admin_url('admin-ajax.php'),
-        'nonce' => wp_create_nonce('akpp_save_deal_nonce')
-    ]);
-    
-    wp_localize_script('akpp-vin-decoder', 'akpp_vin_decoder_config', [
-        'ajax_url' => admin_url('admin-ajax.php'),
-        'nonce' => wp_create_nonce('akpp_vin_decode_nonce')
-    ]);
-    
-    wp_localize_script('akpp-chat', 'akpp_chat_config', [
-        'ajax_url' => admin_url('admin-ajax.php'),
-        'nonce' => wp_create_nonce('akpp_chat_action_nonce'),
-        'strings' => [
-            'sending' => 'Отправка...',
-            'error' => 'Ошибка отправки сообщения'
-        ]
-    ]);
-}
-add_action('wp_enqueue_scripts', 'akpp45_enqueue_assets');
-add_action('admin_enqueue_scripts', 'akpp45_enqueue_assets');
 
-// =============================================================================
-// ВИДЖЕТ CRM НА ДАШБОРДЕ WORDPRESS
-// =============================================================================
-function akpp45_render_dashboard_widget() {
-    global $wpdb;
-    
-    // Получаем статистику из БД
-    $deals_table = $wpdb->prefix . 'akpp_deals';
-    $leads_table = $wpdb->prefix . 'akpp_leads';
-    $parts_table = $wpdb->prefix . 'akpp_parts';
-    
-    // Проверяем существование таблиц
-    $deals_count = 0;
-    $leads_count = 0;
-    $parts_low = 0;
-    
-    if ($wpdb->get_var("SHOW TABLES LIKE '{$deals_table}'") == $deals_table) {
-        $deals_count = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$deals_table} WHERE status IN ('new', 'in_work')");
+// Функция безопасного подключения файла
+function akpp_require_file($file) {
+    if (file_exists($file)) {
+        require_once $file;
+        return true;
     }
-    
-    if ($wpdb->get_var("SHOW TABLES LIKE '{$leads_table}'") == $leads_table) {
-        $leads_count = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$leads_table} WHERE status = 'new'");
-    }
-    
-    if ($wpdb->get_var("SHOW TABLES LIKE '{$parts_table}'") == $parts_table) {
-        $parts_low = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$parts_table} WHERE quantity < 5");
-    }
-    
-    // Вывод виджета
-    echo '<div class="akpp-dashboard-widget" style="padding: 15px; background: #f9f9f9; border-left: 4px solid #00ff88;">';
-    echo '<h3 style="margin: 0 0 15px 0; color: #1d2327;">🚗 АКПП45 CRM</h3>';
-    echo '<p style="margin: 8px 0;"><strong>📊 Активных сделок:</strong> ' . $deals_count . '</p>';
-    echo '<p style="margin: 8px 0;"><strong>🆕 Новых лидов:</strong> ' . $leads_count . '</p>';
-    echo '<p style="margin: 8px 0;"><strong>⚠️ Запчастей мало:</strong> ' . $parts_low . '</p>';
-    echo '<p style="margin: 15px 0 0 0;">';
-    echo '<a href="' . admin_url('admin.php?page=akpp-crm-dashboard') . '" class="button button-primary" style="background: #00ff88; border-color: #00cc6a; color: #0a0f1c;">Перейти в CRM</a>';
-    echo '</p>';
-    echo '</div>';
+    error_log('[AKPP45] Файл не найден: ' . $file);
+    return false;
 }
 
-function akpp45_add_dashboard_widget() {
-    wp_add_dashboard_widget(
-        'akpp45_crm_widget',
-        'АКПП45 CRM Статистика',
-        'akpp45_render_dashboard_widget'
+// Подключение главного класса CRM
+$crm_main_file = AKPP_CRM_DIR . '/class-akpp-crm.php';
+
+if (file_exists($crm_main_file)) {
+    require_once $crm_main_file;
+    
+    // Инициализация CRM после загрузки темы
+    add_action('after_setup_theme', function() {
+        if (class_exists('AKPP_CRM')) {
+            try {
+                AKPP_CRM::get_instance();
+            } catch (Exception $e) {
+                error_log('[AKPP45 CRM] Ошибка инициализации: ' . $e->getMessage());
+            }
+        }
+    }, 5); // Приоритет 5 - загружаем раньше других хуков
+} else {
+    error_log('[AKPP45] КРИТИЧЕСКАЯ ОШИБКА: class-akpp-crm.php не найден в ' . $crm_main_file);
+    
+    // Аварийное восстановление меню CRM
+    add_action('admin_menu', 'akpp_emergency_crm_menu', 1);
+}
+
+// Аварийное меню на случай если CRM не загрузилась
+function akpp_emergency_crm_menu() {
+    add_menu_page(
+        'АКПП CRM',
+        'АКПП CRM',
+        'manage_options',
+        'akpp-crm-dashboard',
+        function() {
+            echo '<div class="wrap">';
+            echo '<h1>⚠️ АКПП CRM - Режим восстановления</h1>';
+            echo '<p>Главный класс CRM не загружен. Проверьте файл: <code>inc/crm/class-akpp-crm.php</code></p>';
+            echo '<p>Путь: <code>' . AKPP_CRM_DIR . '/class-akpp-crm.php</code></p>';
+            echo '</div>';
+        },
+        'dashicons-warning',
+        30
     );
 }
-add_action('wp_dashboard_setup', 'akpp45_add_dashboard_widget');
 
 // =============================================================================
-// ПОДДЕРЖКА ТЕМЫ
+// 2. THEME SETUP
 // =============================================================================
+
 function akpp45_theme_setup() {
-    // Поддержка заголовков
+    // RSS feeds
+    add_theme_support('automatic-feed-links');
+    
+    // Title tag
     add_theme_support('title-tag');
     
-    // Поддержка миниатюр
+    // Post thumbnails
     add_theme_support('post-thumbnails');
     
-    // Регистрация меню
-    register_nav_menus([
-        'primary' => __('Главное меню', 'akpp45'),
-        'footer' => __('Меню в подвале', 'akpp45')
-    ]);
-    
-    // HTML5 поддержка
+    // HTML5 support
     add_theme_support('html5', [
         'search-form',
         'comment-form',
         'comment-list',
         'gallery',
-        'caption'
+        'caption',
+        'style',
+        'script',
+    ]);
+    
+    // Custom logo
+    add_theme_support('custom-logo', [
+        'height'      => 100,
+        'width'       => 300,
+        'flex-width'  => true,
+        'flex-height' => true,
+    ]);
+    
+    // Responsive embeds
+    add_theme_support('responsive-embeds');
+    
+    // Custom background
+    add_theme_support('custom-background', [
+        'default-color' => '0a0f1c',
+    ]);
+
+    // Регистрация меню
+    register_nav_menus([
+        'primary' => __('Главное меню', 'akpp45'),
+        'footer'  => __('Меню в подвале', 'akpp45'),
+        'mobile'  => __('Мобильное меню', 'akpp45'),
     ]);
 }
 add_action('after_setup_theme', 'akpp45_theme_setup');
 
 // =============================================================================
-// РЕГИСТРАЦИЯ САЙДБАРОВ
+// 3. ПОДКЛЮЧЕНИЕ СТИЛЕЙ И СКРИПТОВ
 // =============================================================================
+
+function akpp45_enqueue_assets() {
+    $theme_uri = AKPP_THEME_URI;
+    $assets_uri = $theme_uri . '/assets';
+    
+    // === СТИЛИ ===
+    
+    // Google Fonts - Inter
+    wp_enqueue_style(
+        'akpp45-fonts',
+        'https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap',
+        [],
+        null
+    );
+    
+    // Основной стиль темы
+    wp_enqueue_style(
+        'akpp45-style',
+        get_stylesheet_uri(),
+        ['akpp45-fonts'],
+        AKPP_THEME_VERSION
+    );
+    
+    // Admin CSS (только в админке)
+    if (is_admin()) {
+        wp_enqueue_style(
+            'akpp45-admin',
+            $assets_uri . '/css/admin.css',
+            [],
+            AKPP_THEME_VERSION
+        );
+    } else {
+        // Frontend CSS
+        wp_enqueue_style(
+            'akpp45-frontend',
+            $assets_uri . '/css/frontend.css',
+            [],
+            AKPP_THEME_VERSION
+        );
+        
+        wp_enqueue_style(
+            'akpp45-modal',
+            $assets_uri . '/css/modal.css',
+            [],
+            AKPP_THEME_VERSION
+        );
+    }
+    
+    // === СКРИПТЫ ===
+    
+    // jQuery (уже есть в WP, но явно указываем)
+    wp_enqueue_script('jquery');
+    
+    // Основной JS
+    wp_enqueue_script(
+        'akpp45-main',
+        $assets_uri . '/js/admin.js', // admin.js содержит общие функции
+        ['jquery'],
+        AKPP_THEME_VERSION,
+        true
+    );
+    
+    // Локализация для AJAX
+    wp_localize_script('akpp45-main', 'akpp45_ajax', [
+        'url'   => admin_url('admin-ajax.php'),
+        'nonce' => wp_create_nonce('akpp45_nonce'),
+        'home'  => home_url('/'),
+    ]);
+    
+    // Frontend скрипты
+    if (!is_admin()) {
+        wp_enqueue_script(
+            'akpp45-auth',
+            $assets_uri . '/js/auth.js',
+            ['jquery'],
+            AKPP_THEME_VERSION,
+            true
+        );
+        
+        wp_enqueue_script(
+            'akpp45-chat',
+            $assets_uri . '/js/chat.js',
+            ['jquery'],
+            AKPP_THEME_VERSION,
+            true
+        );
+        
+        wp_localize_script('akpp45-chat', 'akpp_chat_config', [
+            'ajax_url' => admin_url('admin-ajax.php'),
+            'nonce'    => wp_create_nonce('akpp_chat_action_nonce'),
+        ]);
+    }
+    
+    // Admin скрипты
+    if (is_admin()) {
+        // Калькулятор сделок
+        wp_enqueue_script(
+            'akpp45-deal-calculator',
+            $assets_uri . '/js/deal-calculator.js',
+            ['jquery'],
+            AKPP_THEME_VERSION,
+            true
+        );
+        
+        wp_localize_script('akpp45-deal-calculator', 'akpp_deal', [
+            'ajax_url' => admin_url('admin-ajax.php'),
+            'nonce'    => wp_create_nonce('akpp_save_deal_nonce'),
+        ]);
+        
+        // VIN декодер
+        wp_enqueue_script(
+            'akpp45-vin-decoder',
+            $assets_uri . '/js/vin-decoder.js',
+            ['jquery'],
+            AKPP_THEME_VERSION,
+            true
+        );
+        
+        wp_localize_script('akpp45-vin-decoder', 'akpp_vin_decoder_config', [
+            'ajax_url' => admin_url('admin-ajax.php'),
+            'nonce'    => wp_create_nonce('akpp_vin_decode_nonce'),
+        ]);
+    }
+    
+    // Comment reply
+    if (is_singular() && comments_open() && get_option('thread_comments')) {
+        wp_enqueue_script('comment-reply');
+    }
+}
+add_action('wp_enqueue_scripts', 'akpp45_enqueue_assets');
+add_action('admin_enqueue_scripts', 'akpp45_enqueue_assets');
+
+// =============================================================================
+// 4. WIDGETS
+// =============================================================================
+
 function akpp45_widgets_init() {
     register_sidebar([
-        'name' => __('Боковая панель', 'akpp45'),
-        'id' => 'sidebar-1',
-        'description' => __('Виджеты боковой панели', 'akpp45'),
+        'name'          => __('Боковая панель', 'akpp45'),
+        'id'            => 'sidebar-1',
+        'description'   => __('Виджеты боковой панели', 'akpp45'),
         'before_widget' => '<section id="%1$s" class="widget %2$s">',
-        'after_widget' => '</section>',
-        'before_title' => '<h2 class="widget-title">',
-        'after_title' => '</h2>',
+        'after_widget'  => '</section>',
+        'before_title'  => '<h2 class="widget-title">',
+        'after_title'   => '</h2>',
+    ]);
+
+    register_sidebar([
+        'name'          => __('Подвал сайта', 'akpp45'),
+        'id'            => 'footer-1',
+        'description'   => __('Виджеты в подвале', 'akpp45'),
+        'before_widget' => '<div id="%1$s" class="footer-widget %2$s">',
+        'after_widget'  => '</div>',
+        'before_title'  => '<h3 class="footer-widget-title">',
+        'after_title'   => '</h3>',
     ]);
 }
 add_action('widgets_init', 'akpp45_widgets_init');
 
 // =============================================================================
-// БЕЗОПАСНОСТЬ И ОПТИМИЗАЦИЯ
+// 5. ШОРТКОДЫ
 // =============================================================================
 
-// Отключение версии WordPress в head
-remove_action('wp_head', 'wp_generator');
-
-// Отключение XML-RPC (если не используется)
-add_filter('xmlrpc_enabled', '__return_false');
-
-// Ограничение попыток входа
-function akpp45_limit_login_attempts() {
-    $ip = $_SERVER['REMOTE_ADDR'];
-    $transient_key = 'login_attempts_' . md5($ip);
-    $attempts = get_transient($transient_key);
-    
-    if ($attempts >= 5) {
-        wp_die('Слишком много попыток входа. Подождите 15 минут.', 'Ошибка входа', ['response' => 403]);
-    }
-}
-add_action('wp_login_failed', 'akpp45_login_failed');
-function akpp45_login_failed($username) {
-    $ip = $_SERVER['REMOTE_ADDR'];
-    $transient_key = 'login_attempts_' . md5($ip);
-    $attempts = get_transient($transient_key);
-    
-    if ($attempts === false) {
-        set_transient($transient_key, 1, 900); // 15 минут
-    } else {
-        set_transient($transient_key, $attempts + 1, 900);
-    }
-}
-
-// =============================================================================
-// КОРОТКИЕ КОДЫ (SHORTCODES)
-// =============================================================================
-
-// Шорткод для формы регистрации
+// Форма регистрации
 add_shortcode('akpp_registration_form', function() {
-    ob_start();
-    include get_template_directory() . '/inc/crm/templates/frontend/registration.php';
-    return ob_get_clean();
+    $file = AKPP_CRM_DIR . '/templates/frontend/registration.php';
+    if (file_exists($file)) {
+        ob_start();
+        include $file;
+        return ob_get_clean();
+    }
+    return '<p>Форма регистрации недоступна.</p>';
 });
 
-// Шорткод для клиентского чата
+// Клиентский чат
 add_shortcode('akpp_client_chat', function() {
     if (!is_user_logged_in()) {
         return '<p>Пожалуйста, войдите в систему для доступа к чату.</p>';
     }
-    ob_start();
-    include get_template_directory() . '/inc/crm/templates/frontend/chat.php';
-    return ob_get_clean();
+    $file = AKPP_CRM_DIR . '/templates/frontend/chat.php';
+    if (file_exists($file)) {
+        ob_start();
+        include $file;
+        return ob_get_clean();
+    }
+    return '<p>Чат недоступен.</p>';
+});
+
+// Кнопка связи
+add_shortcode('akpp_contact_btn', function($atts) {
+    $atts = shortcode_atts([
+        'text' => 'Связаться с нами',
+        'url'  => '#contact',
+    ], $atts);
+    
+    return '<a href="' . esc_url($atts['url']) . '" class="btn btn-primary btn-glow">' . esc_html($atts['text']) . '</a>';
 });
 
 // =============================================================================
-// КАСТОМИЗАЦИЯ ADMIN PANEL
+// 6. ОПТИМИЗАЦИЯ И БЕЗОПАСНОСТЬ
 // =============================================================================
-function akpp45_custom_admin_footer() {
-    echo '<span style="color: #00ff88;">АКПП45 CRM</span> | Версия 4.3 | <a href="https://akpp45.ru" target="_blank">akpp45.ru</a>';
-}
-add_filter('admin_footer_text', 'akpp45_custom_admin_footer');
 
-// Удаление лишних виджетов с дашборда
-function akpp45_remove_dashboard_widgets() {
-    remove_meta_box('dashboard_quick_press', 'dashboard', 'side');
-    remove_meta_box('dashboard_primary', 'dashboard', 'side');
-    remove_meta_box('dashboard_secondary', 'dashboard', 'side');
+// Отключение emoji
+function akpp45_disable_emojis() {
+    remove_action('wp_head', 'print_emoji_detection_script', 7);
+    remove_action('admin_print_scripts', 'print_emoji_detection_script');
+    remove_action('wp_print_styles', 'print_emoji_styles');
+    remove_action('admin_print_styles', 'print_emoji_styles');
+    remove_filter('the_content_feed', 'wp_staticize_emoji');
+    remove_filter('comment_text_rss', 'wp_staticize_emoji');
+    remove_filter('wp_mail', 'wp_staticize_emoji_for_email');
 }
-add_action('wp_dashboard_setup', 'akpp45_remove_dashboard_widgets', 999);
+add_action('init', 'akpp45_disable_emojis');
+
+// Удаление версии WP
+remove_action('wp_head', 'wp_generator');
+
+// Отключение XML-RPC
+add_filter('xmlrpc_enabled', '__return_false');
+
+// Удаление лишних ссылок из head
+remove_action('wp_head', 'rsd_link');
+remove_action('wp_head', 'wlwmanifest_link');
+remove_action('wp_head', 'wp_shortlink_wp_head');
+
+// Ограничение попыток входа
+function akpp45_limit_login_attempts($username) {
+    $ip = $_SERVER['REMOTE_ADDR'] ?? '';
+    if (empty($ip)) return;
+    
+    $key = 'login_attempts_' . md5($ip);
+    $attempts = (int) get_transient($key);
+    
+    if ($attempts >= 5) {
+        wp_die(
+            'Слишком много попыток входа. Подождите 15 минут.',
+            'Ошибка входа',
+            ['response' => 429]
+        );
+    }
+    
+    set_transient($key, $attempts + 1, 900);
+}
+add_action('wp_login_failed', 'akpp45_limit_login_attempts');
+
+function akpp45_clear_login_attempts($username) {
+    $ip = $_SERVER['REMOTE_ADDR'] ?? '';
+    if (empty($ip)) return;
+    delete_transient('login_attempts_' . md5($ip));
+}
+add_action('wp_login', 'akpp45_clear_login_attempts');
+
+// =============================================================================
+// 7. КАСТОМИЗАЦИЯ АДМИНКИ
+// =============================================================================
+
+function akpp45_admin_footer_text($text) {
+    return '<span style="color: #00ff88;">АКПП Курган CRM</span> | v' . AKPP_THEME_VERSION . ' | <a href="https://akpp45.ru" target="_blank">akpp45.ru</a>';
+}
+add_filter('admin_footer_text', 'akpp45_admin_footer_text');
+
+function akpp45_admin_styles() {
+    ?>
+    <style>
+        #adminmenu .wp-menu-image.dashicons-before:before {
+            color: #00ff88 !important;
+        }
+        #adminmenu li.menu-top:hover .wp-menu-image:before,
+        #adminmenu a:focus .wp-menu-image:before,
+        #adminmenu li.opensub .wp-menu-image:before,
+        #adminmenu li.current .wp-menu-image:before {
+            color: #fff !important;
+        }
+        .wrap h1 {
+            border-left: 4px solid #00ff88;
+            padding-left: 15px;
+        }
+    </style>
+    <?php
+}
+add_action('admin_head', 'akpp45_admin_styles');
+
+// =============================================================================
+// 8. УВЕДОМЛЕНИЯ ОБ ОШИБКАХ (только для админов)
+// =============================================================================
+
+function akpp45_admin_notices() {
+    if (!current_user_can('manage_options')) return;
+    
+    // Проверка наличия критических файлов
+    $critical_files = [
+        AKPP_CRM_DIR . '/class-akpp-crm.php',
+        AKPP_CRM_DIR . '/class-akpp-ajax.php',
+        AKPP_CRM_DIR . '/class-akpp-install.php',
+    ];
+    
+    foreach ($critical_files as $file) {
+        if (!file_exists($file)) {
+            echo '<div class="notice notice-error is-dismissible">';
+            echo '<p><strong>АКПП CRM:</strong> Отсутствует критический файл: <code>' . basename($file) . '</code></p>';
+            echo '</div>';
+            break;
+        }
+    }
+}
+add_action('admin_notices', 'akpp45_admin_notices');
+
+// =============================================================================
+// 9. ДОПОЛНИТЕЛЬНЫЕ ФУНКЦИИ
+// =============================================================================
+
+/**
+ * Получение настроек CRM
+ */
+function akpp_get_option($key, $default = '') {
+    return get_option('akpp_' . $key, $default);
+}
+
+/**
+ * Форматирование телефона
+ */
+function akpp_format_phone($phone) {
+    $clean = preg_replace('/[^0-9]/', '', $phone);
+    if (strlen($clean) === 11) {
+        return '+7 (' . substr($clean, 1, 3) . ') ' . substr($clean, 4, 3) . '-' . substr($clean, 7, 2) . '-' . substr($clean, 9, 2);
+    }
+    return $phone;
+}
+
+/**
+ * Безопасный вывод
+ */
+function akpp_e($text) {
+    echo esc_html($text);
+}
+
+/**
+ * Логирование
+ */
+function akpp_log($message, $level = 'info') {
+    error_log(sprintf('[AKPP45] [%s] %s', strtoupper($level), $message));
+}
