@@ -13,7 +13,7 @@ global $wpdb;
 
 // Получаем список сотрудников
 $table_employees = $wpdb->prefix . 'akpp_employees';
-$employees = $wpdb->get_results("SELECT id, name, percent FROM {$table_employees} WHERE status = 'active' ORDER BY name ASC");
+$employees = $wpdb->get_results("SELECT id, name, percent FROM {$table_employees} WHERE is_active = 1 ORDER BY name ASC");
 
 // Получаем список клиентов
 $table_users = $wpdb->prefix . 'akpp_site_users';
