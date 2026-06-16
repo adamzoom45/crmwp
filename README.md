@@ -64,8 +64,17 @@
 ### Корневая структура
 ```
 crmwp/
-├── README.md                          # Документация проекта
-├── 404.php                            # Страница ошибки (корень)
+├── README.md                          # Документация проекта (обновлена)
+├── 404.php                            # Страница ошибки
+├── style.css                          # ✅ Файл стилей темы (создан)
+├── functions.php                      # ✅ Функции темы (обновлены)
+├── header.php                         # ✅ Шапка сайта (исправлена)
+├── footer.php                         # ✅ Подвал сайта
+├── index.php                          # ✅ Главная страница
+├── page.php                           # ✅ Шаблон страницы
+├── single.php                         # ✅ Шаблон записи
+├── sw.js                              # Service Worker для Push
+│
 ├── assets/                            # Общие ресурсы
 │   ├── css/
 │   │   ├── admin.css                  # Стили админки (12.9 KB)
@@ -81,35 +90,84 @@ crmwp/
 │       ├── parser.js                  # Парсер
 │       ├── push.js                    # Push уведомления
 │       └── vin-decoder.js             # ✅ VIN декодер
-├── inc/                               # Дублирующая структура CRM
-│   └── crm/                           # (см. ниже)
-└── akpp-kurgan/                       # 🎨 WordPress тема (ОСНОВНАЯ)
-    ├── 404.php                        # Страница ошибки
-    ├── footer.php                     # Подвал сайта
-    ├── functions.php                  # Функции темы
-    ├── header.php                     # Шапка сайта
-    ├── index.php                      # Главная страница
-    ├── page.php                       # Шаблон страницы
-    ├── single.php                     # Шаблон записи
-    └── inc/
-        └── crm/                       # 🚀 ОСНОВНАЯ CRM СИСТЕМА
-            ├── class-akpp-crm.php     # ✅ Главный класс (Singleton + меню)
-            ├── class-akpp-install.php # Создание 16 таблиц БД
-            ├── class-akpp-ajax.php    # Все AJAX обработчики
-            ├── class-akpp-auth.php    # Регистрация + авторизация
-            ├── class-akpp-avito.php   # Авито API (OAuth + чат)
-            ├── class-akpp-cron.php    # Cron задачи
-            ├── class-akpp-db.php      # Работа с БД
-            ├── class-akpp-email.php   # Отправка email
-            ├── class-akpp-parser.php  # Универсальный парсер
-            ├── class-akpp-push.php    # Push уведомления (FCM)
-            ├── class-akpp-telegram.php # Telegram бот + VPN/SSH
-            ├── class-akpp-webhook.php # Webhook Авито
-            ├── class-avito-api.php    # ✅ Авито API (OAuth 2.0)
-            ├── class-avito-cron.php   # ✅ Cron синхронизация (15 мин)
-            ├── class-avito-webhook.php # ✅ Webhook обработчик
-            ├── class-chat-ajax.php    # ✅ AJAX чата
-            └── class-user-registration.php # ✅ Регистрация клиентов
+│
+├── template-parts/                    # Части шаблонов
+│   └── hero-section.php               # Hero-секция главной страницы
+│
+└── inc/crm/                           # 🚀 ОСНОВНАЯ CRM СИСТЕМА
+    ├── class-akpp-crm.php             # ✅ Главный класс (Singleton + меню)
+    ├── class-akpp-install.php         # Создание 16 таблиц БД
+    ├── class-akpp-db.php              # ✅ Центральный CRUD-класс для БД
+    ├── class-akpp-ajax.php            # Все AJAX-обработчики
+    ├── class-akpp-auth.php            # Регистрация + авторизация
+    ├── class-akpp-email.php           # Отправка email
+    ├── class-akpp-push.php            # Push-уведомления (FCM)
+    ├── class-akpp-avito.php           # Авито API (OAuth + чат)
+    ├── class-akpp-webhook.php         # Webhook для Авито
+    ├── class-akpp-telegram.php        # Telegram-бот
+    ├── class-akpp-parser.php          # Универсальный парсер
+    ├── class-akpp-cron.php            # Cron-задачи
+    │
+    ├── decoders/                      # Декодеры
+    │   ├── class-vin-decoder.php      # ✅ NHTSA API + кэш (10 KB)
+    │   ├── class-body-decoder.php     # Toyota/Lexus body number (8.7 KB)
+    │   └── class-deal-calculator.php  # ✅ Формула оплаты (11.6 KB)
+    │
+    ├── ai/                            # AI-анализ
+    │   └── class-ai-analyzer.php      # Анализ через OpenAI API (13.9 KB)
+    │
+    ├── tables/                        # WP_List_Table для админки (10 файлов)
+    │   ├── class-deals-table.php      # Сделки (13.5 KB)
+    │   ├── class-employees-table.php  # Сотрудники (12.7 KB)
+    │   ├── class-vehicles-table.php   # Авто (11 KB)
+    │   ├── class-transmissions-table.php # АКПП (11.5 KB)
+    │   ├── class-leads-table.php      # Лиды (13.9 KB)
+    │   ├── class-parts-table.php      # Запчасти (13.3 KB)
+    │   ├── class-oils-table.php       # Масла (10.3 KB)
+    │   ├── class-parser-table.php     # Парсер (16 KB)
+    │   ├── class-users-table.php      # ✅ Пользователи (12.8 KB)
+    │   └── class-avito-dialogs-table.php # ✅ Диалоги Авито (11.4 KB)
+    │
+    ├── assets/                        # Ассеты CRM
+    │   ├── css/
+    │   │   ├── admin.css              # Стили админки
+    │   │   └── frontend.css           # Стили фронтенда
+    │   └── js/
+    │       ├── admin.js
+    │       ├── auth.js
+    │       ├── chat.js
+    │       ├── vin-decoder.js
+    │       ├── deal-calculator.js
+    │       ├── parser.js
+    │       ├── push.js
+    │       └── avito-chat.js
+    │
+    └── templates/                     # Шаблоны CRM (17 файлов)
+        ├── dashboard.php              # Панель + воронка (9 KB)
+        ├── deals.php                  # Список сделок (2.4 KB)
+        ├── deal-form.php              # Форма сделки (18.4 KB)
+        ├── new-deal.php               # Новая сделка (17.6 KB)
+        ├── employees.php              # Сотрудники (6 KB)
+        ├── vehicles.php               # Авто (7.1 KB)
+        ├── transmissions.php          # АКПП (6.5 KB)
+        ├── parts.php                  # Склад (6.6 KB)
+        ├── oils.php                   # Масла (6.3 KB)
+        ├── parser.php                 # Парсер + AI (13.9 KB)
+        ├── leads.php                  # Лиды (5.8 KB)
+        ├── chat.php                   # ✅ Внутренний чат (9.8 KB)
+        ├── avito-dialogs.php          # Диалоги Авито (9.2 KB)
+        ├── avito-settings.php         # ✅ Настройки Авито (11.1 KB)
+        ├── avito.php                  # Авито (5.8 KB)
+        ├── telegram.php               # Telegram (14.1 KB)
+        ├── users.php                  # Пользователи (5.1 KB)
+        └── frontend/                  # 🌐 Фронтенд шаблоны
+            ├── chat.php               # ✅ Клиентский чат (19.3 KB)
+            ├── login.php              # Вход (15.2 KB)
+            ├── register.php           # Регистрация (11.9 KB)
+            ├── registration.php       # ✅ Форма регистрации (10.3 KB)
+            ├── profile.php            # Профиль (19.1 KB)
+            ├── modal-login.php        # Модальный вход (2.9 KB)
+            └── modal-register.php     # Модальная регистрация (2.9 KB)
 ```
 
 ### Поддиректории CRM
