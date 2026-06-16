@@ -59,13 +59,13 @@ foreach ($funnel_stages as $status => $info) {
 // ==========================================================================
 
 $recent_deals = $wpdb->get_results("
-    SELECT d.*, v.brand, v.model, e.full_name as employee_name 
+    SELECT d.*, v.make, v.model, e.name as employee_name
     FROM {$wpdb->prefix}akpp_deals d
     LEFT JOIN {$wpdb->prefix}akpp_vehicles v ON d.vehicle_id = v.id
     LEFT JOIN {$wpdb->prefix}akpp_employees e ON d.employee_id = e.id
     ORDER BY d.created_at DESC 
     LIMIT 5
-", ARRAY_A);
+");
 
 ?>
 
