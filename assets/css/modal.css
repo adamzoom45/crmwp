@@ -1,0 +1,278 @@
+/**
+ * Стили для модальных окон авторизации
+ */
+
+/* Модальное окно */
+.akpp-modal-overlay {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(4px);
+    z-index: 9999;
+    align-items: center;
+    justify-content: center;
+    animation: fadeIn 0.3s ease;
+}
+
+.akpp-modal-overlay.active {
+    display: flex;
+}
+
+.akpp-modal-container {
+    background: #fff;
+    border-radius: 24px;
+    max-width: 520px;
+    width: 90%;
+    max-height: 90vh;
+    overflow-y: auto;
+    box-shadow: 0 25px 50px rgba(0, 0, 0, 0.3);
+    animation: slideUp 0.3s ease;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes slideUp {
+    from {
+        opacity: 0;
+        transform: translateY(30px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Заголовок модального окна */
+.akpp-modal-header {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    padding: 30px;
+    text-align: center;
+    color: #fff;
+    position: relative;
+    border-radius: 24px 24px 0 0;
+}
+
+.akpp-modal-icon {
+    font-size: 48px;
+    margin-bottom: 10px;
+}
+
+.akpp-modal-header h2 {
+    margin: 0;
+    font-size: 24px;
+    font-weight: 600;
+}
+
+.akpp-modal-close {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    background: rgba(255, 255, 255, 0.2);
+    border: none;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    font-size: 20px;
+    cursor: pointer;
+    color: #fff;
+    transition: background 0.3s;
+}
+
+.akpp-modal-close:hover {
+    background: rgba(255, 255, 255, 0.3);
+}
+
+/* Тело модального окна */
+.akpp-modal-body {
+    padding: 30px;
+}
+
+/* Формы */
+.akpp-form-row {
+    display: flex;
+    gap: 15px;
+    margin-bottom: 15px;
+}
+
+.akpp-form-group {
+    flex: 1;
+    margin-bottom: 15px;
+}
+
+.akpp-form-group label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 500;
+    color: #333;
+    font-size: 14px;
+}
+
+.akpp-form-group .required {
+    color: #e74c3c;
+}
+
+.akpp-form-group input,
+.akpp-form-group select,
+.akpp-form-group textarea {
+    width: 100%;
+    padding: 12px 15px;
+    border: 1px solid #e0e0e0;
+    border-radius: 12px;
+    font-size: 14px;
+    transition: all 0.3s;
+    font-family: inherit;
+}
+
+.akpp-form-group input:focus,
+.akpp-form-group select:focus,
+.akpp-form-group textarea:focus {
+    outline: none;
+    border-color: #667eea;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+/* Кнопки */
+.akpp-btn {
+    display: inline-block;
+    width: 100%;
+    padding: 14px;
+    border: none;
+    border-radius: 12px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: transform 0.2s, box-shadow 0.2s;
+    text-align: center;
+}
+
+.akpp-btn-primary {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: #fff;
+}
+
+.akpp-btn-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(102, 126, 234, 0.3);
+}
+
+.akpp-btn-primary:disabled {
+    opacity: 0.6;
+    transform: none;
+    cursor: not-allowed;
+}
+
+.akpp-btn-link {
+    background: none;
+    border: none;
+    color: #667eea;
+    cursor: pointer;
+    font-size: 14px;
+    margin-top: 15px;
+    width: auto;
+}
+
+.akpp-btn-link:hover {
+    text-decoration: underline;
+}
+
+/* Дополнительные элементы формы */
+.akpp-form-actions {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin: 15px 0;
+}
+
+.akpp-checkbox {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    font-size: 14px;
+    color: #666;
+}
+
+.akpp-checkbox input {
+    width: 18px;
+    height: 18px;
+    cursor: pointer;
+}
+
+.akpp-forgot-link {
+    color: #999;
+    font-size: 13px;
+    text-decoration: none;
+}
+
+.akpp-forgot-link:hover {
+    color: #667eea;
+}
+
+/* Футер модального окна */
+.akpp-modal-footer {
+    padding: 20px 30px;
+    text-align: center;
+    border-top: 1px solid #f0f2f5;
+    background: #fafbfc;
+    border-radius: 0 0 24px 24px;
+}
+
+.akpp-modal-footer a {
+    color: #667eea;
+    text-decoration: none;
+    font-weight: 500;
+}
+
+.akpp-modal-footer a:hover {
+    text-decoration: underline;
+}
+
+/* Сообщения */
+.akpp-message {
+    padding: 12px 15px;
+    border-radius: 12px;
+    margin-bottom: 20px;
+    display: none;
+    font-size: 14px;
+}
+
+.akpp-message.success {
+    background: #d4edda;
+    color: #155724;
+    border: 1px solid #c3e6cb;
+    display: block;
+}
+
+.akpp-message.error {
+    background: #f8d7da;
+    color: #721c24;
+    border: 1px solid #f5c6cb;
+    display: block;
+}
+
+/* Адаптивность */
+@media (max-width: 576px) {
+    .akpp-form-row {
+        flex-direction: column;
+        gap: 0;
+    }
+    
+    .akpp-modal-header {
+        padding: 20px;
+    }
+    
+    .akpp-modal-body {
+        padding: 20px;
+    }
+    
+    .akpp-modal-footer {
+        padding: 15px 20px;
+    }
+}

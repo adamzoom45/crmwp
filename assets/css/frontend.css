@@ -1,0 +1,538 @@
+/**
+ * CRM АКПП45 - Фронтенд стили для клиентской части
+ * 
+ * @package AKPP45_CRM
+ */
+
+/* ============================================================
+   ОБЩИЕ СТИЛИ
+   ============================================================ */
+.akpp-frontend-wrap {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+.akpp-frontend-wrap h1,
+.akpp-frontend-wrap h2,
+.akpp-frontend-wrap h3 {
+    color: #333;
+    margin-bottom: 20px;
+}
+
+/* ============================================================
+   ФОРМЫ РЕГИСТРАЦИИ И ВХОДА
+   ============================================================ */
+.akpp-auth-container {
+    max-width: 500px;
+    margin: 50px auto;
+    background: #fff;
+    border-radius: 16px;
+    box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+    overflow: hidden;
+}
+
+.akpp-auth-header {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    padding: 30px;
+    text-align: center;
+    color: #fff;
+}
+
+.akpp-auth-header h1 {
+    margin: 0 0 10px 0;
+    font-size: 28px;
+    color: #fff;
+}
+
+.akpp-auth-header p {
+    margin: 0;
+    opacity: 0.9;
+}
+
+.akpp-auth-form {
+    padding: 30px;
+}
+
+.akpp-form-group {
+    margin-bottom: 20px;
+}
+
+.akpp-form-group label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 500;
+    color: #333;
+}
+
+.akpp-form-group input,
+.akpp-form-group select,
+.akpp-form-group textarea {
+    width: 100%;
+    padding: 12px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    font-size: 14px;
+    transition: border-color 0.3s;
+}
+
+.akpp-form-group input:focus,
+.akpp-form-group select:focus,
+.akpp-form-group textarea:focus {
+    outline: none;
+    border-color: #667eea;
+}
+
+.akpp-form-group .required {
+    color: #dc3545;
+}
+
+.akpp-btn {
+    display: inline-block;
+    width: 100%;
+    padding: 14px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: transform 0.2s;
+}
+
+.akpp-btn:hover {
+    transform: translateY(-2px);
+}
+
+.akpp-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.akpp-auth-footer {
+    text-align: center;
+    margin-top: 20px;
+    padding-top: 20px;
+    border-top: 1px solid #eee;
+}
+
+.akpp-auth-footer a {
+    color: #667eea;
+    text-decoration: none;
+}
+
+.akpp-auth-footer a:hover {
+    text-decoration: underline;
+}
+
+/* ============================================================
+   ПРОФИЛЬ ПОЛЬЗОВАТЕЛЯ
+   ============================================================ */
+.akpp-profile-container {
+    max-width: 800px;
+    margin: 30px auto;
+    background: #fff;
+    border-radius: 16px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    overflow: hidden;
+}
+
+.akpp-profile-header {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    padding: 40px;
+    text-align: center;
+    color: #fff;
+}
+
+.akpp-profile-avatar {
+    width: 100px;
+    height: 100px;
+    background: rgba(255,255,255,0.2);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 20px;
+    font-size: 48px;
+}
+
+.akpp-profile-name {
+    font-size: 24px;
+    margin-bottom: 5px;
+}
+
+.akpp-profile-role {
+    opacity: 0.8;
+}
+
+.akpp-profile-body {
+    padding: 30px;
+}
+
+.akpp-info-row {
+    display: flex;
+    padding: 12px 0;
+    border-bottom: 1px solid #f0f2f5;
+}
+
+.akpp-info-label {
+    width: 150px;
+    font-weight: 600;
+    color: #666;
+}
+
+.akpp-info-value {
+    flex: 1;
+    color: #333;
+}
+
+/* ============================================================
+   ЧАТ КЛИЕНТА
+   ============================================================ */
+.akpp-chat-container {
+    display: flex;
+    height: 80vh;
+    background: #fff;
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.akpp-chat-sidebar {
+    width: 320px;
+    border-right: 1px solid #e9ecef;
+    background: #f8f9fa;
+}
+
+.akpp-chat-user-info {
+    padding: 20px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: #fff;
+    text-align: center;
+}
+
+.akpp-chat-user-info h3 {
+    margin: 0 0 5px 0;
+    color: #fff;
+}
+
+.akpp-chat-contacts {
+    flex: 1;
+    overflow-y: auto;
+}
+
+.akpp-chat-contact {
+    display: flex;
+    align-items: center;
+    padding: 15px 20px;
+    border-bottom: 1px solid #e9ecef;
+    cursor: pointer;
+    transition: background 0.2s;
+    text-decoration: none;
+    color: #333;
+}
+
+.akpp-chat-contact:hover {
+    background: #fff;
+}
+
+.akpp-chat-contact.active {
+    background: #e7f3ff;
+    border-left: 3px solid #667eea;
+}
+
+.akpp-chat-avatar {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    font-weight: bold;
+    font-size: 18px;
+    margin-right: 15px;
+}
+
+.akpp-chat-contact-info {
+    flex: 1;
+}
+
+.akpp-chat-contact-name {
+    font-weight: 600;
+    margin-bottom: 5px;
+}
+
+.akpp-chat-contact-message {
+    font-size: 12px;
+    color: #999;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 180px;
+}
+
+.akpp-chat-contact-time {
+    font-size: 10px;
+    color: #999;
+}
+
+.akpp-chat-unread {
+    background: #dc3545;
+    color: #fff;
+    border-radius: 50%;
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    margin-left: 10px;
+}
+
+.akpp-chat-window {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+}
+
+.akpp-chat-header {
+    padding: 20px;
+    background: #fff;
+    border-bottom: 1px solid #e9ecef;
+}
+
+.akpp-chat-header h3 {
+    margin: 0;
+}
+
+.akpp-chat-messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 20px;
+    background: #f8f9fa;
+}
+
+.akpp-message {
+    margin-bottom: 20px;
+    display: flex;
+    flex-direction: column;
+}
+
+.akpp-message-outgoing {
+    align-self: flex-end;
+}
+
+.akpp-message-incoming {
+    align-self: flex-start;
+}
+
+.akpp-message-bubble {
+    max-width: 70%;
+    padding: 10px 16px;
+    border-radius: 18px;
+    word-wrap: break-word;
+}
+
+.akpp-message-outgoing .akpp-message-bubble {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: #fff;
+    border-bottom-right-radius: 4px;
+}
+
+.akpp-message-incoming .akpp-message-bubble {
+    background: #fff;
+    color: #333;
+    border-bottom-left-radius: 4px;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+}
+
+.akpp-message-time {
+    font-size: 10px;
+    color: #999;
+    margin-top: 5px;
+    padding: 0 8px;
+}
+
+.akpp-chat-input {
+    padding: 20px;
+    background: #fff;
+    border-top: 1px solid #e9ecef;
+    display: flex;
+    gap: 10px;
+}
+
+.akpp-chat-input textarea {
+    flex: 1;
+    padding: 12px;
+    border: 1px solid #e9ecef;
+    border-radius: 24px;
+    resize: none;
+    font-family: inherit;
+    font-size: 14px;
+    outline: none;
+}
+
+.akpp-chat-input textarea:focus {
+    border-color: #667eea;
+}
+
+.akpp-chat-input button {
+    padding: 0 24px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: #fff;
+    border: none;
+    border-radius: 24px;
+    cursor: pointer;
+    font-weight: 600;
+}
+
+.akpp-chat-typing {
+    padding: 5px 20px;
+    font-size: 12px;
+    color: #999;
+}
+
+.akpp-empty-chat {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: #999;
+    text-align: center;
+}
+
+/* ============================================================
+   УВЕДОМЛЕНИЯ
+   ============================================================ */
+.akpp-notification {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    padding: 12px 20px;
+    border-radius: 8px;
+    color: #fff;
+    z-index: 9999;
+    animation: slideIn 0.3s ease;
+}
+
+.akpp-notification-success {
+    background: #28a745;
+}
+
+.akpp-notification-error {
+    background: #dc3545;
+}
+
+.akpp-notification-info {
+    background: #17a2b8;
+}
+
+@keyframes slideIn {
+    from {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+/* ============================================================
+   МОБИЛЬНАЯ АДАПТАЦИЯ
+   ============================================================ */
+@media (max-width: 768px) {
+    .akpp-auth-container {
+        margin: 20px;
+    }
+    
+    .akpp-chat-container {
+        flex-direction: column;
+        height: auto;
+    }
+    
+    .akpp-chat-sidebar {
+        width: 100%;
+        max-height: 300px;
+        overflow-y: auto;
+    }
+    
+    .akpp-info-row {
+        flex-direction: column;
+    }
+    
+    .akpp-info-label {
+        width: 100%;
+        margin-bottom: 5px;
+    }
+    
+    .akpp-message-bubble {
+        max-width: 85%;
+    }
+    
+    .akpp-profile-header {
+        padding: 20px;
+    }
+}
+
+/* ============================================================
+   АНИМАЦИИ
+   ============================================================ */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.akpp-fade-in {
+    animation: fadeIn 0.3s ease;
+}
+
+@keyframes pulse {
+    0% {
+        transform: scale(1);
+    }
+    50% {
+        transform: scale(1.05);
+    }
+    100% {
+        transform: scale(1);
+    }
+}
+
+.akpp-pulse {
+    animation: pulse 0.5s ease;
+}
+
+/* ============================================================
+   КАСТОМНЫЕ СКРОЛЛБАРЫ
+   ============================================================ */
+.akpp-chat-messages::-webkit-scrollbar,
+.akpp-chat-contacts::-webkit-scrollbar {
+    width: 6px;
+}
+
+.akpp-chat-messages::-webkit-scrollbar-track,
+.akpp-chat-contacts::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 3px;
+}
+
+.akpp-chat-messages::-webkit-scrollbar-thumb,
+.akpp-chat-contacts::-webkit-scrollbar-thumb {
+    background: #ccc;
+    border-radius: 3px;
+}
+
+.akpp-chat-messages::-webkit-scrollbar-thumb:hover,
+.akpp-chat-contacts::-webkit-scrollbar-thumb:hover {
+    background: #999;
+}
