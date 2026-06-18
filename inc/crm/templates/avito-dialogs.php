@@ -15,20 +15,20 @@ global $wpdb;
 $table_dialogs = $wpdb->prefix . 'akpp_avito_dialogs';
 $dialogs = $wpdb->get_results(
     "SELECT * FROM {$table_dialogs} 
-    ORDER BY last_message_time DESC 
+    ORDER BY last_message_date DESC 
     LIMIT 50"
 );
 
 // Выбранный диалог
-$selected_dialog = isset($_GET['dialog']) ? sanitize_text_field($_GET['dialog']) : '';
+$selected_dialog = isset($_GET['dialog']) ? intval($_GET['dialog']) : 0;
 $messages = [];
 
-if ($selected_dialog) {
+if ($selected_dialog > 0) {
     $table_cache = $wpdb->prefix . 'akpp_avito_messages_cache';
     $messages = $wpdb->get_results(
         $wpdb->prepare(
             "SELECT * FROM {$table_cache} 
-            WHERE dialog_id = %s 
+            WHERE dialog_id = %d 
             ORDER BY created_at ASC 
             LIMIT 100",
             $selected_dialog
@@ -51,16 +51,16 @@ if ($selected_dialog) {
             <div style="max-height: 550px; overflow-y: auto;">
                 <?php if ($dialogs): ?>
                     <?php foreach ($dialogs as $dialog): ?>
-                        <a href="?page=akpp-crm&tab=avito-dialogs&dialog=<?php echo urlencode($dialog->dialog_id); ?>" 
+                        <a href="?page=akpp-crm-avito-dialogs&dialog=<?php echo intval($dialog->avito_dialog_id); ?>" 
                            style="text-decoration: none; display: block;">
                             <div class="dialog-item" style="padding: 15px; border-bottom: 1px solid #eee; cursor: pointer; 
-                                <?php echo ($selected_dialog == $dialog->dialog_id) ? 'background: #e7f3ff;' : ''; ?>">
-                                <strong><?php echo esc_html($dialog->user_name ?: 'Пользователь Авито'); ?></strong>
+                                <?php echo ($selected_dialog == $dialog->avito_dialog_id) ? 'background: #e7f3ff;' : ''; ?>">
+                                <strong><?php echo esc_html($dialog->client_name ?: 'Пользователь Авито'); ?></strong>
                                 <div style="font-size: 12px; color: #666; margin-top: 5px;">
-                                    <?php echo esc_html(substr($dialog->last_message, 0, 50)); ?>
+                                    <?php echo esc_html(substr($dialog->last_message_text ?? '', 0, 50)); ?>
                                 </div>
                                 <div style="font-size: 11px; color: #999; margin-top: 5px;">
-                                    <?php echo esc_html($dialog->last_message_time); ?>
+                                    <?php echo esc_html($dialog->last_message_date); ?>
                                 </div>
                             </div>
                         </a>
@@ -76,7 +76,7 @@ if ($selected_dialog) {
         <!-- Окно чата -->
         <div class="akpp-chat-window" style="width: 70%; background: #fff; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); display: flex; flex-direction: column;">
             
-            <?php if ($selected_dialog): ?>
+            <?php if ($selected_dialog > 0): ?>
                 <!-- Заголовок чата -->
                 <div style="padding: 15px; background: #f8f9fa; border-bottom: 1px solid #ddd; border-radius: 8px 8px 0 0;">
                     <h3 style="margin: 0;">Чат с пользователем</h3>
@@ -86,9 +86,9 @@ if ($selected_dialog) {
                 <div id="akpp-chat-messages" style="flex: 1; padding: 15px; overflow-y: auto; min-height: 450px; max-height: 450px;">
                     <?php if ($messages): ?>
                         <?php foreach ($messages as $msg): ?>
-                            <div style="margin-bottom: 15px; text-align: <?php echo $msg->is_incoming ? 'left' : 'right'; ?>;">
+                            <div style="margin-bottom: 15px; text-align: <?php echo ($msg->direction === 'incoming') ? 'left' : 'right'; ?>;">
                                 <div style="display: inline-block; max-width: 70%; padding: 10px 15px; border-radius: 15px; 
-                                    <?php echo $msg->is_incoming 
+                                    <?php echo ($msg->direction === 'incoming') 
                                         ? 'background: #f1f3f4; color: #000;' 
                                         : 'background: #0073aa; color: #fff;'; ?>">
                                     <?php echo nl2br(esc_html($msg->message_text)); ?>
@@ -159,7 +159,6 @@ jQuery(document).ready(function($) {
             dataType: 'json',
             success: function(response) {
                 if (response.success) {
-                    // Добавляем сообщение в чат
                     var messageHtml = '<div style="margin-bottom: 15px; text-align: right;">' +
                         '<div style="display: inline-block; max-width: 70%; padding: 10px 15px; border-radius: 15px; background: #0073aa; color: #fff;">' +
                         message.replace(/\n/g, '<br>') +

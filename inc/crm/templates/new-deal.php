@@ -31,7 +31,7 @@ if ($action === 'edit' && $deal_id > 0) {
 $all_parts = $wpdb->get_results("SELECT id, name, sku, price, quantity FROM {$wpdb->prefix}akpp_parts WHERE quantity > 0 ORDER BY name ASC", ARRAY_A);
 
 // Получаем список сотрудников
-$employees = $wpdb->get_results("SELECT id, full_name, role FROM {$wpdb->prefix}akpp_employees WHERE status = 'active' ORDER BY full_name ASC", ARRAY_A);
+$employees = $wpdb->get_results("SELECT id, name as full_name, role FROM {$wpdb->prefix}akpp_employees WHERE is_active = 1 ORDER BY name ASC", ARRAY_A);
 
 ?>
 
@@ -171,9 +171,9 @@ $employees = $wpdb->get_results("SELECT id, full_name, role FROM {$wpdb->prefix}
                         <select name="employee_id" style="width: 100%;">
                             <option value="0">Не назначен</option>
                             <?php foreach ($employees as $emp) : ?>
-                                <option value="<?php echo esc_attr($emp->id); ?>" <?php selected($deal_data['employee_id'] ?? 0, $emp->id); ?>>
-                                    <?php echo esc_html($emp->full_name); ?> (<?php echo esc_html($emp->role); ?>)
-                                </option>
+                                <option value="<?php echo esc_attr($emp['id']); ?>" <?php selected($deal_data['employee_id'] ?? 0, $emp['id']); ?>>
+        <?php echo esc_html($emp['full_name']); ?> (<?php echo esc_html($emp['role']); ?>)
+    </option>
                             <?php endforeach; ?>
                         </select>
                     </div>

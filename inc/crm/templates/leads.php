@@ -9,8 +9,7 @@ if (!class_exists('AKPP_Leads_Table')) {
 global $wpdb;
 
 // Получаем список активных сотрудников для назначения
-$employees = $wpdb->get_results("SELECT id, name as full_name FROM {$wpdb->prefix}akpp_employees WHERE is_active = 1 ORDER BY name ASC");
-
+$employees = $wpdb->get_results("SELECT id, name as full_name FROM {$wpdb->prefix}akpp_employees WHERE is_active = 1 ORDER BY name ASC", ARRAY_A);
 // Инициализируем таблицу
 $leads_table = new AKPP_Leads_Table();
 $leads_table->prepare_items();
