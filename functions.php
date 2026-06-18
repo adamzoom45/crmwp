@@ -34,47 +34,22 @@ function akpp_require_file($file) {
     return false;
 }
 
-// Подключение главного класса CRM
-$crm_main_file = AKPP_CRM_DIR . '/class-akpp-crm.php';
 
+// ИНИЦИАЛИЗАЦИЯ CRM
+$crm_main_file = AKPP_CRM_DIR . '/class-akpp-crm.php';
 if (file_exists($crm_main_file)) {
     require_once $crm_main_file;
-    
-    // Инициализация CRM после загрузки темы
     add_action('after_setup_theme', function() {
         if (class_exists('AKPP_CRM')) {
             try {
                 AKPP_CRM::get_instance();
             } catch (Exception $e) {
-                error_log('[AKPP45 CRM] Ошибка инициализации: ' . $e->getMessage());
+                error_log('[AKPP45 CRM] Ошибка: ' . $e->getMessage());
             }
         }
-    }, 5); // Приоритет 5 - загружаем раньше других хуков
-} else {
-    error_log('[AKPP45] КРИТИЧЕСКАЯ ОШИБКА: class-akpp-crm.php не найден в ' . $crm_main_file);
-    
-    // Аварийное восстановление меню CRM
-    add_action('admin_menu', 'akpp_emergency_crm_menu', 1);
+    }, 5);
 }
 
-// Аварийное меню на случай если CRM не загрузилась
-function akpp_emergency_crm_menu() {
-    add_menu_page(
-        'АКПП CRM',
-        'АКПП CRM',
-        'manage_options',
-        'akpp-crm-dashboard',
-        function() {
-            echo '<div class="wrap">';
-            echo '<h1>⚠️ АКПП CRM - Режим восстановления</h1>';
-            echo '<p>Главный класс CRM не загружен. Проверьте файл: <code>inc/crm/class-akpp-crm.php</code></p>';
-            echo '<p>Путь: <code>' . AKPP_CRM_DIR . '/class-akpp-crm.php</code></p>';
-            echo '</div>';
-        },
-        'dashicons-warning',
-        30
-    );
-}
 
 // =============================================================================
 // 2. THEME SETUP
@@ -471,3 +446,20 @@ function akpp_e($text) {
 function akpp_log($message, $level = 'info') {
     error_log(sprintf('[AKPP45] [%s] %s', strtoupper($level), $message));
 }
+
+
+// =============================================================================
+// CRON INTERVALS (должны быть доступны всегда, даже при cron запуске)
+// =============================================================================
+function akpp_add_cron_schedules($schedules) {
+    $schedules['every_15_minutes'] = [
+        'interval' => 900,
+        'display'  => __('Каждые 15 минут', 'akpp-crm')
+    ];
+    $schedules['every_5_minutes'] = [
+        'interval' => 300,
+        'display'  => __('Каждые 5 минут', 'akpp-crm')
+    ];
+    return $schedules;
+}
+add_filter('cron_schedules', 'akpp_add_cron_schedules');

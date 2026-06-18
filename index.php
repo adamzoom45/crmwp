@@ -1,370 +1,251 @@
-<!DOCTYPE html>
-<html lang="ru">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ремонт АКПП в Кургане — АКПП45</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400..700&display=swap" rel="stylesheet">
-    <style>
-        /* ВСТАВЬТЕ СЮДА ВЕСЬ CSS ИЗ БЛОКА ВЫШЕ */
-    </style>
-</head>
-<body>
-    <!-- Шапка -->
-    <header class="site-header">
-        <div class="header-inner">
-            <div class="site-logo">АКПП45<span>Курган</span></div>
-            <nav class="main-nav">
-                <ul>
-                    <li><a href="#services">Услуги</a></li>
-                    <li><a href="#pricing">Цены</a></li>
-                    <li><a href="#about">О нас</a></li>
-                    <li><a href="#contacts">Контакты</a></li>
-                </ul>
-            </nav>
-            <a href="tel:+79638669996" class="header-phone">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
-                +7 (963) 866-99-96
-            </a>
-            <button class="mobile-menu-btn" aria-label="Меню">
-                <span></span><span></span><span></span>
-            </button>
-        </div>
-        <div class="mobile-menu">
-            <nav class="mobile-nav">
-                <ul>
-                    <li><a href="#services">Услуги</a></li>
-                    <li><a href="#pricing">Цены</a></li>
-                    <li><a href="#about">О нас</a></li>
-                    <li><a href="#contacts">Контакты</a></li>
-                </ul>
-            </nav>
-        </div>
-    </header>
+<?php
+/**
+ * Template Name: AKPP Landing Page
+ * Главный шаблон лендинга АКПП Курган
+ *
+ * @package AKPP45
+ * @version 5.0
+ */
 
-    <!-- Hero -->
-    <section class="hero" id="home">
+get_header();
+?>
+
+<!-- ================================================================== -->
+<!-- HERO SECTION (Главный экран) -->
+<!-- ================================================================== -->
+<section class="hero">
+    <div class="hero-bg"></div>
+    <div class="container">
         <div class="hero-content">
             <h1 class="hero-title">
-                <span class="highlight">Ремонт АКПП</span><br>
-                Toyota и Lexus в Кургане
+                Профессиональный<br>
+                <span class="highlight">Ремонт АКПП в Кургане</span>
             </h1>
             <p class="hero-description">
-                Опыт 11 лет. Специализированный сервис по восстановлению классических гидравлических трансмиссий
+                Точная диагностика, ремонт ЭБУ, замена масла. 
+                Современное оборудование и ПО.
             </p>
+            
             <div class="hero-badges">
-                <span class="badge">Toyota</span>
-                <span class="badge">Lexus</span>
-                <span class="badge">Mazda</span>
-                <span class="badge">Ford</span>
-                <span class="badge">Hyundai</span>
-                <span class="badge">Kia</span>
+                <span class="badge">✓ Гарантия на работы</span>
+                <span class="badge">✓ Диагностика на дилерском оборудовании</span>
+                <span class="badge">✓ Запчасти в наличии</span>
             </div>
-            <a href="#contacts" class="btn btn-primary btn-lg">Записаться на диагностику</a>
-        </div>
-    </section>
-
-    <!-- О мастере -->
-    <section class="about-section" id="about">
-        <div class="container">
-            <h2 class="section-title">О мастере</h2>
-            <div class="about-content">
-                <p class="lead">
-                    Специализированный сервис по восстановлению классических гидравлических трансмиссий. Моя главная специализация — <strong style="color:var(--accent);">Toyota и Lexus</strong>. Знаю эти агрегаты до винтика, имею опыт, оборудование и прямые каналы поставки запчастей.
-                </p>
-                <div class="warning-block">
-                    <h3>⛔ С чем я НЕ работаю:</h3>
-                    <ul>
-                        <li><strong>Немецкие авто</strong> (VAG, BMW, Mercedes) — не ремонтирую</li>
-                        <li><strong>Вариаторы (CVT) и роботы (DSG)</strong> — не делаю. Только классические гидроавтоматы</li>
-                        <li><strong>Контрактные (б/у) АКПП</strong> — под заказ не вожу. Только качественный ремонт вашего родного агрегата</li>
-                    </ul>
-                </div>
+            
+            <div class="hero-actions">
+                <a href="#contact" class="btn btn-primary btn-lg btn-glow">ЗАПИСАТЬСЯ НА ДИАГНОСТИКУ</a>
+                <a href="tel:+73522123456" class="btn btn-outline">+7 (3522) 123-45-67</a>
             </div>
         </div>
-    </section>
+    </div>
+</section>
 
-    <!-- Специализация и цены -->
-    <section class="services-section" id="services">
-        <div class="container">
-            <h2 class="section-title">Специализация и цены</h2>
-
-            <div class="service-block">
-                <h3>🚗 Toyota / Lexus (цены за работу)</h3>
-                <div class="service-grid">
-                    <article class="service-card">
-                        <h4>Серии 03-70 / 30-40</h4>
-                        <p class="service-models">A340E, A340F, A343F, A341F</p>
-                        <p class="service-cars">Land Cruiser 80/100, Prado 90/120, Mark II, Chaser, Cresta, Crown</p>
-                        <p class="service-price">от 50 000 ₽</p>
-                    </article>
-                    <article class="service-card">
-                        <h4>Серии 35-50</h4>
-                        <p class="service-models">A350E, A540E, A541E</p>
-                        <p class="service-cars">Camry (V6), Highlander (1-е пок.), Sienna, Lexus GS300/IS300</p>
-                        <p class="service-price">от 50 000 ₽</p>
-                    </article>
-                    <article class="service-card">
-                        <h4>Серия 650</h4>
-                        <p class="service-models">A650E</p>
-                        <p class="service-cars">Lexus IS (250/350), Lexus GS (300/350), Toyota Mark X, Crown (120/130)</p>
-                        <p class="service-price">от 50 000 ₽</p>
-                    </article>
-                    <article class="service-card">
-                        <h4>Все серии U</h4>
-                        <p class="service-models">U660E, U760E, U880E и др.</p>
-                        <p class="service-cars">Camry, RAV4, Highlander, Lexus RX (350/450h)</p>
-                        <p class="service-price">от 50 000 ₽</p>
-                    </article>
-                </div>
-            </div>
-
-            <div class="service-block">
-                <h3>🚗 Другие марки (гидроавтоматы)</h3>
-                <div class="service-grid">
-                    <article class="service-card">
-                        <h4>Hyundai / Kia</h4>
-                        <p class="service-price">от 50 000 ₽</p>
-                    </article>
-                    <article class="service-card">
-                        <h4>Mazda / Ford</h4>
-                        <p class="service-price">от 50 000 ₽</p>
-                    </article>
-                    <article class="service-card">
-                        <h4>Renault / Mitsubishi</h4>
-                        <p class="service-price">После диагностики</p>
-                    </article>
-                </div>
-            </div>
-        </div>
-    </section>
-
-    <!-- Преимущества -->
-    <section class="advantages-section">
-        <div class="container">
-            <h2 class="section-title">Почему выбирают меня</h2>
-            <div class="advantages-grid">
-                <article class="advantage-card">
-                    <div class="advantage-icon">💰</div>
-                    <h3>Запчасти по себестоимости</h3>
-                    <p>Я не зарабатываю на деталях. Все комплектующие заказываю и отдаю вам строго по чеку. Моя прибыль — только моя работа.</p>
-                </article>
-                <article class="advantage-card">
-                    <div class="advantage-icon">🏭</div>
-                    <h3>Заводской ремонт ГДТ</h3>
-                    <p>Гидротрансформатор отправляю на специализированный завод. Балансировка и сварка на промышленном стенде. Никакой кустарщины.</p>
-                </article>
-                <article class="advantage-card">
-                    <div class="advantage-icon">🧼</div>
-                    <h3>Автоматическая мойка</h3>
-                    <p>Сборка агрегата в стерильной чистоте. Вымываю всю стружку и шлам из каналов под давлением.</p>
-                </article>
-                <article class="advantage-card">
-                    <div class="advantage-icon">🎯</div>
-                    <h3>Опыт 11 лет</h3>
-                    <p>Специализация на Toyota и Lexus. Знаю эти агрегаты до винтика. Прямые каналы поставки запчастей.</p>
-                </article>
-            </div>
-        </div>
-    </section>
-
-    <!-- Диагностика и условия -->
-    <section class="diagnostic-section" id="diagnostic">
-        <div class="container">
-            <h2 class="section-title">Диагностика и условия</h2>
-            <div class="diagnostic-content">
-                <div class="info-card">
-                    <h3>🔍 Диагностика с разбором</h3>
-                    <ul>
-                        <li>Передний привод: <strong style="color:var(--accent);">3 000 ₽</strong></li>
-                        <li>Задний/полный привод: <strong style="color:var(--accent);">5 000 ₽</strong></li>
-                    </ul>
-                    <p class="bonus">✅ Бонус: Если соглашаетесь на ремонт — стоимость диагностики вычитается из итоговой суммы!</p>
-                </div>
-                <div class="info-card">
-                    <h3>Условия работы</h3>
-                    <ul>
-                        <li>Снятие АКПП: по умолчанию не снимаю (работаю с привезенным агрегатом)</li>
-                        <li>Снятие на месте: от 20 000 ₽</li>
-                        <li>При отказе от ремонта — АКПП выдается в разобранном виде с актом дефектовки</li>
-                        <li>Чужие запчасти — установка без гарантии на результат</li>
-                    </ul>
-                </div>
-            </div>
-        </div>
-    </section>
-
-    <!-- Хранение -->
-    <section class="storage-section">
-        <div class="container">
-            <h2 class="section-title">Хранение</h2>
-            <div class="storage-grid">
-                <div class="storage-card">
-                    <h3>Автомобиль в теплом боксе</h3>
-                    <p class="storage-price">10 000 ₽ / сутки</p>
-                </div>
-                <div class="storage-card">
-                    <h3>Автомобиль на улице</h3>
-                    <p class="storage-price">500 ₽ / сутки</p>
-                </div>
-                <div class="storage-card">
-                    <h3>Разобранная АКПП</h3>
-                    <p class="storage-price">300 ₽ / сутки</p>
-                    <p class="storage-note">(при отказе от ремонта, если не забрали в течение 3 дней)</p>
-                </div>
-            </div>
-            <p class="storage-warning">⚠️ Если разобранная АКПП не забирается более 14 дней, она утилизируется в счет оплаты услуг по хранению.</p>
-        </div>
-    </section>
-
-    <!-- Дополнительные услуги -->
-    <section class="additional-section">
-        <div class="container">
-            <h2 class="section-title">Дополнительные услуги</h2>
-            <div class="additional-grid">
-                <article class="additional-card">
-                    <h3>СВАП</h3>
-                    <p>1GZ-FE (A340) под Land Cruiser / Prado с переделкой раздатки «в болт»</p>
-                </article>
-                <article class="additional-card">
-                    <h3>Гидроблок</h3>
-                    <p>Промывка от 5 000 ₽, замена соленоидов от 13 000 ₽</p>
-                </article>
-                <article class="additional-card">
-                    <h3>Мойка деталей</h3>
-                    <p>Мойка деталей ДВС/КПП — от 1 000 ₽</p>
-                </article>
-            </div>
-            <p class="additional-note">⚙️ Я специализируюсь исключительно на механической части. НЕ занимаюсь кодированием блоков управления, прошивкой АКПП и адаптацией ПО.</p>
-        </div>
-    </section>
-
-    <!-- Частые вопросы -->
-    <section class="faq-section">
-        <div class="container">
-            <h2 class="section-title">Частые вопросы</h2>
-            <div class="faq-list">
-                <details class="faq-item">
-                    <summary>Какие АКПП вы ремонтируете?</summary>
-                    <p>Только классические гидравлические автоматы Toyota, Lexus, Mazda, Ford, Hyundai, Kia. Не работаю с вариаторами (CVT), роботами (DSG) и немецкими авто (VAG, BMW, Mercedes).</p>
-                </details>
-                <details class="faq-item">
-                    <summary>Сколько стоит диагностика?</summary>
-                    <p>Диагностика с разбором: передний привод — 3 000 ₽, задний/полный привод — 5 000 ₽. При согласии на ремонт стоимость диагностики вычитается из итоговой суммы.</p>
-                </details>
-                <details class="faq-item">
-                    <summary>Даете ли гарантию на ремонт?</summary>
-                    <p>Да, гарантия предоставляется на выполненные работы. Запчасти отдаются по себестоимости, моя прибыль — только работа.</p>
-                </details>
-                <details class="faq-item">
-                    <summary>Можно ли привезти свои запчасти?</summary>
-                    <p>Да, но в этом случае установка производится без гарантии на результат. В случае проблем, вызванных качеством ваших деталей, повторный ремонт оплачивается отдельно.</p>
-                </details>
-                <details class="faq-item">
-                    <summary>Где вы находитесь?</summary>
-                    <p>Курган, ул. Бурова-Петрова, 121, ГСК КАС №8. Есть теплый бокс.</p>
-                </details>
-            </div>
-        </div>
-    </section>
-
-    <!-- Контакты -->
-    <section class="contacts-section" id="contacts">
-        <div class="container">
-            <h2 class="section-title">Контакты</h2>
-            <div class="contacts-wrapper">
-                <div class="contact-cards">
-                    <a href="tel:+79638669996" class="contact-card">
-                        <div class="contact-icon">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
-                        </div>
-                        <div class="contact-text">
-                            <span class="contact-label">Телефон</span>
-                            <span class="contact-value">+7 (963) 866-99-96</span>
-                        </div>
-                    </a>
-                    <a href="https://t.me/akppkgn" target="_blank" rel="noopener" class="contact-card">
-                        <div class="contact-icon">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.198 2.433a2.242 2.242 0 0 0-1.022.215l-16.5 7.5a2.25 2.25 0 0 0 .126 4.073l3.9 1.205 1.765 5.6a1.5 1.5 0 0 0 2.55.502l2.422-2.879 4.283 3.166a2.25 2.25 0 0 0 3.502-1.272l3.25-15.5a2.25 2.25 0 0 0-2.276-2.61z"/></svg>
-                        </div>
-                        <div class="contact-text">
-                            <span class="contact-label">Telegram</span>
-                            <span class="contact-value">@akppkgn</span>
-                        </div>
-                    </a>
-                    <div class="contact-card">
-                        <div class="contact-icon">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
-                        </div>
-                        <div class="contact-text">
-                            <span class="contact-label">Адрес</span>
-                            <span class="contact-value address">г. Курган, ул. Бурова-Петрова, 121, ГСК КАС №8</span>
-                        </div>
-                    </div>
-                </div>
-                <!-- Можно добавить карту, но оставим место -->
-            </div>
-        </div>
-    </section>
-
-    <!-- Disclaimer -->
+<!-- ================================================================== -->
+<!-- SERVICES (Услуги) -->
+<!-- ================================================================== -->
+<section class="services-section" id="services">
     <div class="container">
-        <div class="disclaimer">
-            Информация на сайте носит рекламный характер и не является публичной офертой.
+        <h2 class="section-title">Наши Услуги</h2>
+        
+        <div class="services-grid">
+            <!-- Service 1 -->
+            <div class="service-card">
+                <div class="service-icon">
+                    <svg width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="#00ff88" stroke-width="1.5">
+                        <circle cx="12" cy="12" r="3"></circle>
+                        <path d="M12 1v6m0 6v6m4.22-10.22l4.24-4.24M6.34 17.66l-4.24 4.24M23 12h-6m-6 0H1m20.24 4.24l-4.24-4.24M6.34 6.34L2.1 2.1"></path>
+                    </svg>
+                </div>
+                <h3>Точная Диагностика</h3>
+                <p>Современного агрегата и ПО</p>
+            </div>
+            
+            <!-- Service 2 -->
+            <div class="service-card">
+                <div class="service-icon">
+                    <svg width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="#00ff88" stroke-width="1.5">
+                        <rect x="4" y="4" width="16" height="16" rx="2"></rect>
+                        <rect x="9" y="9" width="6" height="6"></rect>
+                        <line x1="9" y1="1" x2="9" y2="4"></line>
+                        <line x1="15" y1="1" x2="15" y2="4"></line>
+                        <line x1="9" y1="20" x2="9" y2="23"></line>
+                        <line x1="15" y1="20" x2="15" y2="23"></line>
+                        <line x1="20" y1="9" x2="23" y2="9"></line>
+                        <line x1="20" y1="14" x2="23" y2="14"></line>
+                        <line x1="1" y1="9" x2="4" y2="9"></line>
+                        <line x1="1" y1="14" x2="4" y2="14"></line>
+                    </svg>
+                </div>
+                <h3>Ремонт ЭБУ</h3>
+                <p>Калибровка и перепрошивка блоков управления</p>
+            </div>
+            
+            <!-- Service 3 -->
+            <div class="service-card">
+                <div class="service-icon">
+                    <svg width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="#00ff88" stroke-width="1.5">
+                        <path d="M19 13l-7 7-7-7m14-8l-7 7-7-7"></path>
+                        <path d="M12 3v17"></path>
+                    </svg>
+                </div>
+                <h3>Замена Масла</h3>
+                <p>Оригинальные жидкости и строгий регламент</p>
+            </div>
         </div>
     </div>
+</section>
 
-    <!-- Футер -->
-    <footer class="site-footer">
-        <div class="container">
-            <div class="footer-inner">
-                <div class="footer-section">
-                    <h4>АКПП45</h4>
-                    <p class="text-muted">Ремонт АКПП Toyota и Lexus в Кургане. Опыт 11 лет.</p>
-                </div>
-                <div class="footer-section">
-                    <h4>Контакты</h4>
-                    <ul>
-                        <li><a href="tel:+79638669996">+7 (963) 866-99-96</a></li>
-                        <li><a href="https://t.me/akppkgn" target="_blank">Telegram</a></li>
-                        <li><span class="text-muted">г. Курган, ул. Бурова-Петрова, 121</span></li>
-                    </ul>
-                </div>
-                <div class="footer-section">
-                    <h4>Навигация</h4>
-                    <ul>
-                        <li><a href="#services">Услуги</a></li>
-                        <li><a href="#diagnostic">Диагностика</a></li>
-                        <li><a href="#contacts">Контакты</a></li>
-                    </ul>
-                </div>
+<!-- ================================================================== -->
+<!-- PRICING (Цены) -->
+<!-- ================================================================== -->
+<section class="pricing-section" id="pricing">
+    <div class="container">
+        <h2 class="section-title">Стоимость Услуг</h2>
+        
+        <div class="pricing-table">
+            <div class="pricing-header">
+                <div class="col-service">Наименование сервиса</div>
+                <div class="col-price">Standard</div>
+                <div class="col-price premium">Premium</div>
+                <div class="col-price vip">VIP</div>
             </div>
-            <div class="footer-bottom">
-                &copy; 2026 АКПП45. Все права защищены.
+            
+            <div class="pricing-row">
+                <div class="col-service">Диагностика + замена масла</div>
+                <div class="col-price">12 500 ₽</div>
+                <div class="col-price premium">18 900 ₽</div>
+                <div class="col-price vip">24 800 ₽</div>
+            </div>
+            
+            <div class="pricing-row">
+                <div class="col-service">Диагностика + ремонт гидроблока</div>
+                <div class="col-price">—</div>
+                <div class="col-price premium">✓ Включено</div>
+                <div class="col-price vip">✓ Включено</div>
+            </div>
+            
+            <div class="pricing-row">
+                <div class="col-service">Полный комплекс: диагностика, ремонт, адаптация, тест-драйв</div>
+                <div class="col-price">—</div>
+                <div class="col-price premium">—</div>
+                <div class="col-price vip">✓ Включено</div>
             </div>
         </div>
-    </footer>
-
-    <!-- Плавающая кнопка чата -->
-    <div class="chat-widget">
-        <a href="https://t.me/akppkgn" target="_blank" class="chat-btn" aria-label="Чат в Telegram">
-            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.198 2.433a2.242 2.242 0 0 0-1.022.215l-16.5 7.5a2.25 2.25 0 0 0 .126 4.073l3.9 1.205 1.765 5.6a1.5 1.5 0 0 0 2.55.502l2.422-2.879 4.283 3.166a2.25 2.25 0 0 0 3.502-1.272l3.25-15.5a2.25 2.25 0 0 0-2.276-2.61z"/></svg>
-        </a>
     </div>
+</section>
 
-    <script>
-        // Мобильное меню
-        document.querySelector('.mobile-menu-btn').addEventListener('click', function() {
-            document.querySelector('.mobile-menu').classList.toggle('active');
-        });
-        // Закрытие при клике на ссылку
-        document.querySelectorAll('.mobile-nav a').forEach(link => {
-            link.addEventListener('click', () => {
-                document.querySelector('.mobile-menu').classList.remove('active');
-            });
-        });
-    </script>
-</body>
-</html>
+<!-- ================================================================== -->
+<!-- WORKFLOW (Процесс работы) -->
+<!-- ================================================================== -->
+<section class="workflow-section">
+    <div class="container">
+        <h2 class="section-title">Process Workflow</h2>
+        
+        <div class="workflow-timeline">
+            <div class="workflow-step">
+                <div class="step-icon">
+                    <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#00ff88" stroke-width="2">
+                        <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.362 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.338 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"></path>
+                    </svg>
+                </div>
+                <div class="step-label">Заявка</div>
+            </div>
+            
+            <div class="workflow-line"></div>
+            
+            <div class="workflow-step">
+                <div class="step-icon">
+                    <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#00ff88" stroke-width="2">
+                        <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
+                    </svg>
+                </div>
+                <div class="step-label">Диагностика</div>
+            </div>
+            
+            <div class="workflow-line"></div>
+            
+            <div class="workflow-step">
+                <div class="step-icon">
+                    <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#00ff88" stroke-width="2">
+                        <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"></path>
+                    </svg>
+                </div>
+                <div class="step-label">Ремонт</div>
+            </div>
+            
+            <div class="workflow-line"></div>
+            
+            <div class="workflow-step">
+                <div class="step-icon">
+                    <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#00ff88" stroke-width="2">
+                        <path d="M9 11l3 3L22 4"></path>
+                        <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>
+                    </svg>
+                </div>
+                <div class="step-label">Тестирования</div>
+            </div>
+            
+            <div class="workflow-line"></div>
+            
+            <div class="workflow-step">
+                <div class="step-icon">
+                    <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#00ff88" stroke-width="2">
+                        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                        <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                    </svg>
+                </div>
+                <div class="step-label">Сдача авто</div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- ================================================================== -->
+<!-- CONTACTS (Контакты) -->
+<!-- ================================================================== -->
+<section class="contacts-section" id="contact">
+    <div class="container">
+        <h2 class="section-title">Контакты</h2>
+        
+        <div class="contacts-grid">
+            <div class="contact-card">
+                <div class="contact-icon">
+                    <svg width="50" height="50" viewBox="0 0 24 24" fill="none" stroke="#00ff88" stroke-width="1.5">
+                        <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+                        <circle cx="12" cy="10" r="3"></circle>
+                    </svg>
+                </div>
+                <div class="contact-info">
+                    <h4>Адрес</h4>
+                    <p>г. Курган</p>
+                </div>
+            </div>
+            
+            <div class="contact-card">
+                <div class="contact-icon">
+                    <svg width="50" height="50" viewBox="0 0 24 24" fill="none" stroke="#00ff88" stroke-width="1.5">
+                        <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.362 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.338 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"></path>
+                    </svg>
+                </div>
+                <div class="contact-info">
+                    <h4>Телефон</h4>
+                    <p><a href="tel:+73522123456">+7 (3522) 123-45-67</a></p>
+                </div>
+            </div>
+            
+            <div class="contact-card">
+                <div class="contact-icon">
+                    <svg width="50" height="50" viewBox="0 0 24 24" fill="none" stroke="#00ff88" stroke-width="1.5">
+                        <path d="M21.198 2.433a2.242 2.242 0 0 0-1.022.215l-16.5 7.5a2.25 2.25 0 0 0 .126 4.073l3.9 1.205 1.765 5.6a1.5 1.5 0 0 0 2.55.502l2.422-2.879 4.283 3.166a2.25 2.25 0 0 0 3.502-1.272l3.25-15.5a2.25 2.25 0 0 0-2.276-2.61z"></path>
+                    </svg>
+                </div>
+                <div class="contact-info">
+                    <h4>Telegram</h4>
+                    <p><a href="https://t.me/akpp-kurgan" target="_blank">@akpp-kurgan</a></p>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<?php get_footer(); ?>
