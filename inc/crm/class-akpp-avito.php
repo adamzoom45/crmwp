@@ -363,7 +363,7 @@ class AKPP_Avito {
                     'user_id' => $chat['user_id'] ?? '',
                     'user_name' => $chat['user_name'] ?? 'Пользователь Авито',
                     'last_message' => $chat['last_message'] ?? '',
-                    'last_message_time' => $chat['last_message_time'] ?? current_time('mysql'),
+                    'last_message_date' => $chat['last_message_date'] ?? current_time('mysql'),
                     'is_active' => 1,
                     'updated_at' => current_time('mysql')
                 ],

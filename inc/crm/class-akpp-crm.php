@@ -86,26 +86,65 @@ class AKPP_CRM {
         require_once AKPP_CRM_PATH . 'tables/class-parts-table.php';
         require_once AKPP_CRM_PATH . 'tables/class-oils-table.php';
         require_once AKPP_CRM_PATH . 'tables/class-parser-table.php';
-        require_once AKPP_CRM_PATH . 'tables/class-users-table.php';               // ✅ НОВЫЙ
-        require_once AKPP_CRM_PATH . 'tables/class-avito-dialogs-table.php';       // ✅ НОВЫЙ
+        require_once AKPP_CRM_PATH . 'tables/class-users-table.php';
+        require_once AKPP_CRM_PATH . 'tables/class-avito-dialogs-table.php';
     }
 
     /**
-     * Инициализация хуков WordPress
+     * ✅ НОВЫЙ МЕТОД: Регистрация хуков WordPress
      */
     private function init_hooks() {
-        // Установка БД при активации (можно вызывать вручную или через register_activation_hook в плагине)
-        add_action('admin_init', [$this, 'maybe_install_db']);
-        
-        // Регистрация меню
+        // Админ-меню
         add_action('admin_menu', [$this, 'register_admin_menus']);
         
-        // Подключение стилей и скриптов (СТРОГО из корня темы /assets/)
-        add_action('wp_enqueue_scripts', [$this, 'enqueue_frontend_assets']);
+        // Подключение скриптов и стилей
         add_action('admin_enqueue_scripts', [$this, 'enqueue_admin_assets']);
+        add_action('wp_enqueue_scripts', [$this, 'enqueue_frontend_assets']);
         
-        // Регистрация шорткодов
+        // Шорткоды
         add_action('init', [$this, 'register_shortcodes']);
+        
+        // Проверка и установка БД
+        add_action('admin_init', [$this, 'maybe_install_db']);
+    }
+
+    /**
+     * Проверка и установка БД при загрузке админки
+     */
+    public function maybe_install_db() {
+        // Проверяем, что мы в админке и у пользователя есть права
+        if (!current_user_can('manage_options')) {
+            return;
+        }
+        
+        $current_version = get_option('akpp_crm_db_version', '0');
+        $target_version  = '4.3';
+        
+        if (version_compare($current_version, $target_version, '<')) {
+            // Блокировка для предотвращения одновременного запуска
+            $lock_key = 'akpp_crm_db_installing';
+            if (get_transient($lock_key)) {
+                return; // Установка уже идет
+            }
+            
+            set_transient($lock_key, true, 300); // Блокировка на 5 минут
+            
+            try {
+                require_once AKPP_CRM_PATH . 'class-akpp-install.php';
+                $installer = new AKPP_Install();
+                $result = $installer->run();
+                
+                // Обновляем версию только если установка успешна
+                if ($result !== false) {
+                    update_option('akpp_crm_db_version', $target_version);
+                }
+            } catch (Exception $e) {
+                // Логируем ошибку
+                error_log('AKPP CRM DB Install Error: ' . $e->getMessage());
+            } finally {
+                delete_transient($lock_key);
+            }
+        }
     }
 
     /**
@@ -113,7 +152,7 @@ class AKPP_CRM {
      */
     private function init_components() {
         // AJAX обработчики
-        new AKPP_AJAX();
+        AKPP_AJAX::get_instance();
         new AKPP_Chat_AJAX();
         new AKPP_User_Registration();
         
@@ -131,16 +170,6 @@ class AKPP_CRM {
         // Telegram
         if (class_exists('AKPP_Telegram')) {
             AKPP_Telegram::get_instance();
-        }
-    }
-
-    /**
-     * Проверка и установка БД при первом запуске
-     */
-    public function maybe_install_db() {
-        $db_version = get_option('akpp_crm_db_version', '0');
-        if (version_compare($db_version, AKPP_CRM_VERSION, '<')) {
-            AKPP_Install::install();
         }
     }
 
@@ -225,6 +254,12 @@ class AKPP_CRM {
         wp_enqueue_script('akpp-deal-calculator-js', $theme_uri . '/assets/js/deal-calculator.js', ['jquery'], AKPP_CRM_VERSION, true);
         wp_enqueue_script('akpp-vin-decoder-js', $theme_uri . '/assets/js/vin-decoder.js', ['jquery'], AKPP_CRM_VERSION, true);
         wp_enqueue_script('akpp-chat-js', $theme_uri . '/assets/js/chat.js', ['jquery'], AKPP_CRM_VERSION, true);
+        
+        // Общий nonce для всех AJAX запросов CRM
+        wp_localize_script('akpp-admin-js', 'akpp_ajax', [
+            'ajax_url' => admin_url('admin-ajax.php'),
+            'nonce'    => wp_create_nonce('akpp45_nonce')
+        ]);
         
         // Локализация для JS (передача nonce и URL)
         wp_localize_script('akpp-deal-calculator-js', 'akpp_deal', [

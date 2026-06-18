@@ -400,7 +400,7 @@ class AKPP_DB {
                 $this->prefix . 'avito_dialogs',
                 [
                     'last_message' => $last_message,
-                    'last_message_time' => current_time('mysql'),
+                    'last_message_date' => current_time('mysql'),
                     'updated_at' => current_time('mysql')
                 ],
                 ['dialog_id' => $dialog_id]
@@ -413,7 +413,7 @@ class AKPP_DB {
                     'user_id' => $user_id,
                     'user_name' => $user_name,
                     'last_message' => $last_message,
-                    'last_message_time' => current_time('mysql'),
+                    'last_message_date' => current_time('mysql'),
                     'is_active' => 1,
                     'created_at' => current_time('mysql')
                 ]
