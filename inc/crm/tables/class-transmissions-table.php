@@ -67,7 +67,7 @@ class AKPP_Transmissions_Table extends WP_List_Table {
         // Получение общего количества
         $count_query = "SELECT COUNT(*) FROM {$this->table_name} {$where_clause}";
         if (!empty($params)) {
-            $count_query = $wpdb->prepare($count_query, $params);
+            $count_query = $wpdb->prepare($count_query, ...$params);
         }
         $total_items = $wpdb->get_var($count_query);
         
@@ -76,7 +76,7 @@ class AKPP_Transmissions_Table extends WP_List_Table {
         $params[] = $per_page;
         $params[] = $offset;
         
-        $query = $wpdb->prepare($query, $params);
+        $query = $wpdb->prepare($query, ...$params);
         $this->items = $wpdb->get_results($query);
         
         // Настройка пагинации
