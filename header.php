@@ -1,118 +1,131 @@
 <?php
 /**
- * The header for our theme
+ * Header template
  *
  * @package AKPP45
- * @version 5.0
  */
-
 ?>
 <!DOCTYPE html>
 <html <?php language_attributes(); ?>>
 <head>
     <meta charset="<?php bloginfo('charset'); ?>">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="Профессиональный ремонт АКПП в Кургане. Диагностика, ремонт ЭБУ, замена масла. Гарантия качества.">
-    <meta name="keywords" content="ремонт АКПП Курган, диагностика АКПП, ремонт ЭБУ, замена масла АКПП">
-    
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <link rel="profile" href="https://gmpg.org/xfn/11">
     <?php wp_head(); ?>
 </head>
 
 <body <?php body_class(); ?>>
 <?php wp_body_open(); ?>
 
-<!-- ================================================================== -->
-<!-- HEADER -->
-<!-- ================================================================== -->
-<header class="site-header">
-    <div class="header-inner">
-        <!-- Logo -->
-        <div class="site-logo">
-            <a href="<?php echo esc_url(home_url('/')); ?>">
-                АКПП <span>Курган</span>
+<header class="site-header" id="masthead">
+    <div class="header-container">
+        
+        <!-- Логотип -->
+        <div class="header-logo">
+            <a href="<?php echo esc_url(home_url('/')); ?>" class="logo-link">
+                <span class="logo-text">АКПП<span class="accent">45</span></span>
+                <span class="logo-subtitle">Курган</span>
             </a>
         </div>
 
-        <!-- Desktop Navigation -->
-        <nav class="main-nav">
+        <!-- Навигация (десктоп) -->
+        <nav class="header-nav desktop-nav">
             <?php
             wp_nav_menu([
                 'theme_location' => 'primary',
-                'menu_class'     => 'nav-menu',
+                'menu_class'     => 'primary-menu',
                 'container'      => false,
-                'fallback_cb'    => 'akpp_default_menu'
+                'fallback_cb'    => function() {
+                    echo '<ul class="primary-menu">';
+                    echo '<li><a href="#home">Главная</a></li>';
+                    echo '<li><a href="#specialization">Специализация</a></li>';
+                    echo '<li><a href="#price">Цены</a></li>';
+                    echo '<li><a href="#why">Почему я</a></li>';
+                    echo '<li><a href="#conditions">Условия</a></li>';
+                    echo '<li><a href="#contacts">Контакты</a></li>';
+                    echo '</ul>';
+                },
             ]);
             ?>
         </nav>
 
-        <!-- Phone -->
-        <div class="header-phone">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.362 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.338 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"></path>
-            </svg>
-            <a href="tel:+73522123456">+7 (3522) 123-45-67</a>
-        </div>
+        <!-- Кнопки действий -->
+        <div class="header-actions">
+            <a href="tel:+79638669996" class="btn-phone">
+                <span class="phone-icon">📞</span>
+                <span class="phone-text desktop-only">+7 (963) 866-99-96</span>
+            </a>
+            
+            <a href="https://t.me/akppkgn" target="_blank" class="btn-telegram" rel="noopener">
+                <span class="telegram-icon">💬</span>
+                <span class="telegram-text desktop-only">Telegram</span>
+            </a>
+            
+            <?php if (is_user_logged_in()) : ?>
+                <a href="<?php echo esc_url(home_url('/profile')); ?>" class="btn-profile">
+                    <span class="profile-icon">👤</span>
+                    <span class="profile-text desktop-only">Кабинет</span>
+                </a>
+                <a href="<?php echo esc_url(wp_logout_url(home_url('/'))); ?>" class="btn-logout mobile-hidden">
+                    <span>Выход</span>
+                </a>
+            <?php else : ?>
+                <button class="btn-auth open-auth-modal" type="button">
+                    <span class="auth-icon">🔐</span>
+                    <span class="auth-text desktop-only">Войти</span>
+                </button>
+            <?php endif; ?>
 
-        <!-- Mobile Menu Button -->
-        <button class="mobile-menu-btn" aria-label="Открыть меню">
-            <span></span>
-            <span></span>
-            <span></span>
-        </button>
+            <!-- Кнопка записи (акцентная) -->
+            <button class="btn-booking open-booking-modal" type="button">
+                <span class="booking-icon">📝</span>
+                <span class="booking-text">Записаться</span>
+            </button>
+
+            <!-- Мобильное меню -->
+            <button class="mobile-menu-toggle" type="button" aria-label="Открыть меню" aria-expanded="false">
+                <span class="hamburger">
+                    <span class="hamburger-line"></span>
+                    <span class="hamburger-line"></span>
+                    <span class="hamburger-line"></span>
+                </span>
+            </button>
+        </div>
     </div>
 
-    <!-- Mobile Menu -->
-    <div class="mobile-menu">
+    <!-- Мобильное меню (выпадающее) -->
+    <div class="mobile-menu" id="mobileMenu">
         <nav class="mobile-nav">
             <?php
             wp_nav_menu([
                 'theme_location' => 'mobile',
                 'menu_class'     => 'mobile-menu-list',
                 'container'      => false,
-                'fallback_cb'    => 'akpp_default_menu'
+                'fallback_cb'    => function() {
+                    echo '<ul class="mobile-menu-list">';
+                    echo '<li><a href="#home">Главная</a></li>';
+                    echo '<li><a href="#specialization">Специализация</a></li>';
+                    echo '<li><a href="#price">Цены</a></li>';
+                    echo '<li><a href="#why">Почему я</a></li>';
+                    echo '<li><a href="#conditions">Условия</a></li>';
+                    echo '<li><a href="#contacts">Контакты</a></li>';
+                    echo '</ul>';
+                },
             ]);
             ?>
         </nav>
-        <div class="mobile-phone">
-            <a href="tel:+73522123456">+7 (3522) 123-45-67</a>
+        
+        <!-- Контакты в мобильном меню -->
+        <div class="mobile-contacts">
+            <a href="tel:+79638669996" class="mobile-contact-link">
+                <span>📞</span> +7 (963) 866-99-96
+            </a>
+            <a href="https://t.me/akppkgn" target="_blank" class="mobile-contact-link">
+                <span>💬</span> @akppkgn
+            </a>
         </div>
     </div>
 </header>
 
-<!-- Fallback Menu Function -->
-<?php
-if (!function_exists('akpp_default_menu')) {
-    function akpp_default_menu() {
-        echo '<ul class="nav-menu">';
-        echo '<li><a href="#services">Услуги</a></li>';
-        echo '<li><a href="#pricing">Цены</a></li>';
-        echo '<li><a href="#workflow">Процесс</a></li>';
-        echo '<li><a href="#contact">Контакты</a></li>';
-        echo '</ul>';
-    }
-}
-?>
-
-<script>
-// Mobile Menu Toggle
-document.addEventListener('DOMContentLoaded', function() {
-    const menuBtn = document.querySelector('.mobile-menu-btn');
-    const mobileMenu = document.querySelector('.mobile-menu');
-    
-    if (menuBtn && mobileMenu) {
-        menuBtn.addEventListener('click', function() {
-            mobileMenu.classList.toggle('active');
-            this.classList.toggle('active');
-        });
-        
-        // Close menu when clicking on a link
-        const mobileLinks = mobileMenu.querySelectorAll('a');
-        mobileLinks.forEach(link => {
-            link.addEventListener('click', function() {
-                mobileMenu.classList.remove('active');
-                menuBtn.classList.remove('active');
-            });
-        });
-    }
-});
-</script>
+<main class="site-main" id="main">

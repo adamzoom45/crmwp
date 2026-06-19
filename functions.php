@@ -1,30 +1,27 @@
 <?php
 /**
  * АКПП Курган - Theme Functions
- * Корень репозитория = тема WordPress
  *
  * @package AKPP45
- * @version 5.0.0
+ * @version 5.1.0
  */
 
 if (!defined('ABSPATH')) {
-    exit; // Защита от прямого доступа
+    exit;
 }
 
 // =============================================================================
 // КОНСТАНТЫ ТЕМЫ
 // =============================================================================
-define('AKPP_THEME_VERSION', '5.0.0');
+define('AKPP_THEME_VERSION', '5.1.0');
 define('AKPP_THEME_DIR', get_template_directory());
 define('AKPP_THEME_URI', get_template_directory_uri());
 define('AKPP_CRM_DIR', AKPP_THEME_DIR . '/inc/crm');
 define('AKPP_CRM_URI', AKPP_THEME_URI . '/inc/crm');
 
 // =============================================================================
-// 1. ПОДКЛЮЧЕНИЕ CRM СИСТЕМЫ (КРИТИЧЕСКИ ВАЖНО!)
+// 1. ПОДКЛЮЧЕНИЕ CRM СИСТЕМЫ
 // =============================================================================
-
-// Функция безопасного подключения файла
 function akpp_require_file($file) {
     if (file_exists($file)) {
         require_once $file;
@@ -34,8 +31,6 @@ function akpp_require_file($file) {
     return false;
 }
 
-
-// ИНИЦИАЛИЗАЦИЯ CRM
 $crm_main_file = AKPP_CRM_DIR . '/class-akpp-crm.php';
 if (file_exists($crm_main_file)) {
     require_once $crm_main_file;
@@ -50,49 +45,25 @@ if (file_exists($crm_main_file)) {
     }, 5);
 }
 
-
 // =============================================================================
 // 2. THEME SETUP
 // =============================================================================
-
 function akpp45_theme_setup() {
-    // RSS feeds
     add_theme_support('automatic-feed-links');
-    
-    // Title tag
     add_theme_support('title-tag');
-    
-    // Post thumbnails
     add_theme_support('post-thumbnails');
-    
-    // HTML5 support
     add_theme_support('html5', [
-        'search-form',
-        'comment-form',
-        'comment-list',
-        'gallery',
-        'caption',
-        'style',
-        'script',
+        'search-form', 'comment-form', 'comment-list', 'gallery', 'caption', 'style', 'script',
     ]);
-    
-    // Custom logo
     add_theme_support('custom-logo', [
         'height'      => 100,
         'width'       => 300,
         'flex-width'  => true,
         'flex-height' => true,
     ]);
-    
-    // Responsive embeds
     add_theme_support('responsive-embeds');
-    
-    // Custom background
-    add_theme_support('custom-background', [
-        'default-color' => '0a0f1c',
-    ]);
+    add_theme_support('custom-background', ['default-color' => '0a0f1c']);
 
-    // Регистрация меню
     register_nav_menus([
         'primary' => __('Главное меню', 'akpp45'),
         'footer'  => __('Меню в подвале', 'akpp45'),
@@ -104,7 +75,6 @@ add_action('after_setup_theme', 'akpp45_theme_setup');
 // =============================================================================
 // 3. ПОДКЛЮЧЕНИЕ СТИЛЕЙ И СКРИПТОВ
 // =============================================================================
-
 function akpp45_enqueue_assets() {
     $theme_uri = AKPP_THEME_URI;
     $assets_uri = $theme_uri . '/assets';
@@ -154,27 +124,27 @@ function akpp45_enqueue_assets() {
     
     // === СКРИПТЫ ===
     
-    // jQuery (уже есть в WP, но явно указываем)
     wp_enqueue_script('jquery');
-    
-    // Основной JS
-    wp_enqueue_script(
-        'akpp45-main',
-        $assets_uri . '/js/admin.js', // admin.js содержит общие функции
-        ['jquery'],
-        AKPP_THEME_VERSION,
-        true
-    );
-    
-    // Локализация для AJAX
-    wp_localize_script('akpp45-main', 'akpp45_ajax', [
-        'url'   => admin_url('admin-ajax.php'),
-        'nonce' => wp_create_nonce('akpp45_nonce'),
-        'home'  => home_url('/'),
-    ]);
     
     // Frontend скрипты
     if (!is_admin()) {
+        // Booking (запись на ремонт)
+        wp_enqueue_script(
+            'akpp45-booking',
+            $assets_uri . '/js/booking.js',
+            ['jquery'],
+            AKPP_THEME_VERSION,
+            true
+        );
+        
+        wp_localize_script('akpp45-booking', 'akpp_frontend', [
+            'ajax_url'     => admin_url('admin-ajax.php'),
+            'nonce'        => wp_create_nonce('akpp_booking_nonce'),
+            'is_logged_in' => is_user_logged_in(),
+            'home_url'     => home_url('/'),
+        ]);
+        
+        // Auth
         wp_enqueue_script(
             'akpp45-auth',
             $assets_uri . '/js/auth.js',
@@ -183,6 +153,12 @@ function akpp45_enqueue_assets() {
             true
         );
         
+        wp_localize_script('akpp45-auth', 'akpp_auth_config', [
+            'ajax_url' => admin_url('admin-ajax.php'),
+            'nonce'    => wp_create_nonce('akpp_client_auth_nonce'),
+        ]);
+        
+        // Chat
         wp_enqueue_script(
             'akpp45-chat',
             $assets_uri . '/js/chat.js',
@@ -195,10 +171,32 @@ function akpp45_enqueue_assets() {
             'ajax_url' => admin_url('admin-ajax.php'),
             'nonce'    => wp_create_nonce('akpp_chat_action_nonce'),
         ]);
+        
+        // Main (общий)
+        wp_enqueue_script(
+            'akpp45-main',
+            $assets_uri . '/js/main.js',
+            ['jquery'],
+            AKPP_THEME_VERSION,
+            true
+        );
     }
     
     // Admin скрипты
     if (is_admin()) {
+        wp_enqueue_script(
+            'akpp45-admin-js',
+            $assets_uri . '/js/admin.js',
+            ['jquery'],
+            AKPP_THEME_VERSION,
+            true
+        );
+        
+        wp_localize_script('akpp45-admin-js', 'akpp_ajax', [
+            'ajax_url' => admin_url('admin-ajax.php'),
+            'nonce'    => wp_create_nonce('akpp45_nonce'),
+        ]);
+        
         // Калькулятор сделок
         wp_enqueue_script(
             'akpp45-deal-calculator',
@@ -228,7 +226,6 @@ function akpp45_enqueue_assets() {
         ]);
     }
     
-    // Comment reply
     if (is_singular() && comments_open() && get_option('thread_comments')) {
         wp_enqueue_script('comment-reply');
     }
@@ -239,12 +236,10 @@ add_action('admin_enqueue_scripts', 'akpp45_enqueue_assets');
 // =============================================================================
 // 4. WIDGETS
 // =============================================================================
-
 function akpp45_widgets_init() {
     register_sidebar([
         'name'          => __('Боковая панель', 'akpp45'),
         'id'            => 'sidebar-1',
-        'description'   => __('Виджеты боковой панели', 'akpp45'),
         'before_widget' => '<section id="%1$s" class="widget %2$s">',
         'after_widget'  => '</section>',
         'before_title'  => '<h2 class="widget-title">',
@@ -254,7 +249,6 @@ function akpp45_widgets_init() {
     register_sidebar([
         'name'          => __('Подвал сайта', 'akpp45'),
         'id'            => 'footer-1',
-        'description'   => __('Виджеты в подвале', 'akpp45'),
         'before_widget' => '<div id="%1$s" class="footer-widget %2$s">',
         'after_widget'  => '</div>',
         'before_title'  => '<h3 class="footer-widget-title">',
@@ -266,8 +260,6 @@ add_action('widgets_init', 'akpp45_widgets_init');
 // =============================================================================
 // 5. ШОРТКОДЫ
 // =============================================================================
-
-// Форма регистрации
 add_shortcode('akpp_registration_form', function() {
     $file = AKPP_CRM_DIR . '/templates/frontend/registration.php';
     if (file_exists($file)) {
@@ -278,7 +270,6 @@ add_shortcode('akpp_registration_form', function() {
     return '<p>Форма регистрации недоступна.</p>';
 });
 
-// Клиентский чат
 add_shortcode('akpp_client_chat', function() {
     if (!is_user_logged_in()) {
         return '<p>Пожалуйста, войдите в систему для доступа к чату.</p>';
@@ -292,7 +283,6 @@ add_shortcode('akpp_client_chat', function() {
     return '<p>Чат недоступен.</p>';
 });
 
-// Кнопка связи
 add_shortcode('akpp_contact_btn', function($atts) {
     $atts = shortcode_atts([
         'text' => 'Связаться с нами',
@@ -303,7 +293,264 @@ add_shortcode('akpp_contact_btn', function($atts) {
 });
 
 // =============================================================================
-// 6. ОПТИМИЗАЦИЯ И БЕЗОПАСНОСТЬ
+// 6. AJAX: ЗАЯВКА НА РЕМОНТ (С САЙТА)
+// =============================================================================
+
+/**
+ * Обработка заявки с главной страницы
+ */
+function akpp_booking_request() {
+    // Проверка nonce
+    if (!isset($_POST['booking_nonce']) || !wp_verify_nonce($_POST['booking_nonce'], 'akpp_booking_nonce')) {
+        wp_send_json_error(['message' => 'Ошибка безопасности. Обновите страницу.']);
+    }
+    
+    // Защита от спама - проверка времени заполнения формы (боты заполняют мгновенно)
+    $form_time = isset($_POST['form_time']) ? intval($_POST['form_time']) : 0;
+    if ($form_time > 0 && (time() - $form_time) < 3) {
+        wp_send_json_error(['message' => 'Слишком быстро. Вы бот?']);
+    }
+    
+    // Honeypot - если заполнено скрытое поле, это бот
+    if (!empty($_POST['website'])) {
+        wp_send_json_error(['message' => 'Ошибка отправки']);
+    }
+    
+    global $wpdb;
+    
+    // Сбор данных
+    $data = [
+        'full_name' => sanitize_text_field($_POST['full_name'] ?? ''),
+        'phone'     => sanitize_text_field($_POST['phone'] ?? ''),
+        'city'      => sanitize_text_field($_POST['city'] ?? ''),
+        'car_info'  => sanitize_text_field($_POST['car_info'] ?? ''),
+        'car_year'  => intval($_POST['car_year'] ?? 0),
+        'problem'   => sanitize_textarea_field($_POST['problem'] ?? ''),
+    ];
+    
+    // Валидация
+    if (empty($data['full_name'])) {
+        wp_send_json_error(['message' => 'Укажите ФИО']);
+    }
+    if (empty($data['phone']) || strlen(preg_replace('/[^0-9]/', '', $data['phone'])) < 10) {
+        wp_send_json_error(['message' => 'Укажите корректный телефон']);
+    }
+    if (empty($data['car_info'])) {
+        wp_send_json_error(['message' => 'Укажите марку и модель авто']);
+    }
+    if (empty($data['problem'])) {
+        wp_send_json_error(['message' => 'Опишите проблему']);
+    }
+    
+    // Сохранение в таблицу leads
+    $result = $wpdb->insert($wpdb->prefix . 'akpp_leads', [
+        'client_name'  => $data['full_name'],
+        'client_phone' => $data['phone'],
+        'car_brand'    => $data['car_info'] . ($data['car_year'] ? ' ' . $data['car_year'] : ''),
+        'problem'      => $data['problem'] . ($data['city'] ? "\n\n🏙 Город: " . $data['city'] : ''),
+        'status'       => 'new',
+        'source'       => 'site_booking',
+        'created_at'   => current_time('mysql'),
+    ]);
+    
+    if (!$result) {
+        wp_send_json_error(['message' => 'Ошибка сохранения заявки. Попробуйте позже.']);
+    }
+    
+    $lead_id = $wpdb->insert_id;
+    
+    // Отправка уведомления в Telegram
+    $bot_token = get_option('akpp_telegram_bot_token', '');
+    $chat_id   = get_option('akpp_telegram_chat_id', '');
+    
+    if ($bot_token && $chat_id) {
+        $message  = "🔔 *НОВАЯ ЗАЯВКА С САЙТА* #{$lead_id}\n\n";
+        $message .= "👤 *Клиент:* " . $data['full_name'] . "\n";
+        $message .= "📞 *Телефон:* " . $data['phone'] . "\n";
+        if ($data['city']) {
+            $message .= "🏙 *Город:* " . $data['city'] . "\n";
+        }
+        $message .= "🚗 *Авто:* " . $data['car_info'];
+        if ($data['car_year']) {
+            $message .= " (" . $data['car_year'] . ")";
+        }
+        $message .= "\n\n";
+        $message .= "🔧 *Проблема:*\n" . $data['problem'];
+        
+        wp_remote_post("https://api.telegram.org/bot{$bot_token}/sendMessage", [
+            'body' => [
+                'chat_id'    => $chat_id,
+                'text'       => $message,
+                'parse_mode' => 'Markdown',
+            ],
+            'timeout' => 5,
+        ]);
+    }
+    
+    // Email уведомление (если настроено)
+    $admin_email = get_option('admin_email', 'adamzoom@bk.ru');
+    $subject = "🔧 Новая заявка на ремонт АКПП #{$lead_id}";
+    $email_body  = "Поступила новая заявка с сайта akpp45.ru\n\n";
+    $email_body .= "Клиент: {$data['full_name']}\n";
+    $email_body .= "Телефон: {$data['phone']}\n";
+    if ($data['city']) {
+        $email_body .= "Город: {$data['city']}\n";
+    }
+    $email_body .= "Авто: {$data['car_info']}";
+    if ($data['car_year']) {
+        $email_body .= " ({$data['car_year']})";
+    }
+    $email_body .= "\n\nПроблема:\n{$data['problem']}\n";
+    
+    wp_mail($admin_email, $subject, $email_body);
+    
+    wp_send_json_success([
+        'message' => '✅ Заявка принята! Свяжусь с вами в течение часа.',
+        'lead_id' => $lead_id,
+    ]);
+}
+add_action('wp_ajax_akpp_booking_request', 'akpp_booking_request');
+add_action('wp_ajax_nopriv_akpp_booking_request', 'akpp_booking_request');
+
+/**
+ * Регистрация нового пользователя (клиент)
+ */
+function akpp_client_register() {
+    if (!isset($_POST['nonce']) || !wp_verify_nonce($_POST['nonce'], 'akpp_client_auth_nonce')) {
+        wp_send_json_error(['message' => 'Ошибка безопасности']);
+    }
+    
+    $full_name = sanitize_text_field($_POST['full_name'] ?? '');
+    $phone     = sanitize_text_field($_POST['phone'] ?? '');
+    $password  = $_POST['password'] ?? '';
+    $role      = sanitize_text_field($_POST['role'] ?? 'repair');
+    
+    if (empty($full_name) || empty($phone) || empty($password)) {
+        wp_send_json_error(['message' => 'Заполните все обязательные поля']);
+    }
+    
+    if (strlen($password) < 6) {
+        wp_send_json_error(['message' => 'Пароль должен быть не менее 6 символов']);
+    }
+    
+    // Проверка существует ли пользователь с таким телефоном
+    $existing_user = get_users([
+        'meta_key'   => 'phone',
+        'meta_value' => $phone,
+        'number'     => 1,
+    ]);
+    
+    if (!empty($existing_user)) {
+        wp_send_json_error(['message' => 'Пользователь с таким телефоном уже зарегистрирован']);
+    }
+    
+    // Создаём пользователя WordPress
+    $username = 'client_' . preg_replace('/[^0-9]/', '', $phone);
+    $user_id  = wp_create_user($username, $password, $username . '@akpp45.local');
+    
+    if (is_wp_error($user_id)) {
+        wp_send_json_error(['message' => 'Ошибка регистрации: ' . $user_id->get_error_message()]);
+    }
+    
+    // Сохраняем мета-данные
+    update_user_meta($user_id, 'full_name', $full_name);
+    update_user_meta($user_id, 'phone', $phone);
+    update_user_meta($user_id, 'client_role', $role);
+    
+    if ($role === 'repair') {
+        update_user_meta($user_id, 'car_info', sanitize_text_field($_POST['car_info'] ?? ''));
+        update_user_meta($user_id, 'car_year', intval($_POST['car_year'] ?? 0));
+        update_user_meta($user_id, 'problem', sanitize_textarea_field($_POST['problem'] ?? ''));
+    } else {
+        update_user_meta($user_id, 'city', sanitize_text_field($_POST['city'] ?? ''));
+    }
+    
+    // Сохраняем в таблицу site_users
+    global $wpdb;
+    $wpdb->insert($wpdb->prefix . 'akpp_site_users', [
+        'wp_user_id'    => $user_id,
+        'full_name'     => $full_name,
+        'phone'         => $phone,
+        'car_info'      => ($role === 'repair') ? sanitize_text_field($_POST['car_info'] ?? '') : '',
+        'status'        => 'active',
+        'registered_at' => current_time('mysql'),
+    ]);
+    
+    // Автоматический вход
+    wp_set_auth_cookie($user_id, true);
+    wp_set_current_user($user_id);
+    
+    wp_send_json_success([
+        'message' => '✅ Регистрация успешна! Добро пожаловать.',
+        'redirect' => home_url('/'),
+    ]);
+}
+add_action('wp_ajax_akpp_register_client', 'akpp_register_client');
+add_action('wp_ajax_nopriv_akpp_register_client', 'akpp_register_client');
+
+/**
+ * Вход клиента
+ */
+function akpp_client_login() {
+    if (!isset($_POST['nonce']) || !wp_verify_nonce($_POST['nonce'], 'akpp_client_auth_nonce')) {
+        wp_send_json_error(['message' => 'Ошибка безопасности']);
+    }
+    
+    $phone    = sanitize_text_field($_POST['phone'] ?? '');
+    $password = $_POST['password'] ?? '';
+    
+    if (empty($phone) || empty($password)) {
+        wp_send_json_error(['message' => 'Заполните все поля']);
+    }
+    
+    // Ищем пользователя по телефону
+    $users = get_users([
+        'meta_key'   => 'phone',
+        'meta_value' => $phone,
+        'number'     => 1,
+    ]);
+    
+    if (empty($users)) {
+        wp_send_json_error(['message' => 'Пользователь не найден']);
+    }
+    
+    $user = $users[0];
+    
+    // Проверяем пароль
+    if (!wp_check_password($password, $user->user_pass, $user->ID)) {
+        wp_send_json_error(['message' => 'Неверный пароль']);
+    }
+    
+    // Авторизуем
+    wp_set_auth_cookie($user->ID, true);
+    wp_set_current_user($user->ID);
+    
+    wp_send_json_success([
+        'message'  => '✅ Вход выполнен!',
+        'redirect' => home_url('/'),
+    ]);
+}
+add_action('wp_ajax_akpp_login_client', 'akpp_login_client');
+add_action('wp_ajax_nopriv_akpp_login_client', 'akpp_login_client');
+
+/**
+ * Выход клиента
+ */
+function akpp_client_logout() {
+    if (!isset($_POST['nonce']) || !wp_verify_nonce($_POST['nonce'], 'akpp_client_auth_nonce')) {
+        wp_send_json_error(['message' => 'Ошибка безопасности']);
+    }
+    
+    wp_logout();
+    wp_send_json_success([
+        'message'  => 'Вы вышли из аккаунта',
+        'redirect' => home_url('/'),
+    ]);
+}
+add_action('wp_ajax_akpp_logout_client', 'akpp_client_logout');
+
+// =============================================================================
+// 7. ОПТИМИЗАЦИЯ И БЕЗОПАСНОСТЬ
 // =============================================================================
 
 // Отключение emoji
@@ -357,9 +604,8 @@ function akpp45_clear_login_attempts($username) {
 add_action('wp_login', 'akpp45_clear_login_attempts');
 
 // =============================================================================
-// 7. КАСТОМИЗАЦИЯ АДМИНКИ
+// 8. КАСТОМИЗАЦИЯ АДМИНКИ
 // =============================================================================
-
 function akpp45_admin_footer_text($text) {
     return '<span style="color: #00ff88;">АКПП Курган CRM</span> | v' . AKPP_THEME_VERSION . ' | <a href="https://akpp45.ru" target="_blank">akpp45.ru</a>';
 }
@@ -387,13 +633,11 @@ function akpp45_admin_styles() {
 add_action('admin_head', 'akpp45_admin_styles');
 
 // =============================================================================
-// 8. УВЕДОМЛЕНИЯ ОБ ОШИБКАХ (только для админов)
+// 9. УВЕДОМЛЕНИЯ ОБ ОШИБКАХ
 // =============================================================================
-
 function akpp45_admin_notices() {
     if (!current_user_can('manage_options')) return;
     
-    // Проверка наличия критических файлов
     $critical_files = [
         AKPP_CRM_DIR . '/class-akpp-crm.php',
         AKPP_CRM_DIR . '/class-akpp-ajax.php',
@@ -412,19 +656,12 @@ function akpp45_admin_notices() {
 add_action('admin_notices', 'akpp45_admin_notices');
 
 // =============================================================================
-// 9. ДОПОЛНИТЕЛЬНЫЕ ФУНКЦИИ
+// 10. ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
 // =============================================================================
-
-/**
- * Получение настроек CRM
- */
 function akpp_get_option($key, $default = '') {
     return get_option('akpp_' . $key, $default);
 }
 
-/**
- * Форматирование телефона
- */
 function akpp_format_phone($phone) {
     $clean = preg_replace('/[^0-9]/', '', $phone);
     if (strlen($clean) === 11) {
@@ -433,23 +670,16 @@ function akpp_format_phone($phone) {
     return $phone;
 }
 
-/**
- * Безопасный вывод
- */
 function akpp_e($text) {
     echo esc_html($text);
 }
 
-/**
- * Логирование
- */
 function akpp_log($message, $level = 'info') {
     error_log(sprintf('[AKPP45] [%s] %s', strtoupper($level), $message));
 }
 
-
 // =============================================================================
-// CRON INTERVALS (должны быть доступны всегда, даже при cron запуске)
+// 11. CRON INTERVALS
 // =============================================================================
 function akpp_add_cron_schedules($schedules) {
     $schedules['every_15_minutes'] = [
