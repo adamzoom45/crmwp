@@ -1,500 +1,333 @@
 /**
- * CRM АКПП45 - Административные стили
- * 
+ * АКПП45 CRM - Административные стили
+ * Тёмная тема с зелёными акцентами
  * @package AKPP45_CRM
  */
 
-/* ============================================================
-   ОБЩИЕ СТИЛИ
-   ============================================================ */
-.akpp-crm-wrap {
-    max-width: 1400px;
-    margin: 20px 20px 0 0;
+/* ==========================================================================
+   ИКОНКИ МЕНЮ CRM
+   ========================================================================== */
+
+#adminmenu .toplevel_page_akpp-crm-dashboard .wp-menu-image:before {
+    content: "\f184" !important;
 }
 
-.akpp-crm-wrap h1 {
-    margin-bottom: 20px;
+#adminmenu li[href*="akpp-crm-dashboard"] .wp-menu-image:before {
+    content: "\f184" !important;
 }
 
-/* Карточки статистики */
-.stats-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 20px;
-    margin-bottom: 30px;
+#adminmenu li[href*="akpp-crm-deals"] .wp-menu-image:before {
+    content: "\f174" !important;
 }
 
-.stat-card {
-    background: #fff;
+#adminmenu li[href*="akpp-crm-new-deal"] .wp-menu-image:before {
+    content: "\f502" !important;
+}
+
+#adminmenu li[href*="akpp-crm-employees"] .wp-menu-image:before {
+    content: "\f307" !important;
+}
+
+#adminmenu li[href*="akpp-crm-vehicles"] .wp-menu-image:before {
+    content: "\f207" !important;
+}
+
+#adminmenu li[href*="akpp-crm-transmissions"] .wp-menu-image:before {
+    content: "\f482" !important;
+}
+
+#adminmenu li[href*="akpp-crm-parts"] .wp-menu-image:before {
+    content: "\f316" !important;
+}
+
+#adminmenu li[href*="akpp-crm-oils"] .wp-menu-image:before {
+    content: "\f228" !important;
+}
+
+#adminmenu li[href*="akpp-crm-parser"] .wp-menu-image:before {
+    content: "\f463" !important;
+}
+
+#adminmenu li[href*="akpp-crm-leads"] .wp-menu-image:before {
+    content: "\f530" !important;
+}
+
+#adminmenu li[href*="akpp-crm-users"] .wp-menu-image:before {
+    content: "\f338" !important;
+}
+
+#adminmenu li[href*="akpp-crm-avito-dialogs"] .wp-menu-image:before {
+    content: "\f321" !important;
+}
+
+#adminmenu li[href*="akpp-crm-avito-settings"] .wp-menu-image:before {
+    content: "\f111" !important;
+}
+
+#adminmenu li[href*="akpp-crm-telegram"] .wp-menu-image:before {
+    content: "\f464" !important;
+}
+
+/* ==========================================================================
+   ОБЩИЕ СТИЛИ CRM - ТЁМНАЯ ТЕМА
+   ========================================================================== */
+
+.wrap.akpp-crm-wrap {
+    background: #0a0f1c;
+    color: #e2e8f0;
+    min-height: 100vh;
+}
+
+.wrap h1,
+.wrap h2,
+.wrap h3 {
+    color: #00ff88 !important;
+    border-left: 4px solid #00ff88;
+    padding-left: 15px;
+}
+
+/* Карточки */
+.akpp-card {
+    background: #1a1f2e;
+    border: 1px solid #2d3748;
     border-radius: 12px;
-    padding: 20px;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-    transition: transform 0.2s, box-shadow 0.2s;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    margin: 20px 0;
+    padding: 24px;
 }
 
-.stat-card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+.akpp-card h2 {
+    margin-top: 0;
+    padding-bottom: 12px;
+    border-bottom: 1px solid #2d3748;
+    color: #00ff88;
 }
 
-.stat-card .stat-value {
-    font-size: 32px;
-    font-weight: bold;
-    color: #667eea;
-}
-
-.stat-card .stat-label {
-    font-size: 14px;
-    color: #666;
-    margin-top: 5px;
-}
-
-.stat-card .stat-change {
-    font-size: 12px;
-    margin-top: 8px;
-}
-
-.stat-card .stat-change.positive {
-    color: #28a745;
-}
-
-.stat-card .stat-change.negative {
-    color: #dc3545;
-}
-
-/* ============================================================
-   ФОРМЫ
-   ============================================================ */
-.akpp-crm-wrap .form-table th {
-    width: 200px;
-}
-
-.akpp-crm-wrap .form-table td {
-    padding: 15px;
-}
-
-.akpp-crm-wrap input[type="text"],
-.akpp-crm-wrap input[type="number"],
-.akpp-crm-wrap input[type="email"],
-.akpp-crm-wrap input[type="tel"],
-.akpp-crm-wrap input[type="password"],
-.akpp-crm-wrap select,
-.akpp-crm-wrap textarea {
-    width: 100%;
-    max-width: 400px;
-    padding: 8px 12px;
-    border: 1px solid #ddd;
-    border-radius: 6px;
-    transition: border-color 0.2s;
-}
-
-.akpp-crm-wrap input:focus,
-.akpp-crm-wrap select:focus,
-.akpp-crm-wrap textarea:focus {
-    border-color: #667eea;
-    outline: none;
-    box-shadow: 0 0 0 3px rgba(102,126,234,0.1);
-}
-
-.akpp-crm-wrap .form-field {
-    margin-bottom: 15px;
-}
-
-.akpp-crm-wrap .form-field label {
-    display: block;
-    margin-bottom: 5px;
-    font-weight: 600;
-    font-size: 13px;
-}
-
-.akpp-crm-wrap .required {
-    color: #dc3545;
-}
-
-/* ============================================================
-   WP_LIST_TABLE СТИЛИ
-   ============================================================ */
-.wp-list-table {
+/* Уведомления */
+.akpp-notice {
+    padding: 14px 18px;
+    border-left: 4px solid;
+    margin: 12px 0;
     border-radius: 8px;
-    overflow: hidden;
-}
-
-.wp-list-table th {
-    background: #f8f9fa;
-    font-weight: 600;
-    padding: 12px;
-}
-
-.wp-list-table td {
-    padding: 12px;
-    vertical-align: middle;
-}
-
-.wp-list-table .status-badge {
-    display: inline-block;
-    padding: 4px 10px;
-    border-radius: 20px;
-    font-size: 12px;
+    animation: slideIn 0.3s ease-out;
     font-weight: 500;
 }
 
-/* Статусы сделок */
-.status-new { background: #e3f2fd; color: #1976d2; }
-.status-diagnostic { background: #fff3e0; color: #f57c00; }
-.status-in_work { background: #e8f5e9; color: #388e3c; }
-.status-completed { background: #d4edda; color: #155724; }
-.status-rejected { background: #f8d7da; color: #721c24; }
-
-/* Статусы лидов */
-.status-contacted { background: #cce5ff; color: #004085; }
-.status-converted { background: #d4edda; color: #155724; }
-.status-lost { background: #f8d7da; color: #721c24; }
-
-/* Статусы сотрудников */
-.status-active { background: #d4edda; color: #155724; }
-.status-inactive { background: #f8d7da; color: #721c24; }
-
-/* Рынки */
-.market-badge {
-    display: inline-block;
-    padding: 2px 8px;
-    border-radius: 12px;
-    font-size: 11px;
-}
-.market-japan { background: #fff3e0; color: #e67e22; }
-.market-asia { background: #e8f5e9; color: #4caf50; }
-.market-europe { background: #e3f2fd; color: #2196f3; }
-.market-usa { background: #fce4ec; color: #e91e63; }
-
-/* Типы АКПП */
-.type-badge {
-    display: inline-block;
-    padding: 2px 8px;
-    border-radius: 12px;
-    font-size: 11px;
-    font-weight: 600;
-}
-.type-4at, .type-5at, .type-6at, .type-8at, .type-9at, .type-10at {
-    background: #e3f2fd;
-    color: #1976d2;
-}
-.type-cvt {
-    background: #e8f5e9;
-    color: #388e3c;
-}
-.type-dct {
-    background: #fce4ec;
-    color: #e91e63;
+.akpp-notice-success {
+    background: #1a3a2e;
+    border-color: #00ff88;
+    color: #00ff88;
 }
 
-/* Непрочитанные сообщения */
-.unread-badge {
-    display: inline-block;
-    width: 22px;
-    height: 22px;
-    background: #dc3545;
-    color: #fff;
-    border-radius: 50%;
-    text-align: center;
-    line-height: 22px;
-    font-size: 11px;
-    font-weight: bold;
+.akpp-notice-error {
+    background: #3a1a1e;
+    border-color: #fc8181;
+    color: #fc8181;
 }
 
-/* Кнопки действий */
-.button-small {
-    padding: 0 8px;
-    line-height: 28px;
-    font-size: 12px;
+.akpp-notice-warning {
+    background: #3a2e1a;
+    border-color: #f6ad55;
+    color: #f6ad55;
 }
 
-/* ============================================================
-   ВОРОНКА ПРОДАЖ
-   ============================================================ */
-.funnel-container {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 15px;
-    margin-top: 20px;
+.akpp-notice-info {
+    background: #1a2e3a;
+    border-color: #63b3ed;
+    color: #63b3ed;
 }
 
-.funnel-stage {
-    flex: 1;
-    min-width: 180px;
-    background: #fff;
-    border-radius: 12px;
-    overflow: hidden;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+@keyframes slideIn {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }
 
-.funnel-stage-header {
-    padding: 15px;
-    text-align: center;
-    font-weight: bold;
-    color: #fff;
-}
-
-.funnel-stage.lead .funnel-stage-header { background: #6c5ce7; }
-.funnel-stage.new .funnel-stage-header { background: #0984e3; }
-.funnel-stage.diagnostic .funnel-stage-header { background: #fdcb6e; color: #333; }
-.funnel-stage.in_work .funnel-stage-header { background: #00b894; }
-.funnel-stage.completed .funnel-stage-header { background: #27ae60; }
-.funnel-stage.rejected .funnel-stage-header { background: #e74c3c; }
-
-.funnel-stage-value {
-    padding: 20px;
-    text-align: center;
-    font-size: 28px;
-    font-weight: bold;
-}
-
-.funnel-stage-label {
-    font-size: 12px;
-    color: #666;
-    margin-top: 5px;
-}
-
-/* ============================================================
-   ЧАТ
-   ============================================================ */
-.akpp-chat-container {
-    display: flex;
-    height: 70vh;
-    background: #fff;
-    border-radius: 12px;
-    overflow: hidden;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-}
-
-.chat-sidebar {
-    width: 300px;
-    border-right: 1px solid #e9ecef;
-    background: #f8f9fa;
-}
-
-.chat-contact {
-    display: flex;
-    align-items: center;
-    padding: 15px;
-    border-bottom: 1px solid #e9ecef;
-    cursor: pointer;
-    transition: background 0.2s;
-}
-
-.chat-contact:hover {
-    background: #fff;
-}
-
-.chat-contact.active {
-    background: #e7f3ff;
-    border-left: 3px solid #667eea;
-}
-
-.chat-avatar {
-    width: 40px;
-    height: 40px;
-    border-radius: 50%;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: #fff;
-    font-weight: bold;
-    margin-right: 12px;
-}
-
-.chat-contact-info {
-    flex: 1;
-}
-
-.chat-contact-name {
-    font-weight: 600;
-    margin-bottom: 3px;
-}
-
-.chat-contact-last-message {
-    font-size: 11px;
-    color: #999;
-}
-
-.chat-window {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-}
-
-.chat-messages {
-    flex: 1;
-    overflow-y: auto;
-    padding: 20px;
-}
-
-.chat-message {
-    margin-bottom: 15px;
-    display: flex;
-}
-
-.chat-message-outgoing {
-    justify-content: flex-end;
-}
-
-.chat-message-bubble {
-    max-width: 70%;
-    padding: 10px 15px;
-    border-radius: 18px;
-    word-wrap: break-word;
-}
-
-.chat-message-incoming .chat-message-bubble {
-    background: #f1f3f4;
-    color: #333;
-}
-
-.chat-message-outgoing .chat-message-bubble {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    color: #fff;
-}
-
-.chat-message-time {
-    font-size: 10px;
-    color: #999;
-    margin-top: 5px;
-    padding: 0 8px;
-}
-
-.chat-input-area {
-    padding: 15px;
-    border-top: 1px solid #e9ecef;
-    display: flex;
-    gap: 10px;
-}
-
-.chat-input-area textarea {
-    flex: 1;
-    resize: none;
-    padding: 10px;
-    border: 1px solid #e9ecef;
-    border-radius: 20px;
-    font-family: inherit;
-}
-
-.chat-typing {
-    padding: 5px 15px;
-    font-size: 11px;
-    color: #999;
-}
-
-/* ============================================================
-   СКЛАД (ЗАПЧАСТИ)
-   ============================================================ */
-.parts-search-container {
+/* Формы */
+.akpp-form-field {
     margin-bottom: 20px;
 }
 
-.search-results {
-    margin-top: 10px;
-    border: 1px solid #e9ecef;
-    border-radius: 8px;
-    max-height: 300px;
-    overflow-y: auto;
-}
-
-.search-result-item {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 12px;
-    border-bottom: 1px solid #f0f2f5;
-}
-
-.search-result-item.in-stock {
-    border-left: 3px solid #28a745;
-}
-
-.search-result-item.out-of-stock {
-    border-left: 3px solid #dc3545;
-    opacity: 0.6;
-}
-
-.part-info {
-    flex: 1;
-}
-
-.part-name {
+.akpp-form-field label {
+    display: block;
     font-weight: 600;
+    margin-bottom: 8px;
+    color: #a0aec0;
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
 }
 
-.part-sku {
-    font-size: 11px;
-    color: #999;
+.akpp-form-field input[type="text"],
+.akpp-form-field input[type="email"],
+.akpp-form-field input[type="number"],
+.akpp-form-field input[type="tel"],
+.akpp-form-field input[type="url"],
+.akpp-form-field select,
+.akpp-form-field textarea {
+    width: 100%;
+    padding: 12px 16px;
+    background: #2d3748;
+    border: 2px solid #4a5568;
+    border-radius: 8px;
+    color: #fff;
+    font-size: 14px;
+    transition: all 0.2s;
+    box-sizing: border-box;
 }
 
-.parts-table {
+.akpp-form-field input:focus,
+.akpp-form-field select:focus,
+.akpp-form-field textarea:focus {
+    border-color: #00ff88;
+    box-shadow: 0 0 0 3px rgba(0, 255, 136, 0.15);
+    outline: none;
+    background: #1a1f2e;
+}
+
+.akpp-form-field input::placeholder,
+.akpp-form-field textarea::placeholder {
+    color: #718096;
+}
+
+/* Таблицы */
+.akpp-table,
+.wp-list-table {
     width: 100%;
     border-collapse: collapse;
-}
-
-.parts-table th,
-.parts-table td {
-    padding: 12px;
-    text-align: left;
-    border-bottom: 1px solid #e9ecef;
-}
-
-.parts-table th {
-    background: #f8f9fa;
-    font-weight: 600;
-}
-
-.part-quantity {
-    width: 80px;
-    text-align: center;
-}
-
-/* ============================================================
-   КАЛЬКУЛЯТОР
-   ============================================================ */
-.calculator-section {
-    background: #f8f9fa;
-    padding: 20px;
-    border-radius: 12px;
-    margin-top: 20px;
-}
-
-.calculator-row {
-    display: flex;
-    gap: 20px;
-    margin-bottom: 15px;
-    flex-wrap: wrap;
-}
-
-.calculator-field {
-    flex: 1;
-}
-
-.calculator-field label {
-    display: block;
-    margin-bottom: 5px;
-    font-weight: 600;
-    font-size: 13px;
-}
-
-.calculator-result {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    color: #fff;
-    padding: 15px;
+    background: #1a1f2e;
+    border: 1px solid #2d3748;
     border-radius: 8px;
-    text-align: center;
+    overflow: hidden;
 }
 
-.calculator-result .amount {
-    font-size: 32px;
-    font-weight: bold;
+.akpp-table th,
+.akpp-table td,
+.wp-list-table th,
+.wp-list-table td {
+    padding: 14px 16px;
+    text-align: left;
+    border-bottom: 1px solid #2d3748;
+    color: #e2e8f0;
 }
 
-/* ============================================================
-   МОДАЛЬНЫЕ ОКНА
-   ============================================================ */
+.akpp-table th,
+.wp-list-table th {
+    background: #2d3748;
+    font-weight: 600;
+    color: #00ff88;
+    text-transform: uppercase;
+    font-size: 12px;
+    letter-spacing: 0.5px;
+}
+
+.akpp-table tr:hover,
+.wp-list-table tbody tr:hover {
+    background: #2d3748;
+}
+
+.wp-list-table tbody tr {
+    background: #1a1f2e;
+}
+
+/* Кнопки */
+.akpp-btn,
+.button {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 24px;
+    border: none;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-decoration: none;
+}
+
+.akpp-btn-primary,
+.button-primary {
+    background: linear-gradient(135deg, #00ff88 0%, #00cc6a 100%);
+    color: #1a1f2e;
+    box-shadow: 0 4px 12px rgba(0, 255, 136, 0.3);
+}
+
+.akpp-btn-primary:hover,
+.button-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(0, 255, 136, 0.4);
+}
+
+.akpp-btn-secondary,
+.button-secondary {
+    background: #4a5568;
+    color: #fff;
+    border: 1px solid #718096;
+}
+
+.akpp-btn-secondary:hover,
+.button-secondary:hover {
+    background: #718096;
+}
+
+.akpp-btn-success {
+    background: linear-gradient(135deg, #00ff88 0%, #00cc6a 100%);
+    color: #1a1f2e;
+    box-shadow: 0 4px 12px rgba(0, 255, 136, 0.3);
+}
+
+.akpp-btn-danger,
+.button-link-delete {
+    background: #e53e3e;
+    color: #fff;
+}
+
+.akpp-btn-danger:hover,
+.button-link-delete:hover {
+    background: #c53030;
+}
+
+/* Статусы */
+.akpp-status {
+    display: inline-block;
+    padding: 6px 14px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.akpp-status-new {
+    background: #1a3a4a;
+    color: #63b3ed;
+}
+
+.akpp-status-in-progress {
+    background: #3a2e1a;
+    color: #f6ad55;
+}
+
+.akpp-status-completed {
+    background: #1a3a2e;
+    color: #00ff88;
+}
+
+.akpp-status-cancelled {
+    background: #3a1a1e;
+    color: #fc8181;
+}
+
+/* ==========================================================================
+   МОДАЛЬНЫЕ ОКНА - ТЁМНАЯ ТЕМА
+   ========================================================================== */
+
 .akpp-modal {
     display: none;
     position: fixed;
@@ -502,157 +335,603 @@
     left: 0;
     right: 0;
     bottom: 0;
-    background: rgba(0,0,0,0.5);
-    z-index: 1000;
+    background: rgba(0, 0, 0, 0.85) !important;
+    z-index: 999999 !important;
     align-items: center;
     justify-content: center;
+    opacity: 0;
+    visibility: hidden;
+    transition: all 0.3s ease;
 }
 
-.akpp-modal.active {
-    display: flex;
+.akpp-modal.active,
+.akpp-modal[style*="display: flex"] {
+    display: flex !important;
+    opacity: 1 !important;
+    visibility: visible !important;
 }
 
 .akpp-modal-content {
-    background: #fff;
+    background: #1a1f2e;
+    border-radius: 12px;
     max-width: 600px;
     width: 90%;
-    border-radius: 12px;
-    overflow: hidden;
+    max-height: 90vh;
+    overflow-y: auto;
+    box-shadow: 0 20px 60px rgba(0, 255, 136, 0.2);
+    position: relative;
+    border: 1px solid #2d3748;
+    animation: modalSlideIn 0.3s ease;
+}
+
+@keyframes modalSlideIn {
+    from {
+        opacity: 0;
+        transform: translateY(-30px) scale(0.95);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
 }
 
 .akpp-modal-header {
-    padding: 15px 20px;
-    background: #f8f9fa;
-    border-bottom: 1px solid #e9ecef;
+    padding: 24px;
+    border-bottom: 1px solid #2d3748;
     display: flex;
     justify-content: space-between;
     align-items: center;
+    background: linear-gradient(135deg, #1a1f2e 0%, #2d3748 100%);
 }
 
+.akpp-modal-header h2,
 .akpp-modal-header h3 {
     margin: 0;
+    font-size: 20px;
+    font-weight: 700;
+    color: #00ff88;
+    border: none;
+    padding: 0;
 }
 
 .akpp-modal-close {
     background: none;
     border: none;
-    font-size: 24px;
+    font-size: 28px;
     cursor: pointer;
+    color: #718096;
+    padding: 0;
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    transition: all 0.2s;
+}
+
+.akpp-modal-close:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: #fff;
+    transform: rotate(90deg);
 }
 
 .akpp-modal-body {
-    padding: 20px;
-    max-height: 70vh;
-    overflow-y: auto;
+    padding: 24px;
 }
 
 .akpp-modal-footer {
-    padding: 15px 20px;
-    border-top: 1px solid #e9ecef;
+    padding: 20px 24px;
+    border-top: 1px solid #2d3748;
     display: flex;
     justify-content: flex-end;
-    gap: 10px;
+    gap: 12px;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 0 0 12px 12px;
 }
 
-/* ============================================================
-   УВЕДОМЛЕНИЯ
-   ============================================================ */
-.akpp-notice {
-    position: fixed;
-    bottom: 20px;
-    right: 20px;
-    padding: 12px 20px;
+/* Формы в модалках */
+.akpp-modal .form-group {
+    margin-bottom: 20px;
+}
+
+.akpp-modal .form-group label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 600;
+    color: #a0aec0;
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.akpp-modal .form-group label span {
+    color: #fc8181;
+}
+
+.akpp-modal .form-group input[type="text"],
+.akpp-modal .form-group input[type="email"],
+.akpp-modal .form-group input[type="tel"],
+.akpp-modal .form-group input[type="number"],
+.akpp-modal .form-group input[type="url"],
+.akpp-modal .form-group select,
+.akpp-modal .form-group textarea {
+    width: 100%;
+    padding: 12px 16px;
+    background: #2d3748;
+    border: 2px solid #4a5568;
     border-radius: 8px;
     color: #fff;
-    z-index: 9999;
-    animation: slideIn 0.3s ease;
+    font-size: 14px;
+    transition: all 0.2s;
+    box-sizing: border-box;
 }
 
-.akpp-notice-success {
-    background: #28a745;
+.akpp-modal .form-group input:focus,
+.akpp-modal .form-group select:focus,
+.akpp-modal .form-group textarea:focus {
+    outline: none;
+    border-color: #00ff88;
+    box-shadow: 0 0 0 3px rgba(0, 255, 136, 0.15);
+    background: #1a1f2e;
 }
 
-.akpp-notice-error {
-    background: #dc3545;
+.akpp-modal .form-group input::placeholder,
+.akpp-modal .form-group textarea::placeholder {
+    color: #718096;
 }
 
-.akpp-notice-warning {
-    background: #ffc107;
-    color: #333;
+.akpp-modal .form-group select {
+    cursor: pointer;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23a0aec0' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 16px center;
+    padding-right: 48px;
 }
 
-@keyframes slideIn {
-    from {
-        transform: translateX(100%);
-        opacity: 0;
-    }
-    to {
-        transform: translateX(0);
-        opacity: 1;
-    }
+.akpp-modal .form-group select option {
+    background: #2d3748;
+    color: #fff;
 }
 
-/* ============================================================
+/* Кнопки в модалках */
+.akpp-modal .button {
+    padding: 12px 24px;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.2s;
+    border: none;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.akpp-modal .button-primary {
+    background: linear-gradient(135deg, #00ff88 0%, #00cc6a 100%);
+    color: #1a1f2e;
+    box-shadow: 0 4px 12px rgba(0, 255, 136, 0.3);
+}
+
+.akpp-modal .button-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(0, 255, 136, 0.4);
+}
+
+.akpp-modal .button-primary:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
+}
+
+.akpp-modal .button-secondary,
+.akpp-modal .button.akpp-modal-cancel {
+    background: transparent;
+    color: #a0aec0;
+    border: 2px solid #4a5568;
+}
+
+.akpp-modal .button-secondary:hover,
+.akpp-modal .button.akpp-modal-cancel:hover {
+    background: #2d3748;
+    color: #fff;
+    border-color: #718096;
+}
+
+/* Checkbox в модалках */
+.akpp-modal input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    accent-color: #00ff88;
+    cursor: pointer;
+}
+
+/* Скроллбар для модалок */
+.akpp-modal-content::-webkit-scrollbar {
+    width: 8px;
+}
+
+.akpp-modal-content::-webkit-scrollbar-track {
+    background: #1a1f2e;
+    border-radius: 4px;
+}
+
+.akpp-modal-content::-webkit-scrollbar-thumb {
+    background: #4a5568;
+    border-radius: 4px;
+}
+
+.akpp-modal-content::-webkit-scrollbar-thumb:hover {
+    background: #718096;
+}
+
+/* ==========================================================================
+   ЗАГРУЗКА
+   ========================================================================== */
+
+.akpp-loading {
+    position: relative;
+    pointer-events: none;
+}
+
+.akpp-loading::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 24px;
+    height: 24px;
+    margin: -12px 0 0 -12px;
+    border: 3px solid #2d3748;
+    border-top: 3px solid #00ff88;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* ==========================================================================
+   ВСПОМОГАТЕЛЬНЫЕ КЛАССЫ
+   ========================================================================== */
+
+.akpp-text-muted { color: #718096; }
+.akpp-text-success { color: #00ff88; }
+.akpp-text-danger { color: #fc8181; }
+.akpp-text-warning { color: #f6ad55; }
+.akpp-text-info { color: #63b3ed; }
+
+.akpp-mb-0 { margin-bottom: 0 !important; }
+.akpp-mb-10 { margin-bottom: 10px !important; }
+.akpp-mb-20 { margin-bottom: 20px !important; }
+.akpp-mt-10 { margin-top: 10px !important; }
+.akpp-mt-20 { margin-top: 20px !important; }
+.akpp-mr-10 { margin-right: 10px !important; }
+
+.akpp-text-center { text-align: center !important; }
+.akpp-text-right { text-align: right !important; }
+.akpp-text-left { text-align: left !important; }
+
+/* ==========================================================================
+   СЕТКА
+   ========================================================================== */
+
+.akpp-row {
+    display: flex;
+    flex-wrap: wrap;
+    margin: 0 -10px;
+}
+
+.akpp-col {
+    flex: 1;
+    padding: 0 10px;
+}
+
+.akpp-col-2 { flex: 0 0 50%; }
+.akpp-col-3 { flex: 0 0 33.333%; }
+.akpp-col-4 { flex: 0 0 25%; }
+
+/* ==========================================================================
    АДАПТИВНОСТЬ
-   ============================================================ */
-@media (max-width: 768px) {
-    .stats-grid {
-        grid-template-columns: repeat(2, 1fr);
+   ========================================================================== */
+
+@media screen and (max-width: 782px) {
+    .akpp-modal-content {
+        width: 95%;
+        margin: 10px;
+        max-height: 95vh;
     }
     
-    .funnel-container {
+    .akpp-modal-header,
+    .akpp-modal-body,
+    .akpp-modal-footer {
+        padding: 16px;
+    }
+    
+    .akpp-modal-footer {
         flex-direction: column;
     }
     
-    .akpp-chat-container {
-        flex-direction: column;
-        height: auto;
-    }
-    
-    .chat-sidebar {
+    .akpp-modal-footer .button {
         width: 100%;
-        max-height: 300px;
-        overflow-y: auto;
+        justify-content: center;
     }
     
-    .calculator-row {
-        flex-direction: column;
+    .akpp-card {
+        padding: 16px;
     }
     
-    .wp-list-table {
-        display: block;
-        overflow-x: auto;
+    .akpp-table th,
+    .akpp-table td,
+    .wp-list-table th,
+    .wp-list-table td {
+        padding: 10px;
+        font-size: 13px;
+    }
+    
+    .akpp-col-2,
+    .akpp-col-3,
+    .akpp-col-4 {
+        flex: 0 0 100%;
     }
 }
+/* ==========================================================================
+   УБРАТЬ СИНИЕ WORDPRESS КНОПКИ - ЗАМЕНИТЬ НА ЗЕЛЁНЫЕ
+   ========================================================================== */
 
-/* ============================================================
-   АНИМАЦИИ
-   ============================================================ */
-@keyframes pulse {
-    0% {
-        transform: scale(1);
-    }
-    50% {
-        transform: scale(1.05);
-    }
-    100% {
-        transform: scale(1);
-    }
+/* Все стандартные WordPress кнопки в CRM */
+.wrap .button,
+.wrap .button-primary,
+.wrap .button-secondary,
+.wrap input[type="submit"],
+.wrap button.button {
+    background: linear-gradient(135deg, #00ff88 0%, #00cc6a 100%) !important;
+    color: #1a1f2e !important;
+    border: none !important;
+    box-shadow: 0 4px 12px rgba(0, 255, 136, 0.3) !important;
+    font-weight: 600 !important;
+    text-shadow: none !important;
+    transition: all 0.2s !important;
 }
 
-.pulse {
-    animation: pulse 0.5s ease;
+.wrap .button:hover,
+.wrap .button-primary:hover,
+.wrap .button-secondary:hover,
+.wrap input[type="submit"]:hover,
+.wrap button.button:hover {
+    background: linear-gradient(135deg, #00cc6a 0%, #00aa55 100%) !important;
+    box-shadow: 0 6px 20px rgba(0, 255, 136, 0.4) !important;
+    transform: translateY(-2px) !important;
+    color: #1a1f2e !important;
 }
 
-@keyframes fadeIn {
-    from {
-        opacity: 0;
-    }
-    to {
-        opacity: 1;
-    }
+/* Вторичные кнопки - прозрачные с рамкой */
+.wrap .button-secondary,
+.wrap button.button-secondary {
+    background: transparent !important;
+    color: #00ff88 !important;
+    border: 2px solid #00ff88 !important;
+    box-shadow: none !important;
 }
 
-.fade-in {
-    animation: fadeIn 0.3s ease;
+.wrap .button-secondary:hover,
+.wrap button.button-secondary:hover {
+    background: rgba(0, 255, 136, 0.1) !important;
+    box-shadow: 0 0 20px rgba(0, 255, 136, 0.2) !important;
+}
+
+/* Кнопки удаления - красные */
+.wrap .button-link-delete,
+.wrap a.button-link-delete {
+    background: #e53e3e !important;
+    color: #fff !important;
+    border: none !important;
+}
+
+.wrap .button-link-delete:hover {
+    background: #c53030 !important;
+    box-shadow: 0 4px 12px rgba(229, 62, 62, 0.3) !important;
+}
+
+/* ==========================================================================
+   ЧИТАЕМЫЙ ТЕКСТ НА ТЁМНОМ ФОНЕ
+   ========================================================================== */
+
+/* Все заголовки */
+.wrap h1,
+.wrap h2,
+.wrap h3,
+.wrap h4,
+.wrap h5,
+.wrap h6 {
+    color: #00ff88 !important;
+    text-shadow: 0 0 20px rgba(0, 255, 136, 0.3) !important;
+}
+
+/* Текст таблиц */
+.wp-list-table td,
+.wp-list-table th,
+.akpp-table td,
+.akpp-table th {
+    color: #e2e8f0 !important;
+}
+
+/* Метки колонок */
+.wp-list-table th {
+    color: #00ff88 !important;
+    font-weight: 600 !important;
+}
+
+/* Ссылки */
+.wrap a {
+    color: #63b3ed !important;
+}
+
+.wrap a:hover {
+    color: #00ff88 !important;
+}
+
+/* Placeholder'ы в полях */
+input::placeholder,
+textarea::placeholder {
+    color: #718096 !important;
+    opacity: 1 !important;
+}
+
+/* Выбранный текст */
+::selection {
+    background: rgba(0, 255, 136, 0.3) !important;
+    color: #fff !important;
+}
+
+/* ==========================================================================
+   УЛУЧШЕННЫЕ ФОРМЫ
+   ========================================================================== */
+
+/* Все поля ввода */
+.wrap input[type="text"],
+.wrap input[type="email"],
+.wrap input[type="tel"],
+.wrap input[type="number"],
+.wrap input[type="url"],
+.wrap input[type="password"],
+.wrap input[type="search"],
+.wrap textarea,
+.wrap select {
+    background: #2d3748 !important;
+    color: #fff !important;
+    border: 2px solid #4a5568 !important;
+    padding: 12px 16px !important;
+    font-size: 14px !important;
+    transition: all 0.2s !important;
+}
+
+.wrap input[type="text"]:focus,
+.wrap input[type="email"]:focus,
+.wrap input[type="tel"]:focus,
+.wrap input[type="number"]:focus,
+.wrap input[type="url"]:focus,
+.wrap input[type="password"]:focus,
+.wrap input[type="search"]:focus,
+.wrap textarea:focus,
+.wrap select:focus {
+    background: #1a1f2e !important;
+    border-color: #00ff88 !important;
+    box-shadow: 0 0 0 3px rgba(0, 255, 136, 0.15) !important;
+    color: #fff !important;
+    outline: none !important;
+}
+
+/* Checkbox и Radio */
+.wrap input[type="checkbox"],
+.wrap input[type="radio"] {
+    accent-color: #00ff88 !important;
+    background: #2d3748 !important;
+    border-color: #4a5568 !important;
+}
+
+/* Label */
+.wrap label {
+    color: #a0aec0 !important;
+    font-weight: 500 !important;
+}
+
+/* ==========================================================================
+   УВЕДОМЛЕНИЯ И СООБЩЕНИЯ
+   ========================================================================== */
+
+/* WordPress уведомления */
+.notice,
+.update-nag {
+    background: #1a1f2e !important;
+    border-left: 4px solid #00ff88 !important;
+    color: #e2e8f0 !important;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3) !important;
+}
+
+.notice-success {
+    border-left-color: #00ff88 !important;
+    background: #1a3a2e !important;
+    color: #00ff88 !important;
+}
+
+.notice-error {
+    border-left-color: #fc8181 !important;
+    background: #3a1a1e !important;
+    color: #fc8181 !important;
+}
+
+.notice-warning {
+    border-left-color: #f6ad55 !important;
+    background: #3a2e1a !important;
+    color: #f6ad55 !important;
+}
+
+.notice-info {
+    border-left-color: #63b3ed !important;
+    background: #1a2e3a !important;
+    color: #63b3ed !important;
+}
+
+/* ==========================================================================
+   ТАБЛИЦЫ WP-LIST-TABLE
+   ========================================================================== */
+
+.wp-list-table {
+    background: #1a1f2e !important;
+    border: 1px solid #2d3748 !important;
+}
+
+.wp-list-table thead th {
+    background: #2d3748 !important;
+    color: #00ff88 !important;
+    border-bottom: 2px solid #4a5568 !important;
+}
+
+.wp-list-table tbody tr {
+    background: #1a1f2e !important;
+    border-bottom: 1px solid #2d3748 !important;
+}
+
+.wp-list-table tbody tr:hover {
+    background: #2d3748 !important;
+}
+
+.wp-list-table tbody td {
+    color: #e2e8f0 !important;
+    border-color: #2d3748 !important;
+}
+
+/* ==========================================================================
+   СКРЫТЬ НЕНУЖНЫЕ ЭЛЕМЕНТЫ WORDPRESS
+   ========================================================================== */
+
+/* Скрыть стандартные WordPress кнопки добавления если есть дубли */
+.wrap .page-title-action,
+.wrap .add-new-h2 {
+    display: none !important;
+}
+
+/* ==========================================================================
+   АДАПТИВНОСТЬ
+   ========================================================================== */
+
+@media screen and (max-width: 782px) {
+    .wrap .button,
+    .wrap .button-primary,
+    .wrap button.button {
+        padding: 10px 20px !important;
+        font-size: 13px !important;
+    }
+    
+    .wp-list-table th,
+    .wp-list-table td {
+        padding: 8px !important;
+        font-size: 13px !important;
+    }
 }
