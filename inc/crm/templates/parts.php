@@ -127,7 +127,7 @@ jQuery(document).ready(function($) {
         $('#akpp-part-modal').fadeOut(200);
         $form[0].reset();
         setTimeout(() => {
-            window.location.href = '<?php echo esc_url(admin_url('admin.php?page=akpp-parts')); ?>';
+            window.location.href = '<?php echo esc_url(admin_url('admin.php?page=akpp-crm-parts')); ?>';
         }, 500);
     };
 });

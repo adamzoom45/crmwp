@@ -3,13 +3,14 @@ if (!defined('ABSPATH')) exit;
 
 global $wpdb;
 
-// Получаем список пользователей с JOIN на таблицу WP пользователей
-$users = $wpdb->get_results("
+$query = "
     SELECT su.*, u.user_email, u.user_registered 
     FROM {$wpdb->prefix}akpp_site_users su
     LEFT JOIN {$wpdb->users} u ON su.wp_user_id = u.ID
     ORDER BY su.id DESC
-", ARRAY_A);
+";
+
+$users = $wpdb->get_results($query, ARRAY_A);
 
 ?>
 
