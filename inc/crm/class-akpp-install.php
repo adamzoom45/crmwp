@@ -736,88 +736,76 @@ class AKPP_Install {
      */
     /**
  * Добавление внешних ключей (с проверкой существования)
- */
-private function add_foreign_keys() {
-    global $wpdb;
+     /**
+     * Добавление внешних ключей (с проверкой существования)
+     */
+    private function add_foreign_keys() {
+        global $wpdb;
 
-    // Проверяем поддержку InnoDB
-    $engine = $wpdb->get_var($wpdb->prepare(
-        "SELECT ENGINE FROM information_schema.TABLES WHERE TABLE_SCHEMA = %s AND TABLE_NAME = %s",
-        DB_NAME,
-        $wpdb->prefix . 'akpp_deals'
-    ));
-
-    if ($engine !== 'InnoDB') {
-        return;
-    }
-
-    // Список FK с именами для проверки
-    $foreign_keys = [
-        [
-            'table'      => $wpdb->prefix . 'akpp_deals',
-            'name'       => 'fk_deals_client',
-            'sql'        => "ALTER TABLE {$wpdb->prefix}akpp_deals ADD CONSTRAINT fk_deals_client FOREIGN KEY (client_id) REFERENCES {$wpdb->prefix}akpp_site_users(id) ON DELETE CASCADE"
-        ],
-        [
-            'table'      => $wpdb->prefix . 'akpp_deals',
-            'name'       => 'fk_deals_employee',
-            'sql'        => "ALTER TABLE {$wpdb->prefix}akpp_deals ADD CONSTRAINT fk_deals_employee FOREIGN KEY (employee_id) REFERENCES {$wpdb->prefix}akpp_employees(id) ON DELETE SET NULL"
-        ],
-        [
-            'table'      => $wpdb->prefix . 'akpp_deals',
-            'name'       => 'fk_deals_vehicle',
-            'sql'        => "ALTER TABLE {$wpdb->prefix}akpp_deals ADD CONSTRAINT fk_deals_vehicle FOREIGN KEY (vehicle_id) REFERENCES {$wpdb->prefix}akpp_vehicles(id) ON DELETE SET NULL"
-        ],
-        [
-            'table'      => $wpdb->prefix . 'akpp_deal_parts',
-            'name'       => 'fk_deal_parts_deal',
-            'sql'        => "ALTER TABLE {$wpdb->prefix}akpp_deal_parts ADD CONSTRAINT fk_deal_parts_deal FOREIGN KEY (deal_id) REFERENCES {$wpdb->prefix}akpp_deals(id) ON DELETE CASCADE"
-        ],
-        [
-            'table'      => $wpdb->prefix . 'akpp_deal_parts',
-            'name'       => 'fk_deal_parts_part',
-            'sql'        => "ALTER TABLE {$wpdb->prefix}akpp_deal_parts ADD CONSTRAINT fk_deal_parts_part FOREIGN KEY (part_id) REFERENCES {$wpdb->prefix}akpp_parts(id) ON DELETE CASCADE"
-        ],
-        [
-            'table'      => $wpdb->prefix . 'akpp_leads',
-            'name'       => 'fk_leads_guide',
-            'sql'        => "ALTER TABLE {$wpdb->prefix}akpp_leads ADD CONSTRAINT fk_leads_guide FOREIGN KEY (guide_id) REFERENCES {$wpdb->prefix}akpp_employees(id) ON DELETE SET NULL"
-        ],
-    ];
-
-    foreach ($foreign_keys as $fk) {
-        // ✅ ПРОВЕРКА: существует ли уже этот FK
-        $exists = $wpdb->get_var($wpdb->prepare(
-            "SELECT COUNT(*) FROM information_schema.TABLE_CONSTRAINTS 
-             WHERE CONSTRAINT_SCHEMA = %s 
-             AND TABLE_NAME = %s 
-             AND CONSTRAINT_NAME = %s 
-             AND CONSTRAINT_TYPE = 'FOREIGN KEY'",
+        // Проверяем поддержку InnoDB
+        $engine = $wpdb->get_var($wpdb->prepare(
+            "SELECT ENGINE FROM information_schema.TABLES WHERE TABLE_SCHEMA = %s AND TABLE_NAME = %s",
             DB_NAME,
-            $fk['table'],
-            $fk['name']
+            $wpdb->prefix . 'akpp_deals'
         ));
 
-        if ($exists) {
-            continue; // ✅ Уже есть — пропускаем без ошибок
+        if ($engine !== 'InnoDB') {
+            return;
         }
 
-        // Создаём FK только если его нет
-        $wpdb->query($fk['sql']);
-    }
-
+        // Список FK с именами для проверки
         $foreign_keys = [
-            "ALTER TABLE {$wpdb->prefix}akpp_deals ADD CONSTRAINT fk_deals_client FOREIGN KEY (client_id) REFERENCES {$wpdb->prefix}akpp_site_users(id) ON DELETE CASCADE",
-            "ALTER TABLE {$wpdb->prefix}akpp_deals ADD CONSTRAINT fk_deals_employee FOREIGN KEY (employee_id) REFERENCES {$wpdb->prefix}akpp_employees(id) ON DELETE SET NULL",
-            "ALTER TABLE {$wpdb->prefix}akpp_deals ADD CONSTRAINT fk_deals_vehicle FOREIGN KEY (vehicle_id) REFERENCES {$wpdb->prefix}akpp_vehicles(id) ON DELETE SET NULL",
-            "ALTER TABLE {$wpdb->prefix}akpp_deal_parts ADD CONSTRAINT fk_deal_parts_deal FOREIGN KEY (deal_id) REFERENCES {$wpdb->prefix}akpp_deals(id) ON DELETE CASCADE",
-            "ALTER TABLE {$wpdb->prefix}akpp_deal_parts ADD CONSTRAINT fk_deal_parts_part FOREIGN KEY (part_id) REFERENCES {$wpdb->prefix}akpp_parts(id) ON DELETE CASCADE",
-            "ALTER TABLE {$wpdb->prefix}akpp_leads ADD CONSTRAINT fk_leads_guide FOREIGN KEY (guide_id) REFERENCES {$wpdb->prefix}akpp_employees(id) ON DELETE SET NULL",
+            [
+                'table'      => $wpdb->prefix . 'akpp_deals',
+                'name'       => 'fk_deals_client',
+                'sql'        => "ALTER TABLE {$wpdb->prefix}akpp_deals ADD CONSTRAINT fk_deals_client FOREIGN KEY (client_id) REFERENCES {$wpdb->prefix}akpp_site_users(id) ON DELETE CASCADE"
+            ],
+            [
+                'table'      => $wpdb->prefix . 'akpp_deals',
+                'name'       => 'fk_deals_employee',
+                'sql'        => "ALTER TABLE {$wpdb->prefix}akpp_deals ADD CONSTRAINT fk_deals_employee FOREIGN KEY (employee_id) REFERENCES {$wpdb->prefix}akpp_employees(id) ON DELETE SET NULL"
+            ],
+            [
+                'table'      => $wpdb->prefix . 'akpp_deals',
+                'name'       => 'fk_deals_vehicle',
+                'sql'        => "ALTER TABLE {$wpdb->prefix}akpp_deals ADD CONSTRAINT fk_deals_vehicle FOREIGN KEY (vehicle_id) REFERENCES {$wpdb->prefix}akpp_vehicles(id) ON DELETE SET NULL"
+            ],
+            [
+                'table'      => $wpdb->prefix . 'akpp_deal_parts',
+                'name'       => 'fk_deal_parts_deal',
+                'sql'        => "ALTER TABLE {$wpdb->prefix}akpp_deal_parts ADD CONSTRAINT fk_deal_parts_deal FOREIGN KEY (deal_id) REFERENCES {$wpdb->prefix}akpp_deals(id) ON DELETE CASCADE"
+            ],
+            [
+                'table'      => $wpdb->prefix . 'akpp_deal_parts',
+                'name'       => 'fk_deal_parts_part',
+                'sql'        => "ALTER TABLE {$wpdb->prefix}akpp_deal_parts ADD CONSTRAINT fk_deal_parts_part FOREIGN KEY (part_id) REFERENCES {$wpdb->prefix}akpp_parts(id) ON DELETE CASCADE"
+            ],
+            [
+                'table'      => $wpdb->prefix . 'akpp_leads',
+                'name'       => 'fk_leads_guide',
+                'sql'        => "ALTER TABLE {$wpdb->prefix}akpp_leads ADD CONSTRAINT fk_leads_guide FOREIGN KEY (guide_id) REFERENCES {$wpdb->prefix}akpp_employees(id) ON DELETE SET NULL"
+            ],
         ];
 
-        foreach ($foreign_keys as $sql) {
-            // Пытаемся добавить внешний ключ, игнорируя ошибки если он уже есть
-            @$wpdb->query($sql);
+        foreach ($foreign_keys as $fk) {
+            // Проверяем существует ли уже этот FK
+            $exists = $wpdb->get_var($wpdb->prepare(
+                "SELECT COUNT(*) FROM information_schema.TABLE_CONSTRAINTS 
+                 WHERE CONSTRAINT_SCHEMA = %s 
+                 AND TABLE_NAME = %s 
+                 AND CONSTRAINT_NAME = %s 
+                 AND CONSTRAINT_TYPE = 'FOREIGN KEY'",
+                DB_NAME,
+                $fk['table'],
+                $fk['name']
+            ));
+
+            if ($exists) {
+                continue; // Уже есть — пропускаем
+            }
+
+            // Создаём FK только если его нет
+            $wpdb->query($fk['sql']);
         }
     }
 }

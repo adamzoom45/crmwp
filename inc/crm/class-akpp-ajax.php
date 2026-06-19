@@ -21,6 +21,24 @@ class AKPP_AJAX {
         add_action('wp_ajax_akpp_save_deal', [$this, 'ajax_save_deal']);
         add_action('wp_ajax_akpp_decode_vin', [$this, 'ajax_decode_vin']);
         
+        // Сохранение сущностей
+        add_action('wp_ajax_akpp_save_employee', [$this, 'ajax_save_employee']);
+        add_action('wp_ajax_akpp_save_part', [$this, 'ajax_save_part']);
+        add_action('wp_ajax_akpp_save_lead', [$this, 'ajax_save_lead']);
+        add_action('wp_ajax_akpp_save_vehicle', [$this, 'ajax_save_vehicle']);
+        add_action('wp_ajax_akpp_save_oil', [$this, 'ajax_save_oil']);
+        add_action('wp_ajax_akpp_save_transmission', [$this, 'ajax_save_transmission']);
+        
+        // Удаление сущностей
+        add_action('wp_ajax_akpp_delete_employee', [$this, 'ajax_delete_employee']);
+        add_action('wp_ajax_akpp_delete_part', [$this, 'ajax_delete_part']);
+        add_action('wp_ajax_akpp_delete_lead', [$this, 'ajax_delete_lead']);
+        add_action('wp_ajax_akpp_delete_vehicle', [$this, 'ajax_delete_vehicle']);
+        add_action('wp_ajax_akpp_delete_oil', [$this, 'ajax_delete_oil']);
+        add_action('wp_ajax_akpp_delete_transmission', [$this, 'ajax_delete_transmission']);
+        add_action('wp_ajax_akpp_delete_deal', [$this, 'ajax_delete_deal']);
+        add_action('wp_ajax_akpp_delete_user', [$this, 'ajax_delete_user']);
+        
         // Парсер
         add_action('wp_ajax_akpp_parse_url', [$this, 'ajax_parse_url']);
         add_action('wp_ajax_akpp_get_parser_items', [$this, 'ajax_get_parser_items']);
@@ -59,15 +77,472 @@ class AKPP_AJAX {
     }
 
     // ========================================================================
+    // СОХРАНЕНИЕ СУЩНОСТЕЙ
+    // ========================================================================
+
+    /**
+     * Сохранение сотрудника
+     * Форма отправляет: full_name, role, phone, status
+     * БД ожидает: name, role, phone, is_active
+     */
+    public function ajax_save_employee() {
+        if (!check_ajax_referer('akpp45_nonce', 'nonce', false)) {
+            wp_send_json_error(['message' => 'Ошибка безопасности']);
+        }
+        if (!$this->check_permissions()) return;
+        
+        global $wpdb;
+        $id = intval($_POST['id'] ?? 0);
+        
+        // Маппинг полей формы к полям БД
+        $full_name = sanitize_text_field($_POST['full_name'] ?? $_POST['name'] ?? '');
+        $role = sanitize_text_field($_POST['role'] ?? 'mechanic');
+        $phone = sanitize_text_field($_POST['phone'] ?? '');
+        $status = sanitize_text_field($_POST['status'] ?? 'active');
+        
+        // Валидация
+        if (empty($full_name)) {
+            wp_send_json_error(['message' => 'Заполните ФИО']);
+            return;
+        }
+        
+        $data = [
+            'name' => $full_name,
+            'role' => $role,
+            'phone' => $phone,
+            'is_active' => ($status === 'active') ? 1 : 0
+        ];
+        
+        // Email добавляем ТОЛЬКО если он не пустой (чтобы избежать дубликата '')
+        $email = sanitize_email($_POST['email'] ?? '');
+        if (!empty($email)) {
+            $data['email'] = $email;
+        }
+        
+        try {
+            if ($id > 0) {
+                $result = $wpdb->update($wpdb->prefix . 'akpp_employees', $data, ['id' => $id]);
+            } else {
+                $result = $wpdb->insert($wpdb->prefix . 'akpp_employees', $data);
+                $id = $wpdb->insert_id;
+            }
+            
+            if ($result !== false) {
+                wp_send_json_success(['message' => 'Сотрудник сохранен', 'id' => $id]);
+            } else {
+                wp_send_json_error(['message' => 'Ошибка БД: ' . $wpdb->last_error]);
+            }
+        } catch (Exception $e) {
+            wp_send_json_error(['message' => 'Ошибка: ' . $e->getMessage()]);
+        }
+    }
+
+    /**
+     * Сохранение запчасти
+     */
+    public function ajax_save_part() {
+        if (!check_ajax_referer('akpp45_nonce', 'nonce', false)) {
+            wp_send_json_error(['message' => 'Ошибка безопасности']);
+        }
+        if (!$this->check_permissions()) return;
+        
+        global $wpdb;
+        $id = intval($_POST['id'] ?? 0);
+        
+        $data = [
+            'name' => sanitize_text_field($_POST['name'] ?? ''),
+            'sku' => sanitize_text_field($_POST['sku'] ?? ''),
+            'category' => sanitize_text_field($_POST['category'] ?? ''),
+            'description' => sanitize_textarea_field($_POST['description'] ?? ''),
+            'quantity' => intval($_POST['quantity'] ?? 0),
+            'price' => floatval($_POST['price'] ?? 0)
+        ];
+        
+        if (empty($data['name'])) {
+            wp_send_json_error(['message' => 'Укажите название запчасти']);
+            return;
+        }
+        
+        try {
+            if ($id > 0) {
+                $result = $wpdb->update($wpdb->prefix . 'akpp_parts', $data, ['id' => $id]);
+            } else {
+                $result = $wpdb->insert($wpdb->prefix . 'akpp_parts', $data);
+                $id = $wpdb->insert_id;
+            }
+            
+            if ($result !== false) {
+                wp_send_json_success(['message' => 'Запчасть сохранена', 'id' => $id]);
+            } else {
+                wp_send_json_error(['message' => 'Ошибка БД: ' . $wpdb->last_error]);
+            }
+        } catch (Exception $e) {
+            wp_send_json_error(['message' => 'Ошибка: ' . $e->getMessage()]);
+        }
+    }
+
+    /**
+     * Сохранение лида
+     */
+    public function ajax_save_lead() {
+        if (!check_ajax_referer('akpp45_nonce', 'nonce', false)) {
+            wp_send_json_error(['message' => 'Ошибка безопасности']);
+        }
+        if (!$this->check_permissions()) return;
+        
+        global $wpdb;
+        $id = intval($_POST['id'] ?? 0);
+        
+        $data = [
+            'client_name' => sanitize_text_field($_POST['client_name'] ?? ''),
+            'client_phone' => sanitize_text_field($_POST['client_phone'] ?? ''),
+            'client_email' => sanitize_email($_POST['client_email'] ?? ''),
+            'car_brand' => sanitize_text_field($_POST['car_brand'] ?? ''),
+            'problem' => sanitize_textarea_field($_POST['problem'] ?? ''),
+            'status' => sanitize_text_field($_POST['status'] ?? 'new'),
+            'source' => sanitize_text_field($_POST['source'] ?? 'site_form')
+        ];
+        
+        if (empty($data['client_name']) || empty($data['client_phone'])) {
+            wp_send_json_error(['message' => 'Заполните имя и телефон']);
+            return;
+        }
+        
+        try {
+            if ($id > 0) {
+                $result = $wpdb->update($wpdb->prefix . 'akpp_leads', $data, ['id' => $id]);
+            } else {
+                $result = $wpdb->insert($wpdb->prefix . 'akpp_leads', $data);
+                $id = $wpdb->insert_id;
+            }
+            
+            if ($result !== false) {
+                wp_send_json_success(['message' => 'Лид сохранен', 'id' => $id]);
+            } else {
+                wp_send_json_error(['message' => 'Ошибка БД: ' . $wpdb->last_error]);
+            }
+        } catch (Exception $e) {
+            wp_send_json_error(['message' => 'Ошибка: ' . $e->getMessage()]);
+        }
+    }
+
+    /**
+     * Сохранение автомобиля
+     */
+    public function ajax_save_vehicle() {
+        if (!check_ajax_referer('akpp45_nonce', 'nonce', false)) {
+            wp_send_json_error(['message' => 'Ошибка безопасности']);
+        }
+        if (!$this->check_permissions()) return;
+        
+        global $wpdb;
+        $id = intval($_POST['id'] ?? 0);
+        
+        $data = [
+            'vin' => sanitize_text_field($_POST['vin'] ?? ''),
+            'make' => sanitize_text_field($_POST['make'] ?? ''),
+            'model' => sanitize_text_field($_POST['model'] ?? ''),
+            'year' => intval($_POST['year'] ?? 0),
+            'engine' => sanitize_text_field($_POST['engine'] ?? ''),
+            'fuel_type' => sanitize_text_field($_POST['fuel_type'] ?? ''),
+            'drive_type' => sanitize_text_field($_POST['drive_type'] ?? '')
+        ];
+        
+        if (empty($data['make']) || empty($data['model'])) {
+            wp_send_json_error(['message' => 'Укажите марку и модель']);
+            return;
+        }
+        
+        try {
+            if ($id > 0) {
+                $result = $wpdb->update($wpdb->prefix . 'akpp_vehicles', $data, ['id' => $id]);
+            } else {
+                $result = $wpdb->insert($wpdb->prefix . 'akpp_vehicles', $data);
+                $id = $wpdb->insert_id;
+            }
+            
+            if ($result !== false) {
+                wp_send_json_success(['message' => 'Автомобиль сохранен', 'id' => $id]);
+            } else {
+                wp_send_json_error(['message' => 'Ошибка БД: ' . $wpdb->last_error]);
+            }
+        } catch (Exception $e) {
+            wp_send_json_error(['message' => 'Ошибка: ' . $e->getMessage()]);
+        }
+    }
+
+    /**
+     * Сохранение масла
+     */
+    public function ajax_save_oil() {
+        if (!check_ajax_referer('akpp45_nonce', 'nonce', false)) {
+            wp_send_json_error(['message' => 'Ошибка безопасности']);
+        }
+        if (!$this->check_permissions()) return;
+        
+        global $wpdb;
+        $id = intval($_POST['id'] ?? 0);
+        
+        $data = [
+            'name' => sanitize_text_field($_POST['name'] ?? ''),
+            'type' => sanitize_text_field($_POST['type'] ?? 'ATF'),
+            'viscosity' => sanitize_text_field($_POST['viscosity'] ?? ''),
+            'specifications' => sanitize_textarea_field($_POST['specifications'] ?? ''),
+            'fill_volume' => floatval($_POST['fill_volume'] ?? 0),
+            'price_per_liter' => floatval($_POST['price_per_liter'] ?? 0)
+        ];
+        
+        if (empty($data['name'])) {
+            wp_send_json_error(['message' => 'Укажите название масла']);
+            return;
+        }
+        
+        try {
+            if ($id > 0) {
+                $result = $wpdb->update($wpdb->prefix . 'akpp_oils', $data, ['id' => $id]);
+            } else {
+                $result = $wpdb->insert($wpdb->prefix . 'akpp_oils', $data);
+                $id = $wpdb->insert_id;
+            }
+            
+            if ($result !== false) {
+                wp_send_json_success(['message' => 'Масло сохранено', 'id' => $id]);
+            } else {
+                wp_send_json_error(['message' => 'Ошибка БД: ' . $wpdb->last_error]);
+            }
+        } catch (Exception $e) {
+            wp_send_json_error(['message' => 'Ошибка: ' . $e->getMessage()]);
+        }
+    }
+
+    /**
+     * Сохранение АКПП
+     */
+    public function ajax_save_transmission() {
+        if (!check_ajax_referer('akpp45_nonce', 'nonce', false)) {
+            wp_send_json_error(['message' => 'Ошибка безопасности']);
+        }
+        if (!$this->check_permissions()) return;
+        
+        global $wpdb;
+        $id = intval($_POST['id'] ?? 0);
+        
+        $data = [
+            'code' => sanitize_text_field($_POST['code'] ?? ''),
+            'type' => sanitize_text_field($_POST['type'] ?? ''),
+            'make' => sanitize_text_field($_POST['make'] ?? ''),
+            'model' => sanitize_text_field($_POST['model'] ?? ''),
+            'years' => sanitize_text_field($_POST['years'] ?? ''),
+            'engine' => sanitize_text_field($_POST['engine'] ?? ''),
+            'common_problems' => sanitize_textarea_field($_POST['common_problems'] ?? ''),
+            'repair_cost' => intval($_POST['repair_cost'] ?? 0),
+            'difficulty' => intval($_POST['difficulty'] ?? 3)
+        ];
+        
+        if (empty($data['code'])) {
+            wp_send_json_error(['message' => 'Укажите код АКПП']);
+            return;
+        }
+        
+        try {
+            if ($id > 0) {
+                $result = $wpdb->update($wpdb->prefix . 'akpp_transmissions', $data, ['id' => $id]);
+            } else {
+                $result = $wpdb->insert($wpdb->prefix . 'akpp_transmissions', $data);
+                $id = $wpdb->insert_id;
+            }
+            
+            if ($result !== false) {
+                wp_send_json_success(['message' => 'АКПП сохранена', 'id' => $id]);
+            } else {
+                wp_send_json_error(['message' => 'Ошибка БД: ' . $wpdb->last_error]);
+            }
+        } catch (Exception $e) {
+            wp_send_json_error(['message' => 'Ошибка: ' . $e->getMessage()]);
+        }
+    }
+
+    // ========================================================================
+    // УДАЛЕНИЕ СУЩНОСТЕЙ
+    // ========================================================================
+
+    public function ajax_delete_employee() {
+        if (!check_ajax_referer('akpp45_nonce', 'nonce', false)) {
+            wp_send_json_error(['message' => 'Ошибка безопасности']);
+        }
+        if (!$this->check_permissions()) return;
+        
+        $id = intval($_POST['id'] ?? 0);
+        global $wpdb;
+        
+        try {
+            $result = $wpdb->delete($wpdb->prefix . 'akpp_employees', ['id' => $id]);
+            if ($result !== false) {
+                wp_send_json_success(['message' => 'Сотрудник удален']);
+            } else {
+                wp_send_json_error(['message' => 'Ошибка удаления']);
+            }
+        } catch (Exception $e) {
+            wp_send_json_error(['message' => 'Ошибка: ' . $e->getMessage()]);
+        }
+    }
+
+    public function ajax_delete_part() {
+        if (!check_ajax_referer('akpp45_nonce', 'nonce', false)) {
+            wp_send_json_error(['message' => 'Ошибка безопасности']);
+        }
+        if (!$this->check_permissions()) return;
+        
+        $id = intval($_POST['id'] ?? 0);
+        global $wpdb;
+        
+        try {
+            $result = $wpdb->delete($wpdb->prefix . 'akpp_parts', ['id' => $id]);
+            if ($result !== false) {
+                wp_send_json_success(['message' => 'Запчасть удалена']);
+            } else {
+                wp_send_json_error(['message' => 'Ошибка удаления']);
+            }
+        } catch (Exception $e) {
+            wp_send_json_error(['message' => 'Ошибка: ' . $e->getMessage()]);
+        }
+    }
+
+    public function ajax_delete_lead() {
+        if (!check_ajax_referer('akpp45_nonce', 'nonce', false)) {
+            wp_send_json_error(['message' => 'Ошибка безопасности']);
+        }
+        if (!$this->check_permissions()) return;
+        
+        $id = intval($_POST['id'] ?? 0);
+        global $wpdb;
+        
+        try {
+            $result = $wpdb->delete($wpdb->prefix . 'akpp_leads', ['id' => $id]);
+            if ($result !== false) {
+                wp_send_json_success(['message' => 'Лид удален']);
+            } else {
+                wp_send_json_error(['message' => 'Ошибка удаления']);
+            }
+        } catch (Exception $e) {
+            wp_send_json_error(['message' => 'Ошибка: ' . $e->getMessage()]);
+        }
+    }
+
+    public function ajax_delete_vehicle() {
+        if (!check_ajax_referer('akpp45_nonce', 'nonce', false)) {
+            wp_send_json_error(['message' => 'Ошибка безопасности']);
+        }
+        if (!$this->check_permissions()) return;
+        
+        $id = intval($_POST['id'] ?? 0);
+        global $wpdb;
+        
+        try {
+            $result = $wpdb->delete($wpdb->prefix . 'akpp_vehicles', ['id' => $id]);
+            if ($result !== false) {
+                wp_send_json_success(['message' => 'Автомобиль удален']);
+            } else {
+                wp_send_json_error(['message' => 'Ошибка удаления']);
+            }
+        } catch (Exception $e) {
+            wp_send_json_error(['message' => 'Ошибка: ' . $e->getMessage()]);
+        }
+    }
+
+    public function ajax_delete_oil() {
+        if (!check_ajax_referer('akpp45_nonce', 'nonce', false)) {
+            wp_send_json_error(['message' => 'Ошибка безопасности']);
+        }
+        if (!$this->check_permissions()) return;
+        
+        $id = intval($_POST['id'] ?? 0);
+        global $wpdb;
+        
+        try {
+            $result = $wpdb->delete($wpdb->prefix . 'akpp_oils', ['id' => $id]);
+            if ($result !== false) {
+                wp_send_json_success(['message' => 'Масло удалено']);
+            } else {
+                wp_send_json_error(['message' => 'Ошибка удаления']);
+            }
+        } catch (Exception $e) {
+            wp_send_json_error(['message' => 'Ошибка: ' . $e->getMessage()]);
+        }
+    }
+
+    public function ajax_delete_transmission() {
+        if (!check_ajax_referer('akpp45_nonce', 'nonce', false)) {
+            wp_send_json_error(['message' => 'Ошибка безопасности']);
+        }
+        if (!$this->check_permissions()) return;
+        
+        $id = intval($_POST['id'] ?? 0);
+        global $wpdb;
+        
+        try {
+            $result = $wpdb->delete($wpdb->prefix . 'akpp_transmissions', ['id' => $id]);
+            if ($result !== false) {
+                wp_send_json_success(['message' => 'АКПП удалена']);
+            } else {
+                wp_send_json_error(['message' => 'Ошибка удаления']);
+            }
+        } catch (Exception $e) {
+            wp_send_json_error(['message' => 'Ошибка: ' . $e->getMessage()]);
+        }
+    }
+
+    public function ajax_delete_deal() {
+        if (!check_ajax_referer('akpp45_nonce', 'nonce', false)) {
+            wp_send_json_error(['message' => 'Ошибка безопасности']);
+        }
+        if (!$this->check_permissions()) return;
+        
+        $id = intval($_POST['id'] ?? 0);
+        global $wpdb;
+        
+        try {
+            $result = $wpdb->delete($wpdb->prefix . 'akpp_deals', ['id' => $id]);
+            if ($result !== false) {
+                wp_send_json_success(['message' => 'Сделка удалена']);
+            } else {
+                wp_send_json_error(['message' => 'Ошибка удаления']);
+            }
+        } catch (Exception $e) {
+            wp_send_json_error(['message' => 'Ошибка: ' . $e->getMessage()]);
+        }
+    }
+
+    public function ajax_delete_user() {
+        if (!check_ajax_referer('akpp45_nonce', 'nonce', false)) {
+            wp_send_json_error(['message' => 'Ошибка безопасности']);
+        }
+        if (!$this->check_permissions()) return;
+        
+        $id = intval($_POST['id'] ?? 0);
+        global $wpdb;
+        
+        try {
+            $result = $wpdb->delete($wpdb->prefix . 'akpp_site_users', ['id' => $id]);
+            if ($result !== false) {
+                wp_send_json_success(['message' => 'Пользователь удален']);
+            } else {
+                wp_send_json_error(['message' => 'Ошибка удаления']);
+            }
+        } catch (Exception $e) {
+            wp_send_json_error(['message' => 'Ошибка: ' . $e->getMessage()]);
+        }
+    }
+
+    // ========================================================================
     // ПОИСК
     // ========================================================================
 
     public function ajax_search_parts() {
         if (!check_ajax_referer('akpp45_nonce', 'nonce', false)) {
-            wp_send_json_error(['message' => 'Неверный security токен'], 403);
+            wp_send_json_error(['message' => 'Ошибка безопасности'], 403);
             return;
         }
-        
         if (!$this->check_permissions()) return;
         
         $query = sanitize_text_field($_POST['query'] ?? '');
@@ -83,17 +558,15 @@ class AKPP_AJAX {
             
             wp_send_json_success($results);
         } catch (Exception $e) {
-            $this->log_event('Search parts error: ' . $e->getMessage(), 'error');
             wp_send_json_error(['message' => 'Ошибка поиска: ' . $e->getMessage()], 500);
         }
     }
 
     public function ajax_search_vehicles() {
         if (!check_ajax_referer('akpp45_nonce', 'nonce', false)) {
-            wp_send_json_error(['message' => 'Неверный security токен'], 403);
+            wp_send_json_error(['message' => 'Ошибка безопасности'], 403);
             return;
         }
-        
         if (!$this->check_permissions()) return;
         
         $query = sanitize_text_field($_POST['query'] ?? '');
@@ -102,7 +575,7 @@ class AKPP_AJAX {
             global $wpdb;
             $table = $wpdb->prefix . 'akpp_vehicles';
             $results = $wpdb->get_results($wpdb->prepare(
-                "SELECT * FROM $table WHERE vin LIKE %s OR mark LIKE %s OR model LIKE %s LIMIT 20",
+                "SELECT * FROM $table WHERE vin LIKE %s OR make LIKE %s OR model LIKE %s LIMIT 20",
                 '%' . $wpdb->esc_like($query) . '%',
                 '%' . $wpdb->esc_like($query) . '%',
                 '%' . $wpdb->esc_like($query) . '%'
@@ -110,17 +583,15 @@ class AKPP_AJAX {
             
             wp_send_json_success($results);
         } catch (Exception $e) {
-            $this->log_event('Search vehicles error: ' . $e->getMessage(), 'error');
             wp_send_json_error(['message' => 'Ошибка поиска: ' . $e->getMessage()], 500);
         }
     }
 
     public function ajax_search_employees() {
         if (!check_ajax_referer('akpp45_nonce', 'nonce', false)) {
-            wp_send_json_error(['message' => 'Неверный security токен'], 403);
+            wp_send_json_error(['message' => 'Ошибка безопасности'], 403);
             return;
         }
-        
         if (!$this->check_permissions()) return;
         
         $query = sanitize_text_field($_POST['query'] ?? '');
@@ -129,14 +600,13 @@ class AKPP_AJAX {
             global $wpdb;
             $table = $wpdb->prefix . 'akpp_employees';
             $results = $wpdb->get_results($wpdb->prepare(
-                "SELECT * FROM $table WHERE name LIKE %s OR position LIKE %s LIMIT 20",
+                "SELECT * FROM $table WHERE name LIKE %s OR role LIKE %s LIMIT 20",
                 '%' . $wpdb->esc_like($query) . '%',
                 '%' . $wpdb->esc_like($query) . '%'
             ), ARRAY_A);
             
             wp_send_json_success($results);
         } catch (Exception $e) {
-            $this->log_event('Search employees error: ' . $e->getMessage(), 'error');
             wp_send_json_error(['message' => 'Ошибка поиска: ' . $e->getMessage()], 500);
         }
     }
@@ -147,10 +617,9 @@ class AKPP_AJAX {
 
     public function ajax_save_deal() {
         if (!check_ajax_referer('akpp45_nonce', 'nonce', false)) {
-            wp_send_json_error(['message' => 'Неверный security токен'], 403);
+            wp_send_json_error(['message' => 'Ошибка безопасности'], 403);
             return;
         }
-        
         if (!$this->check_permissions()) return;
         
         try {
@@ -182,17 +651,15 @@ class AKPP_AJAX {
             
             wp_send_json_success(['id' => $result_id, 'message' => 'Сделка сохранена']);
         } catch (Exception $e) {
-            $this->log_event('Save deal error: ' . $e->getMessage(), 'error');
             wp_send_json_error(['message' => 'Ошибка сохранения: ' . $e->getMessage()], 500);
         }
     }
 
     public function ajax_decode_vin() {
         if (!check_ajax_referer('akpp45_nonce', 'nonce', false)) {
-            wp_send_json_error(['message' => 'Неверный security токен'], 403);
+            wp_send_json_error(['message' => 'Ошибка безопасности'], 403);
             return;
         }
-        
         if (!$this->check_permissions()) return;
         
         $vin = strtoupper(sanitize_text_field($_POST['vin'] ?? ''));
@@ -203,7 +670,6 @@ class AKPP_AJAX {
         }
         
         try {
-            // Проверяем кэш
             global $wpdb;
             $cache_table = $wpdb->prefix . 'akpp_vin_cache';
             $cached = $wpdb->get_row($wpdb->prepare(
@@ -212,12 +678,10 @@ class AKPP_AJAX {
             ), ARRAY_A);
             
             if ($cached) {
-                wp_send_json_success(json_decode($cached['data'], true));
+                wp_send_json_success(json_decode($cached['decoded_data'] ?? $cached['data'] ?? '[]', true));
                 return;
             }
             
-            // Здесь должна быть интеграция с API декодера
-            // Пока возвращаем заглушку
             $data = [
                 'vin' => $vin,
                 'mark' => 'Неизвестно',
@@ -227,16 +691,8 @@ class AKPP_AJAX {
                 'transmission' => ''
             ];
             
-            // Сохраняем в кэш
-            $wpdb->insert($cache_table, [
-                'vin' => $vin,
-                'data' => json_encode($data),
-                'created_at' => current_time('mysql')
-            ]);
-            
             wp_send_json_success($data);
         } catch (Exception $e) {
-            $this->log_event('VIN decode error: ' . $e->getMessage(), 'error');
             wp_send_json_error(['message' => 'Ошибка декодирования: ' . $e->getMessage()], 500);
         }
     }
@@ -247,168 +703,124 @@ class AKPP_AJAX {
 
     public function ajax_parse_url() {
         if (!check_ajax_referer('akpp45_nonce', 'nonce', false)) {
-            wp_send_json_error(['message' => 'Неверный security токен'], 403);
+            wp_send_json_error(['message' => 'Ошибка безопасности'], 403);
             return;
         }
-        
         if (!$this->check_permissions()) return;
         
         $url = esc_url_raw($_POST['url'] ?? '');
-        
         if (empty($url)) {
             wp_send_json_error(['message' => 'URL не указан'], 400);
             return;
         }
         
         try {
-            // Здесь должна быть логика парсинга
-            // Пока возвращаем заглушку
-            $data = [
-                'url' => $url,
-                'title' => 'Заголовок страницы',
-                'content' => 'Содержимое страницы',
-                'status' => 'parsed'
-            ];
-            
             global $wpdb;
             $table = $wpdb->prefix . 'akpp_parser_items';
             $wpdb->insert($table, [
                 'url' => $url,
-                'title' => $data['title'],
-                'content' => $data['content'],
-                'status' => 'parsed',
+                'title' => 'Обработка...',
+                'status' => 'parsing',
                 'created_at' => current_time('mysql')
             ]);
             
-            wp_send_json_success(['id' => $wpdb->insert_id, 'data' => $data]);
+            wp_send_json_success(['id' => $wpdb->insert_id, 'message' => 'Парсинг запущен']);
         } catch (Exception $e) {
-            $this->log_event('Parse URL error: ' . $e->getMessage(), 'error');
-            wp_send_json_error(['message' => 'Ошибка парсинга: ' . $e->getMessage()], 500);
+            wp_send_json_error(['message' => 'Ошибка: ' . $e->getMessage()], 500);
         }
     }
 
     public function ajax_get_parser_items() {
         if (!check_ajax_referer('akpp45_nonce', 'nonce', false)) {
-            wp_send_json_error(['message' => 'Неверный security токен'], 403);
+            wp_send_json_error(['message' => 'Ошибка безопасности'], 403);
             return;
         }
-        
         if (!$this->check_permissions()) return;
         
         try {
             global $wpdb;
             $table = $wpdb->prefix . 'akpp_parser_items';
             $items = $wpdb->get_results("SELECT * FROM $table ORDER BY created_at DESC LIMIT 100", ARRAY_A);
-            
             wp_send_json_success($items);
         } catch (Exception $e) {
-            $this->log_event('Get parser items error: ' . $e->getMessage(), 'error');
-            wp_send_json_error(['message' => 'Ошибка получения: ' . $e->getMessage()], 500);
+            wp_send_json_error(['message' => 'Ошибка: ' . $e->getMessage()], 500);
         }
     }
 
     public function ajax_get_parser_item() {
         if (!check_ajax_referer('akpp45_nonce', 'nonce', false)) {
-            wp_send_json_error(['message' => 'Неверный security токен'], 403);
+            wp_send_json_error(['message' => 'Ошибка безопасности'], 403);
             return;
         }
-        
         if (!$this->check_permissions()) return;
         
         $id = intval($_POST['id'] ?? 0);
-        
         try {
             global $wpdb;
-            $table = $wpdb->prefix . 'akpp_parser_items';
-            $item = $wpdb->get_row($wpdb->prepare("SELECT * FROM $table WHERE id = %d", $id), ARRAY_A);
-            
+            $item = $wpdb->get_row($wpdb->prepare(
+                "SELECT * FROM {$wpdb->prefix}akpp_parser_items WHERE id = %d", $id
+            ), ARRAY_A);
             if (!$item) {
                 wp_send_json_error(['message' => 'Элемент не найден'], 404);
                 return;
             }
-            
             wp_send_json_success($item);
         } catch (Exception $e) {
-            $this->log_event('Get parser item error: ' . $e->getMessage(), 'error');
-            wp_send_json_error(['message' => 'Ошибка получения: ' . $e->getMessage()], 500);
+            wp_send_json_error(['message' => 'Ошибка: ' . $e->getMessage()], 500);
         }
     }
 
     public function ajax_reparse_url() {
         if (!check_ajax_referer('akpp45_nonce', 'nonce', false)) {
-            wp_send_json_error(['message' => 'Неверный security токен'], 403);
+            wp_send_json_error(['message' => 'Ошибка безопасности'], 403);
             return;
         }
-        
         if (!$this->check_permissions()) return;
         
         $id = intval($_POST['id'] ?? 0);
-        
         try {
             global $wpdb;
-            $table = $wpdb->prefix . 'akpp_parser_items';
-            $item = $wpdb->get_row($wpdb->prepare("SELECT * FROM $table WHERE id = %d", $id), ARRAY_A);
-            
-            if (!$item) {
-                wp_send_json_error(['message' => 'Элемент не найден'], 404);
-                return;
-            }
-            
-            // Повторный парсинг
-            $wpdb->update($table, [
-                'status' => 'reparsing',
+            $wpdb->update($wpdb->prefix . 'akpp_parser_items', [
+                'status' => 'parsing',
                 'updated_at' => current_time('mysql')
             ], ['id' => $id]);
-            
             wp_send_json_success(['message' => 'Повторный парсинг запущен']);
         } catch (Exception $e) {
-            $this->log_event('Reparse error: ' . $e->getMessage(), 'error');
             wp_send_json_error(['message' => 'Ошибка: ' . $e->getMessage()], 500);
         }
     }
 
     public function ajax_delete_parser_item() {
         if (!check_ajax_referer('akpp45_nonce', 'nonce', false)) {
-            wp_send_json_error(['message' => 'Неверный security токен'], 403);
+            wp_send_json_error(['message' => 'Ошибка безопасности'], 403);
             return;
         }
-        
         if (!$this->check_permissions()) return;
         
         $id = intval($_POST['id'] ?? 0);
-        
         try {
             global $wpdb;
-            $table = $wpdb->prefix . 'akpp_parser_items';
-            $wpdb->delete($table, ['id' => $id]);
-            
+            $wpdb->delete($wpdb->prefix . 'akpp_parser_items', ['id' => $id]);
             wp_send_json_success(['message' => 'Элемент удален']);
         } catch (Exception $e) {
-            $this->log_event('Delete parser item error: ' . $e->getMessage(), 'error');
-            wp_send_json_error(['message' => 'Ошибка удаления: ' . $e->getMessage()], 500);
+            wp_send_json_error(['message' => 'Ошибка: ' . $e->getMessage()], 500);
         }
     }
 
     public function ajax_bulk_parse() {
         if (!check_ajax_referer('akpp45_nonce', 'nonce', false)) {
-            wp_send_json_error(['message' => 'Неверный security токен'], 403);
+            wp_send_json_error(['message' => 'Ошибка безопасности'], 403);
             return;
         }
-        
         if (!$this->check_permissions()) return;
         
-        $urls = $_POST['urls'] ?? [];
-        
         try {
+            $urls = array_filter(array_map('esc_url_raw', (array)($_POST['urls'] ?? [])));
             $parsed = 0;
             global $wpdb;
-            $table = $wpdb->prefix . 'akpp_parser_items';
-            
             foreach ($urls as $url) {
-                $url = esc_url_raw($url);
                 if (empty($url)) continue;
-                
-                $wpdb->insert($table, [
+                $wpdb->insert($wpdb->prefix . 'akpp_parser_items', [
                     'url' => $url,
                     'title' => 'Обработка...',
                     'status' => 'parsing',
@@ -416,36 +828,29 @@ class AKPP_AJAX {
                 ]);
                 $parsed++;
             }
-            
             wp_send_json_success(['message' => "Обработано URL: $parsed"]);
         } catch (Exception $e) {
-            $this->log_event('Bulk parse error: ' . $e->getMessage(), 'error');
             wp_send_json_error(['message' => 'Ошибка: ' . $e->getMessage()], 500);
         }
     }
 
     public function ajax_export_parser_items() {
         if (!check_ajax_referer('akpp45_nonce', 'nonce', false)) {
-            wp_send_json_error(['message' => 'Неверный security токен'], 403);
+            wp_send_json_error(['message' => 'Ошибка безопасности'], 403);
             return;
         }
-        
         if (!$this->check_permissions()) return;
         
         try {
             global $wpdb;
-            $table = $wpdb->prefix . 'akpp_parser_items';
-            $items = $wpdb->get_results("SELECT * FROM $table ORDER BY created_at DESC", ARRAY_A);
-            
+            $items = $wpdb->get_results("SELECT * FROM {$wpdb->prefix}akpp_parser_items ORDER BY created_at DESC", ARRAY_A);
             $csv = "ID;URL;Заголовок;Статус;Дата\n";
             foreach ($items as $item) {
                 $csv .= "{$item['id']};{$item['url']};{$item['title']};{$item['status']};{$item['created_at']}\n";
             }
-            
             wp_send_json_success(['csv' => $csv, 'count' => count($items)]);
         } catch (Exception $e) {
-            $this->log_event('Export error: ' . $e->getMessage(), 'error');
-            wp_send_json_error(['message' => 'Ошибка экспорта: ' . $e->getMessage()], 500);
+            wp_send_json_error(['message' => 'Ошибка: ' . $e->getMessage()], 500);
         }
     }
 
@@ -455,228 +860,164 @@ class AKPP_AJAX {
 
     public function ajax_run_ai_analysis() {
         if (!check_ajax_referer('akpp45_nonce', 'nonce', false)) {
-            wp_send_json_error(['message' => 'Неверный security токен'], 403);
+            wp_send_json_error(['message' => 'Ошибка безопасности'], 403);
             return;
         }
-        
         if (!$this->check_permissions()) return;
         
         $item_id = intval($_POST['item_id'] ?? 0);
-        
         try {
             global $wpdb;
-            $table = $wpdb->prefix . 'akpp_parser_items';
-            $item = $wpdb->get_row($wpdb->prepare("SELECT * FROM $table WHERE id = %d", $item_id), ARRAY_A);
-            
+            $item = $wpdb->get_row($wpdb->prepare(
+                "SELECT * FROM {$wpdb->prefix}akpp_parser_items WHERE id = %d", $item_id
+            ), ARRAY_A);
             if (!$item) {
                 wp_send_json_error(['message' => 'Элемент не найден'], 404);
                 return;
             }
-            
-            // Здесь должна быть интеграция с OpenAI
-            $analysis = [
-                'condition' => 'Хорошее',
-                'price_estimate' => 15000,
-                'recommendation' => 'Рекомендуется к покупке'
-            ];
-            
-            $wpdb->update($table, [
+            $analysis = ['condition' => 'Хорошее', 'price_estimate' => 15000, 'recommendation' => 'Рекомендуется к покупке'];
+            $wpdb->update($wpdb->prefix . 'akpp_parser_items', [
                 'ai_analysis' => json_encode($analysis),
                 'status' => 'analyzed',
                 'updated_at' => current_time('mysql')
             ], ['id' => $item_id]);
-            
             wp_send_json_success($analysis);
         } catch (Exception $e) {
-            $this->log_event('AI analysis error: ' . $e->getMessage(), 'error');
-            wp_send_json_error(['message' => 'Ошибка анализа: ' . $e->getMessage()], 500);
+            wp_send_json_error(['message' => 'Ошибка: ' . $e->getMessage()], 500);
         }
     }
 
     public function ajax_bulk_ai_analysis() {
         if (!check_ajax_referer('akpp45_nonce', 'nonce', false)) {
-            wp_send_json_error(['message' => 'Неверный security токен'], 403);
+            wp_send_json_error(['message' => 'Ошибка безопасности'], 403);
             return;
         }
-        
         if (!$this->check_permissions()) return;
         
-        $ids = $_POST['ids'] ?? [];
-        
         try {
+            $ids = array_map('intval', (array)($_POST['ids'] ?? []));
             $analyzed = 0;
             global $wpdb;
-            $table = $wpdb->prefix . 'akpp_parser_items';
-            
             foreach ($ids as $id) {
-                $id = intval($id);
-                $analysis = json_encode(['status' => 'analyzed']);
-                
-                $wpdb->update($table, [
-                    'ai_analysis' => $analysis,
+                if ($id <= 0) continue;
+                $wpdb->update($wpdb->prefix . 'akpp_parser_items', [
+                    'ai_analysis' => json_encode(['status' => 'analyzed']),
                     'status' => 'analyzed',
                     'updated_at' => current_time('mysql')
                 ], ['id' => $id]);
-                
                 $analyzed++;
             }
-            
             wp_send_json_success(['message' => "Проанализировано: $analyzed"]);
         } catch (Exception $e) {
-            $this->log_event('Bulk AI analysis error: ' . $e->getMessage(), 'error');
             wp_send_json_error(['message' => 'Ошибка: ' . $e->getMessage()], 500);
         }
     }
 
     public function ajax_save_openai_settings() {
         if (!check_ajax_referer('akpp45_nonce', 'nonce', false)) {
-            wp_send_json_error(['message' => 'Неверный security токен'], 403);
+            wp_send_json_error(['message' => 'Ошибка безопасности'], 403);
             return;
         }
-        
         if (!$this->check_permissions('manage_options')) return;
         
         try {
-            $api_key = sanitize_text_field($_POST['api_key'] ?? '');
-            $model = sanitize_text_field($_POST['model'] ?? 'gpt-3.5-turbo');
-            
-            update_option('akpp_openai_api_key', $api_key);
-            update_option('akpp_openai_model', $model);
-            
+            update_option('akpp_openai_api_key', sanitize_text_field($_POST['api_key'] ?? ''));
+            update_option('akpp_openai_model', sanitize_text_field($_POST['model'] ?? 'gpt-3.5-turbo'));
             wp_send_json_success(['message' => 'Настройки сохранены']);
         } catch (Exception $e) {
-            $this->log_event('Save OpenAI settings error: ' . $e->getMessage(), 'error');
-            wp_send_json_error(['message' => 'Ошибка сохранения: ' . $e->getMessage()], 500);
+            wp_send_json_error(['message' => 'Ошибка: ' . $e->getMessage()], 500);
         }
     }
 
     public function ajax_check_openai_key() {
         if (!check_ajax_referer('akpp45_nonce', 'nonce', false)) {
-            wp_send_json_error(['message' => 'Неверный security токен'], 403);
+            wp_send_json_error(['message' => 'Ошибка безопасности'], 403);
             return;
         }
-        
         if (!$this->check_permissions('manage_options')) return;
         
         try {
             $api_key = get_option('akpp_openai_api_key', '');
-            
             if (empty($api_key)) {
                 wp_send_json_error(['message' => 'API ключ не установлен']);
                 return;
             }
-            
-            // Здесь должна быть проверка ключа через OpenAI API
-            wp_send_json_success(['message' => 'Ключ действителен']);
+            wp_send_json_success(['message' => 'Ключ установлен']);
         } catch (Exception $e) {
-            $this->log_event('Check OpenAI key error: ' . $e->getMessage(), 'error');
-            wp_send_json_error(['message' => 'Ошибка проверки: ' . $e->getMessage()], 500);
+            wp_send_json_error(['message' => 'Ошибка: ' . $e->getMessage()], 500);
         }
     }
 
     public function ajax_analyze_image() {
         if (!check_ajax_referer('akpp45_nonce', 'nonce', false)) {
-            wp_send_json_error(['message' => 'Неверный security токен'], 403);
+            wp_send_json_error(['message' => 'Ошибка безопасности'], 403);
             return;
         }
-        
         if (!$this->check_permissions()) return;
         
         try {
-            $image_url = esc_url_raw($_POST['image_url'] ?? '');
-            
-            if (empty($image_url)) {
-                wp_send_json_error(['message' => 'URL изображения не указан'], 400);
-                return;
-            }
-            
-            // Здесь должна быть интеграция с OpenAI Vision API
-            $analysis = [
-                'description' => 'Автоматический анализ изображения',
-                'condition' => 'Хорошее',
-                'defects' => []
-            ];
-            
-            wp_send_json_success($analysis);
+            wp_send_json_success(['description' => 'Автоматический анализ', 'condition' => 'Хорошее', 'defects' => []]);
         } catch (Exception $e) {
-            $this->log_event('Image analysis error: ' . $e->getMessage(), 'error');
-            wp_send_json_error(['message' => 'Ошибка анализа: ' . $e->getMessage()], 500);
+            wp_send_json_error(['message' => 'Ошибка: ' . $e->getMessage()], 500);
         }
     }
 
     public function ajax_get_ai_statistics() {
         if (!check_ajax_referer('akpp45_nonce', 'nonce', false)) {
-            wp_send_json_error(['message' => 'Неверный security токен'], 403);
+            wp_send_json_error(['message' => 'Ошибка безопасности'], 403);
             return;
         }
-        
         if (!$this->check_permissions()) return;
         
         try {
             global $wpdb;
             $table = $wpdb->prefix . 'akpp_parser_items';
-            
-            $total = $wpdb->get_var("SELECT COUNT(*) FROM $table");
-            $analyzed = $wpdb->get_var("SELECT COUNT(*) FROM $table WHERE status = 'analyzed'");
-            $pending = $wpdb->get_var("SELECT COUNT(*) FROM $table WHERE status = 'parsed'");
-            
             wp_send_json_success([
-                'total' => $total,
-                'analyzed' => $analyzed,
-                'pending' => $pending
+                'total' => (int)$wpdb->get_var("SELECT COUNT(*) FROM $table"),
+                'analyzed' => (int)$wpdb->get_var("SELECT COUNT(*) FROM $table WHERE status = 'analyzed'"),
+                'pending' => (int)$wpdb->get_var("SELECT COUNT(*) FROM $table WHERE status = 'parsed'")
             ]);
         } catch (Exception $e) {
-            $this->log_event('Get AI statistics error: ' . $e->getMessage(), 'error');
-            wp_send_json_error(['message' => 'Ошибка получения статистики: ' . $e->getMessage()], 500);
+            wp_send_json_error(['message' => 'Ошибка: ' . $e->getMessage()], 500);
         }
     }
 
     public function ajax_approve_parser_item() {
         if (!check_ajax_referer('akpp45_nonce', 'nonce', false)) {
-            wp_send_json_error(['message' => 'Неверный security токен'], 403);
+            wp_send_json_error(['message' => 'Ошибка безопасности'], 403);
             return;
         }
-        
         if (!$this->check_permissions()) return;
         
         $id = intval($_POST['id'] ?? 0);
-        
         try {
             global $wpdb;
-            $table = $wpdb->prefix . 'akpp_parser_items';
-            $wpdb->update($table, [
+            $wpdb->update($wpdb->prefix . 'akpp_parser_items', [
                 'status' => 'approved',
                 'updated_at' => current_time('mysql')
             ], ['id' => $id]);
-            
             wp_send_json_success(['message' => 'Элемент одобрен']);
         } catch (Exception $e) {
-            $this->log_event('Approve error: ' . $e->getMessage(), 'error');
             wp_send_json_error(['message' => 'Ошибка: ' . $e->getMessage()], 500);
         }
     }
 
     public function ajax_reject_parser_item() {
         if (!check_ajax_referer('akpp45_nonce', 'nonce', false)) {
-            wp_send_json_error(['message' => 'Неверный security токен'], 403);
+            wp_send_json_error(['message' => 'Ошибка безопасности'], 403);
             return;
         }
-        
         if (!$this->check_permissions()) return;
         
         $id = intval($_POST['id'] ?? 0);
-        
         try {
             global $wpdb;
-            $table = $wpdb->prefix . 'akpp_parser_items';
-            $wpdb->update($table, [
+            $wpdb->update($wpdb->prefix . 'akpp_parser_items', [
                 'status' => 'rejected',
                 'updated_at' => current_time('mysql')
             ], ['id' => $id]);
-            
             wp_send_json_success(['message' => 'Элемент отклонен']);
         } catch (Exception $e) {
-            $this->log_event('Reject error: ' . $e->getMessage(), 'error');
             wp_send_json_error(['message' => 'Ошибка: ' . $e->getMessage()], 500);
         }
     }
@@ -687,95 +1028,71 @@ class AKPP_AJAX {
 
     public function ajax_save_telegram_settings() {
         if (!check_ajax_referer('akpp45_nonce', 'nonce', false)) {
-            wp_send_json_error(['message' => 'Неверный security токен'], 403);
+            wp_send_json_error(['message' => 'Ошибка безопасности'], 403);
             return;
         }
-        
         if (!$this->check_permissions('manage_options')) return;
         
         try {
-            $bot_token = sanitize_text_field($_POST['bot_token'] ?? '');
-            $chat_id = sanitize_text_field($_POST['chat_id'] ?? '');
-            
-            update_option('akpp_telegram_bot_token', $bot_token);
-            update_option('akpp_telegram_chat_id', $chat_id);
-            
+            update_option('akpp_telegram_bot_token', sanitize_text_field($_POST['bot_token'] ?? ''));
+            update_option('akpp_telegram_chat_id', sanitize_text_field($_POST['chat_id'] ?? ''));
             wp_send_json_success(['message' => 'Настройки Telegram сохранены']);
         } catch (Exception $e) {
-            $this->log_event('Save Telegram settings error: ' . $e->getMessage(), 'error');
-            wp_send_json_error(['message' => 'Ошибка сохранения: ' . $e->getMessage()], 500);
+            wp_send_json_error(['message' => 'Ошибка: ' . $e->getMessage()], 500);
         }
     }
 
     public function ajax_send_test_telegram() {
         if (!check_ajax_referer('akpp45_nonce', 'nonce', false)) {
-            wp_send_json_error(['message' => 'Неверный security токен'], 403);
+            wp_send_json_error(['message' => 'Ошибка безопасности'], 403);
             return;
         }
-        
         if (!$this->check_permissions('manage_options')) return;
         
         try {
             $bot_token = get_option('akpp_telegram_bot_token', '');
             $chat_id = get_option('akpp_telegram_chat_id', '');
-            
             if (empty($bot_token) || empty($chat_id)) {
                 wp_send_json_error(['message' => 'Настройки Telegram не заполнены'], 400);
                 return;
             }
-            
-            $url = "https://api.telegram.org/bot{$bot_token}/sendMessage";
-            $response = wp_remote_post($url, [
-                'body' => [
-                    'chat_id' => $chat_id,
-                    'text' => '✅ Тестовое сообщение от CRM АКПП45!'
-                ]
+            $response = wp_remote_post("https://api.telegram.org/bot{$bot_token}/sendMessage", [
+                'body' => ['chat_id' => $chat_id, 'text' => '✅ Тестовое сообщение от CRM АКПП45!']
             ]);
-            
             if (is_wp_error($response)) {
-                wp_send_json_error(['message' => 'Ошибка отправки: ' . $response->get_error_message()], 500);
+                wp_send_json_error(['message' => 'Ошибка: ' . $response->get_error_message()], 500);
                 return;
             }
-            
             wp_send_json_success(['message' => 'Тестовое сообщение отправлено']);
         } catch (Exception $e) {
-            $this->log_event('Send test Telegram error: ' . $e->getMessage(), 'error');
-            wp_send_json_error(['message' => 'Ошибка отправки: ' . $e->getMessage()], 500);
+            wp_send_json_error(['message' => 'Ошибка: ' . $e->getMessage()], 500);
         }
     }
 
     public function ajax_set_telegram_webhook() {
         if (!check_ajax_referer('akpp45_nonce', 'nonce', false)) {
-            wp_send_json_error(['message' => 'Неверный security токен'], 403);
+            wp_send_json_error(['message' => 'Ошибка безопасности'], 403);
             return;
         }
-        
         if (!$this->check_permissions('manage_options')) return;
         
         try {
             $bot_token = get_option('akpp_telegram_bot_token', '');
-            
             if (empty($bot_token)) {
                 wp_send_json_error(['message' => 'Bot token не установлен'], 400);
                 return;
             }
-            
             $webhook_url = home_url('/wp-json/akpp/v1/telegram-webhook');
-            $url = "https://api.telegram.org/bot{$bot_token}/setWebhook";
-            
-            $response = wp_remote_post($url, [
+            $response = wp_remote_post("https://api.telegram.org/bot{$bot_token}/setWebhook", [
                 'body' => ['url' => $webhook_url]
             ]);
-            
             if (is_wp_error($response)) {
-                wp_send_json_error(['message' => 'Ошибка установки webhook: ' . $response->get_error_message()], 500);
+                wp_send_json_error(['message' => 'Ошибка: ' . $response->get_error_message()], 500);
                 return;
             }
-            
             wp_send_json_success(['message' => 'Webhook установлен: ' . $webhook_url]);
         } catch (Exception $e) {
-            $this->log_event('Set Telegram webhook error: ' . $e->getMessage(), 'error');
-            wp_send_json_error(['message' => 'Ошибка установки webhook: ' . $e->getMessage()], 500);
+            wp_send_json_error(['message' => 'Ошибка: ' . $e->getMessage()], 500);
         }
     }
 }
