@@ -65,15 +65,17 @@ class AKPP_Users_Table extends WP_List_Table {
         $order = isset($_GET['order']) && strtoupper($_GET['order']) === 'ASC' ? 'ASC' : 'DESC';
         
         // Получение данных
+        $count_query = "SELECT COUNT(*) FROM {$this->table_name} {$where_clause}";
+        if (!empty($params)) {
+            $total_items = $wpdb->get_var($wpdb->prepare($count_query, ...$params));
+        } else {
+            $total_items = $wpdb->get_var($count_query);
+        }
+
         $query = "SELECT * FROM {$this->table_name} {$where_clause} ORDER BY {$orderby} {$order} LIMIT %d OFFSET %d";
         $params[] = $per_page;
         $params[] = $offset;
-        
         $this->items = $wpdb->get_results($wpdb->prepare($query, ...$params));
-        
-        // Общее количество
-        $count_query = "SELECT COUNT(*) FROM {$this->table_name} {$where_clause}";
-        $total_items = $wpdb->get_var($wpdb->prepare($count_query, ...$params));
         
         $this->set_pagination_args([
             'total_items' => $total_items,

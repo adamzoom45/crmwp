@@ -41,13 +41,17 @@ class AKPP_Avito_Dialogs_Table extends WP_List_Table {
         $orderby = isset($_GET['orderby']) ? sanitize_sql_orderby($_GET['orderby']) : 'last_message_date';
         $order = isset($_GET['order']) && strtoupper($_GET['order']) === 'ASC' ? 'ASC' : 'DESC';
         
+                $count_query = "SELECT COUNT(*) FROM {$this->table_name} {$where_clause}";
+        if (!empty($params)) {
+            $total_items = $wpdb->get_var($wpdb->prepare($count_query, ...$params));
+        } else {
+            $total_items = $wpdb->get_var($count_query);
+        }
+
         $query = "SELECT * FROM {$this->table_name} {$where_clause} ORDER BY {$orderby} {$order} LIMIT %d OFFSET %d";
         $params[] = $per_page;
         $params[] = $offset;
-        
         $this->items = $wpdb->get_results($wpdb->prepare($query, ...$params));
-        $count_query = "SELECT COUNT(*) FROM {$this->table_name} {$where_clause}";
-        $total_items = $wpdb->get_var($wpdb->prepare($count_query, ...$params));
         
         $this->set_pagination_args(['total_items' => $total_items, 'per_page' => $per_page]);
         $this->_column_headers = [$this->get_columns(), [], $this->get_sortable_columns()];
