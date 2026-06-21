@@ -114,6 +114,7 @@ class AKPP_Deals_Table extends WP_List_Table {
             'status'       => 'Статус',
             'total_amount' => 'Сумма',
             'created_at'   => 'Дата',
+            'actions'      => 'Действия',
         ];
     }
     
@@ -270,5 +271,35 @@ class AKPP_Deals_Table extends WP_List_Table {
     
     public function no_items() {
         echo 'Нет сделок для отображения';
+    }
+
+        /**
+     * Отображение колонки действий
+     */
+    protected function column_actions($item) {
+        $actions = [];
+        
+        // Кнопка редактирования
+        $actions[] = sprintf(
+            '<a href="?page=akpp-crm-new-deal&action=edit&id=%d" class="button button-small" title="Редактировать">✏️</a>',
+            $item['id']
+        );
+        
+        // Кнопка удаления
+        $delete_url = wp_nonce_url(
+            add_query_arg([
+                'page'   => 'akpp-crm-deals',
+                'action' => 'delete',
+                'id'     => $item['id']
+            ]),
+            'delete_deal_' . $item['id']
+        );
+        
+        $actions[] = sprintf(
+            '<a href="%s" class="button button-small" title="Удалить" onclick="return confirm(\'Удалить сделку?\')">🗑️</a>',
+            esc_url($delete_url)
+        );
+        
+        return implode(' ', $actions);
     }
 }
