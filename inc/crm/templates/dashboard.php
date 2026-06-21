@@ -23,9 +23,9 @@ $active_deals = (int) $wpdb->get_var(
     "SELECT COUNT(*) FROM {$deals_table} WHERE status NOT IN ('completed', 'cancelled')"
 );
 
-// Новые лиды за месяц (из таблицы leads)
+// Новые лиды за месяц
 $new_leads_month = (int) $wpdb->get_var(
-    "SELECT COUNT(*) FROM {$leads_table} WHERE created_at >= DATE_SUB(NOW(), INTERVAL 1 MONTH)"
+    "SELECT COUNT(*) FROM {$leads_table} WHERE created_at >= DATE_SUB(NOW(), INTERVAL 1 MONTH) AND status != 'converted'"
 );
 
 // Выручка за месяц
@@ -39,10 +39,9 @@ $warehouse_value = (float) $wpdb->get_var(
 );
 
 // ============================================================================
-// ВОРОНКА ПРОДАЖ (сделки + лиды)
+// ВОРОНКА ПРОДАЖ (сделки + неконвертированные лиды)
 // ============================================================================
 
-// Считаем сделки по статусам
 $funnel_stats = [
     'lead' => (int) $wpdb->get_var("SELECT COUNT(*) FROM {$deals_table} WHERE status = 'lead'"),
     'new' => (int) $wpdb->get_var("SELECT COUNT(*) FROM {$deals_table} WHERE status = 'new'"),
@@ -51,7 +50,7 @@ $funnel_stats = [
     'completed' => (int) $wpdb->get_var("SELECT COUNT(*) FROM {$deals_table} WHERE status = 'completed'"),
 ];
 
-// ДОБАВЛЯЕМ неконвертированные лиды из таблицы leads к этапу "new"
+// Добавляем неконвертированные лиды к этапу "new"
 $unconverted_leads = (int) $wpdb->get_var(
     "SELECT COUNT(*) FROM {$leads_table} WHERE status NOT IN ('converted', 'cancelled', 'lost')"
 );
@@ -79,7 +78,7 @@ $recent_deals = $wpdb->get_results(
 );
 
 // ============================================================================
-// ПОСЛЕДНИЕ ЛИДЫ (из таблицы leads)
+// ПОСЛЕДНИЕ ЛИДЫ
 // ============================================================================
 
 $recent_leads = $wpdb->get_results(
@@ -90,19 +89,16 @@ $recent_leads = $wpdb->get_results(
 $status_labels = [
     'lead' => ['label' => '🔵 Лид', 'color' => '#63b3ed'],
     'new' => ['label' => '🟢 Новая', 'color' => '#00ff88'],
-    'diagnostic' => ['label' => '🟡 Диагностика', 'color' => '#f6ad55'],
+    'diagnostic' => ['label' => ' Диагностика', 'color' => '#f6ad55'],
     'in_work' => ['label' => '🟠 В работе', 'color' => '#f6ad55'],
     'completed' => ['label' => '✅ Завершена', 'color' => '#00ff88'],
     'cancelled' => ['label' => '❌ Отменена', 'color' => '#fc8181'],
 ];
 
 $lead_status_labels = [
-    'new' => ['label' => '🆕 Новый', 'color' => '#63b3ed'],
+    'new' => ['label' => ' Новый', 'color' => '#63b3ed'],
     'contacted' => ['label' => '📞 Связались', 'color' => '#f6ad55'],
-    'diagnostic' => ['label' => '🔍 Диагностика', 'color' => '#f6ad55'],
-    'in_work' => ['label' => '🔧 В работе', 'color' => '#f6ad55'],
-    'completed' => ['label' => '✅ Выполнено', 'color' => '#00ff88'],
-    'converted' => ['label' => '💰 Конвертирован', 'color' => '#00ff88'],
+    'converted' => ['label' => ' Конвертирован', 'color' => '#00ff88'],
     'cancelled' => ['label' => '❌ Отменено', 'color' => '#fc8181'],
     'lost' => ['label' => '❌ Потерян', 'color' => '#fc8181'],
 ];
@@ -113,9 +109,7 @@ $source_labels = [
     'avito' => '📱 Авито',
     'telegram' => '📨 Telegram',
     'phone' => '📞 Телефон',
-    'manual' => '✍️ Вручную',
 ];
-
 ?>
 
 <div class="wrap akpp-crm-wrap">
@@ -206,13 +200,8 @@ $source_labels = [
         <!-- ПОСЛЕДНИЕ СДЕЛКИ -->
         <div class="akpp-card" style="background: #1a1f2e; border: 1px solid #2d3748; border-radius: 12px; padding: 24px;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-                <h2 style="color: #00ff88; margin: 0; font-size: 18px;">
-                    🕐 Последние сделки
-                </h2>
-                <a href="?page=akpp-crm-deals" 
-                   style="color: #00ff88; text-decoration: none; font-weight: 600; font-size: 14px;">
-                    Все →
-                </a>
+                <h2 style="color: #00ff88; margin: 0; font-size: 18px;">🕐 Последние сделки</h2>
+                <a href="?page=akpp-crm-deals" style="color: #00ff88; text-decoration: none; font-weight: 600; font-size: 14px;">Все →</a>
             </div>
 
             <?php if (empty($recent_deals)) : ?>
@@ -236,9 +225,7 @@ $source_labels = [
                         <div style="font-weight: 600; color: #e2e8f0; font-size: 14px;">
                             #<?php echo intval($deal['id']); ?> <?php echo esc_html($client_name); ?>
                         </div>
-                        <div style="font-size: 13px; color: #718096;">
-                            <?php echo esc_html($car_info); ?>
-                        </div>
+                        <div style="font-size: 13px; color: #718096;"><?php echo esc_html($car_info); ?></div>
                     </div>
                     <div style="text-align: right;">
                         <div style="color: #00ff88; font-weight: 600; font-size: 14px;">
@@ -256,13 +243,8 @@ $source_labels = [
         <!-- ПОСЛЕДНИЕ ЛИДЫ -->
         <div class="akpp-card" style="background: #1a1f2e; border: 1px solid #2d3748; border-radius: 12px; padding: 24px;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-                <h2 style="color: #00ff88; margin: 0; font-size: 18px;">
-                    🎯 Последние лиды
-                </h2>
-                <a href="?page=akpp-crm-leads" 
-                   style="color: #00ff88; text-decoration: none; font-weight: 600; font-size: 14px;">
-                    Все →
-                </a>
+                <h2 style="color: #00ff88; margin: 0; font-size: 18px;">🎯 Последние лиды</h2>
+                <a href="?page=akpp-crm-leads" style="color: #00ff88; text-decoration: none; font-weight: 600; font-size: 14px;">Все →</a>
             </div>
 
             <?php if (empty($recent_leads)) : ?>
@@ -281,7 +263,7 @@ $source_labels = [
                             #<?php echo intval($lead['id']); ?> <?php echo esc_html($lead['client_name']); ?>
                         </div>
                         <div style="font-size: 13px; color: #718096;">
-                            <?php echo esc_html($lead['car_brand'] ?? '—'); ?> • <?php echo $source; ?>
+                            <?php echo esc_html($lead['car_brand'] ?? '—'); ?> • <?php echo esc_html($source); ?>
                         </div>
                     </div>
                     <div style="text-align: right;">
@@ -301,32 +283,20 @@ $source_labels = [
                 <?php endforeach; ?>
             <?php endif; ?>
         </div>
-
     </div>
 
     <!-- БЫСТРЫЕ ДЕЙСТВИЯ -->
     <div class="akpp-card" style="background: #1a1f2e; border: 1px solid #2d3748; border-radius: 12px; padding: 24px;">
-        <h2 style="color: #00ff88; margin: 0 0 20px 0; font-size: 18px; border-bottom: 1px solid #2d3748; padding-bottom: 12px;">
-            ⚡ Быстрые действия
-        </h2>
+        <h2 style="color: #00ff88; margin: 0 0 20px 0; font-size: 18px; border-bottom: 1px solid #2d3748; padding-bottom: 12px;"> Быстрые действия</h2>
         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px;">
-            <a href="?page=akpp-crm-new-deal" style="background: linear-gradient(135deg, #00ff88 0%, #00cc6a 100%); color: #1a1f2e; padding: 16px; border-radius: 8px; text-decoration: none; font-weight: 600; text-align: center;">
-                ➕ Новая сделка
-            </a>
-            <a href="?page=akpp-crm-leads" style="background: #2d3748; color: #fff; padding: 16px; border-radius: 8px; text-decoration: none; font-weight: 600; text-align: center; border: 1px solid #4a5568;">
-                🎯 Все лиды
-            </a>
-            <a href="?page=akpp-crm-employees" style="background: #2d3748; color: #fff; padding: 16px; border-radius: 8px; text-decoration: none; font-weight: 600; text-align: center; border: 1px solid #4a5568;">
-                👥 Сотрудники
-            </a>
-            <a href="?page=akpp-crm-parts" style="background: #2d3748; color: #fff; padding: 16px; border-radius: 8px; text-decoration: none; font-weight: 600; text-align: center; border: 1px solid #4a5568;">
-                📦 Склад
-            </a>
+            <a href="?page=akpp-crm-new-deal" style="background: linear-gradient(135deg, #00ff88 0%, #00cc6a 100%); color: #1a1f2e; padding: 16px; border-radius: 8px; text-decoration: none; font-weight: 600; text-align: center;">➕ Новая сделка</a>
+            <a href="?page=akpp-crm-leads" style="background: #2d3748; color: #fff; padding: 16px; border-radius: 8px; text-decoration: none; font-weight: 600; text-align: center; border: 1px solid #4a5568;">🎯 Все лиды</a>
+            <a href="?page=akpp-crm-employees" style="background: #2d3748; color: #fff; padding: 16px; border-radius: 8px; text-decoration: none; font-weight: 600; text-align: center; border: 1px solid #4a5568;"> Сотрудники</a>
+            <a href="?page=akpp-crm-parts" style="background: #2d3748; color: #fff; padding: 16px; border-radius: 8px; text-decoration: none; font-weight: 600; text-align: center; border: 1px solid #4a5568;">📦 Склад</a>
         </div>
     </div>
 </div>
 
-<!-- Адаптивность для мобильных -->
 <style>
 @media (max-width: 768px) {
     .wrap .akpp-crm-wrap > div[style*="grid-template-columns: 1fr 1fr"] {

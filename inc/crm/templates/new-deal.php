@@ -2,6 +2,7 @@
 /**
  * Шаблон новой сделки
  * Поддерживает создание сделки из лида (lead_id в URL)
+ * ИСПРАВЛЕНО: Правильные имена полей БД + JOIN на клиента и авто
  */
 
 if (!defined('ABSPATH')) exit;
@@ -15,14 +16,11 @@ $lead_data = null;
 $lead_id = isset($_GET['lead_id']) ? intval($_GET['lead_id']) : 0;
 
 if ($lead_id > 0) {
-    // Проверка nonce для безопасности
     if (isset($_GET['_wpnonce']) && wp_verify_nonce($_GET['_wpnonce'], 'create_deal_from_lead_' . $lead_id)) {
         $lead_data = $wpdb->get_row($wpdb->prepare(
             "SELECT * FROM {$wpdb->prefix}akpp_leads WHERE id = %d",
             $lead_id
         ), ARRAY_A);
-        
-        // НЕ меняем статус лида здесь - это должно быть после сохранения сделки
     }
 }
 
@@ -34,10 +32,23 @@ $deal_id = isset($_GET['id']) ? intval($_GET['id']) : 0;
 $deal_data = null;
 $deal_parts = [];
 $vehicle_data = null;
+$client_data = null;
 
 if ($action === 'edit' && $deal_id > 0) {
+    // ✅ ИСПРАВЛЕНО: JOIN на клиентов и авто
     $deal_data = $wpdb->get_row($wpdb->prepare(
-        "SELECT * FROM {$wpdb->prefix}akpp_deals WHERE id = %d", 
+        "SELECT d.*, 
+                c.full_name as client_name, 
+                c.phone as client_phone,
+                v.make as vehicle_make,
+                v.model as vehicle_model,
+                v.year as vehicle_year,
+                v.vin as vehicle_vin,
+                v.engine as vehicle_engine
+         FROM {$wpdb->prefix}akpp_deals d
+         LEFT JOIN {$wpdb->prefix}akpp_site_users c ON d.client_id = c.id
+         LEFT JOIN {$wpdb->prefix}akpp_vehicles v ON d.vehicle_id = v.id
+         WHERE d.id = %d",
         $deal_id
     ), ARRAY_A);
     
@@ -52,29 +63,42 @@ if ($action === 'edit' && $deal_id > 0) {
          LEFT JOIN {$wpdb->prefix}akpp_parts p ON dp.part_id = p.id 
          WHERE dp.deal_id = %d", $deal_id), ARRAY_A);
     
-    // Получаем данные авто
-    if (!empty($deal_data['vehicle_id']) && $deal_data['vehicle_id'] > 0) {
-        $vehicle_data = $wpdb->get_row($wpdb->prepare(
-            "SELECT * FROM {$wpdb->prefix}akpp_vehicles WHERE id = %d", 
-            $deal_data['vehicle_id']
-        ), ARRAY_A);
-    }
+    // Данные авто из JOIN
+    $vehicle_data = [
+        'vin' => $deal_data['vehicle_vin'] ?? '',
+        'make' => $deal_data['vehicle_make'] ?? '',
+        'model' => $deal_data['vehicle_model'] ?? '',
+        'year' => $deal_data['vehicle_year'] ?? '',
+        'engine' => $deal_data['vehicle_engine'] ?? '',
+    ];
+    
+    // Данные клиента из JOIN
+    $client_data = [
+        'name' => $deal_data['client_name'] ?? '',
+        'phone' => $deal_data['client_phone'] ?? '',
+    ];
 }
 
 // ============================================================================
-// ДАННЫЕ ДЛЯ ПРЕДЗАПОЛНЕНИЯ (из лида ИЛИ из сделки)
+// ДАННЫЕ ДЛЯ ПРЕДЗАПОЛНЕНИЯ (с правильными именами полей!)
 // ============================================================================
 if ($deal_data) {
-    // Режим редактирования - берём из сделки
-    $prefill_client_name  = $deal_data['client_name'] ?? '';
-    $prefill_client_phone = $deal_data['client_phone'] ?? '';
+    // ✅ ИСПРАВЛЕНО: используем данные из JOIN
+    $prefill_client_name  = $client_data['name'] ?? '';
+    $prefill_client_phone = $client_data['phone'] ?? '';
     $prefill_car_brand    = $vehicle_data['make'] ?? '';
     $prefill_car_model    = $vehicle_data['model'] ?? '';
-    $prefill_problem      = $deal_data['problem_description'] ?? $deal_data['comment'] ?? '';
+    $prefill_problem      = $deal_data['problem_description'] ?? '';
     $prefill_status       = $deal_data['status'] ?? 'new';
-    $prefill_employee_id  = $deal_data['employee_id'] ?? 0;
+    $prefill_employee_id  = intval($deal_data['employee_id'] ?? 0);
+    $prefill_vin          = $vehicle_data['vin'] ?? '';
+    $prefill_year         = intval($vehicle_data['year'] ?? 0);
+    $prefill_engine       = $vehicle_data['engine'] ?? '';
+    // ✅ ИСПРАВЛЕНО: work_hours, employee_percent
+    $prefill_hours        = floatval($deal_data['work_hours'] ?? $deal_data['standard_hours'] ?? 1.0);
+    $prefill_emp_percent  = floatval($deal_data['employee_percent'] ?? 40);
 } elseif ($lead_data) {
-    // Создание из лида - берём из лида
+    // Создание из лида
     $prefill_client_name  = $lead_data['client_name'] ?? '';
     $prefill_client_phone = $lead_data['client_phone'] ?? '';
     $prefill_car_brand    = $lead_data['car_brand'] ?? '';
@@ -82,6 +106,11 @@ if ($deal_data) {
     $prefill_problem      = $lead_data['problem'] ?? '';
     $prefill_status       = 'new';
     $prefill_employee_id  = 0;
+    $prefill_vin          = '';
+    $prefill_year         = 0;
+    $prefill_engine       = '';
+    $prefill_hours        = 1.0;
+    $prefill_emp_percent  = 40;
 } else {
     // Пустая форма
     $prefill_client_name  = '';
@@ -91,6 +120,11 @@ if ($deal_data) {
     $prefill_problem      = '';
     $prefill_status       = 'new';
     $prefill_employee_id  = 0;
+    $prefill_vin          = '';
+    $prefill_year         = 0;
+    $prefill_engine       = '';
+    $prefill_hours        = 1.0;
+    $prefill_emp_percent  = 40;
 }
 
 // ============================================================================
@@ -186,7 +220,7 @@ function render_part_row($part_data, $all_parts, $index) {
                     <div class="form-group" style="margin-bottom: 15px;">
                         <label>VIN / Кузовной номер</label>
                         <div style="display: flex; gap: 10px; align-items: center;">
-                            <input type="text" id="akpp_vin_input" name="vin" value="<?php echo esc_attr($vehicle_data['vin'] ?? ''); ?>" maxlength="17" style="width: 100%; text-transform: uppercase;" placeholder="17 символов">
+                            <input type="text" id="akpp_vin_input" name="vin" value="<?php echo esc_attr($prefill_vin); ?>" maxlength="17" style="width: 100%; text-transform: uppercase;" placeholder="17 символов">
                             <span class="akpp-vin-status" style="font-size: 12px;"></span>
                         </div>
                     </div>
@@ -194,7 +228,7 @@ function render_part_row($part_data, $all_parts, $index) {
                         <div class="form-group">
                             <label>Марка</label>
                             <input type="text" id="akpp_brand_input" name="brand" value="<?php echo esc_attr($prefill_car_brand); ?>" style="width: 100%;">
-                            <input type="hidden" name="vehicle_id" value="<?php echo esc_attr($vehicle_data['id'] ?? 0); ?>">
+                            <input type="hidden" name="vehicle_id" value="<?php echo esc_attr($deal_data['vehicle_id'] ?? 0); ?>">
                         </div>
                         <div class="form-group">
                             <label>Модель</label>
@@ -204,19 +238,19 @@ function render_part_row($part_data, $all_parts, $index) {
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
                         <div class="form-group">
                             <label>Год</label>
-                            <input type="number" id="akpp_year_input" name="year" value="<?php echo esc_attr($vehicle_data['year'] ?? ''); ?>" style="width: 100%;">
+                            <input type="number" id="akpp_year_input" name="year" value="<?php echo esc_attr($prefill_year); ?>" style="width: 100%;">
                         </div>
                         <div class="form-group">
                             <label>Двигатель</label>
-                            <input type="text" id="akpp_engine_input" name="engine" value="<?php echo esc_attr($vehicle_data['engine'] ?? ''); ?>" style="width: 100%;">
+                            <input type="text" id="akpp_engine_input" name="engine" value="<?php echo esc_attr($prefill_engine); ?>" style="width: 100%;">
                         </div>
                     </div>
                 </div>
 
-                <!-- Блок проблемы из лида -->
+                <!-- Блок проблемы -->
                 <?php if (!empty($prefill_problem)) : ?>
                 <div class="akpp-card">
-                    <div class="akpp-card-header">🔧 Описание проблемы (из лида)</div>
+                    <div class="akpp-card-header">🔧 Описание проблемы</div>
                     <div class="form-group" style="margin-bottom: 0;">
                         <textarea name="comment" rows="5" style="width: 100%;"><?php echo esc_textarea($prefill_problem); ?></textarea>
                     </div>
@@ -225,7 +259,7 @@ function render_part_row($part_data, $all_parts, $index) {
                 <div class="akpp-card">
                     <div class="akpp-card-header">📝 Комментарий к сделке</div>
                     <div class="form-group" style="margin-bottom: 0;">
-                        <textarea name="comment" rows="4" placeholder="Дополнительная информация..." style="width: 100%;"><?php echo esc_textarea($prefill_problem); ?></textarea>
+                        <textarea name="comment" rows="4" placeholder="Дополнительная информация..." style="width: 100%;"></textarea>
                     </div>
                 </div>
                 <?php endif; ?>
@@ -256,21 +290,21 @@ function render_part_row($part_data, $all_parts, $index) {
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
                         <div class="form-group">
                             <label>Нормо-часы</label>
-                            <input type="number" step="0.5" name="hours" value="<?php echo esc_attr($deal_data['hours'] ?? '1.0'); ?>" style="width: 100%;">
+                            <input type="number" step="0.5" name="hours" value="<?php echo esc_attr($prefill_hours); ?>" style="width: 100%;">
                         </div>
                         <div class="form-group">
                             <label>Ставка за час (₽)</label>
-                            <input type="number" name="hourly_rate" value="<?php echo esc_attr($deal_data['hourly_rate'] ?? '1500'); ?>" style="width: 100%;">
+                            <input type="number" name="hourly_rate" value="1500" style="width: 100%;">
                         </div>
                     </div>
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
                         <div class="form-group">
                             <label>Наценка на запчасти (%)</label>
-                            <input type="number" name="parts_markup" value="<?php echo esc_attr($deal_data['parts_markup'] ?? '30'); ?>" style="width: 100%;">
+                            <input type="number" name="parts_markup" value="30" style="width: 100%;">
                         </div>
                         <div class="form-group">
                             <label>% сотрудника от работ</label>
-                            <input type="number" name="emp_percent" value="<?php echo esc_attr($deal_data['emp_percent'] ?? '40'); ?>" style="width: 100%;">
+                            <input type="number" name="emp_percent" value="<?php echo esc_attr($prefill_emp_percent); ?>" style="width: 100%;">
                         </div>
                     </div>
 
@@ -338,20 +372,8 @@ function render_part_row($part_data, $all_parts, $index) {
 
 <script>
 jQuery(document).ready(function($) {
-    console.log('🔍 Отладка new-deal.php');
-    console.log('lead_id из GET:', '<?php echo $lead_id; ?>');
-console.log('lead_data:', <?php echo json_encode($lead_data); ?>);
-console.log('prefill_client_name:', '<?php echo $prefill_client_name; ?>');
-console.log('prefill_client_phone:', '<?php echo $prefill_client_phone; ?>');
-console.log('prefill_car_brand:', '<?php echo $prefill_car_brand; ?>');
-console.log('prefill_car_model:', '<?php echo $prefill_car_model; ?>');
-console.log('prefill_problem:', '<?php echo $prefill_problem; ?>');
-console.log('prefill_status:', '<?php echo $prefill_status; ?>');
-console.log('prefill_employee_id:', '<?php echo $prefill_employee_id; ?>');
-console.log('all_parts:', <?php echo json_encode($all_parts); ?>);
-console.log('employees:', <?php echo json_encode($employees); ?>);
     let partIndex = <?php echo $part_index; ?>;
-    var isSubmitting = false; // Флаг защиты от дублей
+    var isSubmitting = false;
     
     console.log('📝 Форма сделки загружена');
     console.log('lead_id:', $('[name="lead_id"]').val() || 'нет');
@@ -385,13 +407,12 @@ console.log('employees:', <?php echo json_encode($employees); ?>);
         $(this).closest('.deal-part-row').find('.part-price').val(price);
     });
 
-    // ВАЖНО: Используем off() чтобы удалить все предыдущие обработчики
+    // ✅ ИСПРАВЛЕНО: Корректная обработка submit
     $('#akpp-deal-calculator').off('submit').on('submit', function(e) {
         e.preventDefault();
         
-        // Защита от двойной отправки
         if (isSubmitting) {
-            console.log('⏳ Форма уже отправляется, подождите...');
+            console.log('⏳ Форма уже отправляется...');
             return false;
         }
         
@@ -399,20 +420,16 @@ console.log('employees:', <?php echo json_encode($employees); ?>);
         
         console.log('📤 Отправка формы сделки...');
         console.log('lead_id:', $('[name="lead_id"]').val());
-        console.log('client_name:', $('[name="client_name"]').val());
-        console.log('client_phone:', $('[name="client_phone"]').val());
         
         var $form = $(this);
         var $btn = $form.find('button[type="submit"]');
         var originalText = $btn.html();
         
-        // Блокируем кнопку
         $btn.prop('disabled', true).html('⏳ Сохранение...');
         
         var formData = $form.serializeArray();
         formData.push({name: 'action', value: 'akpp_save_deal'});
         
-        // Отправляем AJAX запрос
         $.ajax({
             url: '/wp-admin/admin-ajax.php',
             type: 'POST',
@@ -423,8 +440,6 @@ console.log('employees:', <?php echo json_encode($employees); ?>);
                 
                 if (response.success) {
                     showNotice(response.data.message || '✅ Сделка сохранена!', 'success');
-                    
-                    // Ждём 1 секунду и перенаправляем
                     setTimeout(function() {
                         window.location.href = '<?php echo esc_url(admin_url('admin.php?page=akpp-crm-deals')); ?>';
                     }, 1000);
@@ -440,19 +455,12 @@ console.log('employees:', <?php echo json_encode($employees); ?>);
                 showNotice('❌ Ошибка соединения с сервером', 'error');
                 $btn.prop('disabled', false).html(originalText);
                 isSubmitting = false;
-            },
-            complete: function() {
-                // Снимаем блокировку только если не было редиректа
-                if (!isSubmitting) {
-                    $btn.prop('disabled', false).html(originalText);
-                }
             }
         });
         
         return false;
     });
     
-    // Функция показа уведомлений
     function showNotice(message, type) {
         var bgColor = type === 'success' ? '#00ff88' : '#fc8181';
         var textColor = type === 'success' ? '#0a0f1c' : '#fff';

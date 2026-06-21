@@ -5,6 +5,38 @@
 
 if (!defined('ABSPATH')) exit;
 
+global $wpdb;
+
+// ============================================================================
+// ОБРАБОТКА ДЕЙСТВИЙ
+// ============================================================================
+
+// Удаление сделки
+if (isset($_GET['action']) && $_GET['action'] === 'delete' && isset($_GET['id'])) {
+    $id = intval($_GET['id']);
+    
+    // Проверка nonce
+    if (!isset($_GET['_wpnonce']) || !wp_verify_nonce($_GET['_wpnonce'], 'delete_deal_' . $id)) {
+        echo '<div class="notice notice-error is-dismissible"><p>❌ Ошибка безопасности</p></div>';
+    } else {
+        // Удаляем запчасти сделки
+        $wpdb->delete($wpdb->prefix . 'akpp_deal_parts', ['deal_id' => $id]);
+        
+        // Удаляем сделку
+        $result = $wpdb->delete($wpdb->prefix . 'akpp_deals', ['id' => $id]);
+        
+        if ($result !== false) {
+            echo '<div class="notice notice-success is-dismissible"><p>✅ Сделка #' . $id . ' удалена</p></div>';
+        } else {
+            echo '<div class="notice notice-error is-dismissible"><p>❌ Ошибка удаления</p></div>';
+        }
+    }
+}
+
+// ============================================================================
+// ОТОБРАЖЕНИЕ ТАБЛИЦЫ
+// ============================================================================
+
 if (!class_exists('AKPP_Deals_Table')) {
     require_once dirname(__FILE__) . '/../tables/class-deals-table.php';
 }
@@ -24,11 +56,6 @@ $table->prepare_items();
             ➕ Новая сделка
         </a>
     </div>
-
-    <?php
-    // Отображение уведомлений
-    settings_errors();
-    ?>
 
     <div class="akpp-card" style="background: #1a1f2e; border: 1px solid #2d3748; border-radius: 12px; padding: 20px;">
         <form method="get">
