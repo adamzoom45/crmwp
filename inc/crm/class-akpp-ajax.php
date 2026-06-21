@@ -72,19 +72,10 @@ class AKPP_AJAX {
         return true;
     }
 
-    private function log_event($message, $level = 'info') {
-        error_log('[AKPP AJAX] ' . $message);
-    }
-
     // ========================================================================
     // СОХРАНЕНИЕ СУЩНОСТЕЙ
     // ========================================================================
 
-    /**
-     * Сохранение сотрудника
-     * Форма отправляет: full_name, role, phone, status
-     * БД ожидает: name, role, phone, is_active
-     */
     public function ajax_save_employee() {
         if (!check_ajax_referer('akpp45_nonce', 'nonce', false)) {
             wp_send_json_error(['message' => 'Ошибка безопасности']);
@@ -94,13 +85,11 @@ class AKPP_AJAX {
         global $wpdb;
         $id = intval($_POST['id'] ?? 0);
         
-        // Маппинг полей формы к полям БД
         $full_name = sanitize_text_field($_POST['full_name'] ?? $_POST['name'] ?? '');
         $role = sanitize_text_field($_POST['role'] ?? 'mechanic');
         $phone = sanitize_text_field($_POST['phone'] ?? '');
         $status = sanitize_text_field($_POST['status'] ?? 'active');
         
-        // Валидация
         if (empty($full_name)) {
             wp_send_json_error(['message' => 'Заполните ФИО']);
             return;
@@ -113,7 +102,6 @@ class AKPP_AJAX {
             'is_active' => ($status === 'active') ? 1 : 0
         ];
         
-        // Email добавляем ТОЛЬКО если он не пустой (чтобы избежать дубликата '')
         $email = sanitize_email($_POST['email'] ?? '');
         if (!empty($email)) {
             $data['email'] = $email;
@@ -137,9 +125,6 @@ class AKPP_AJAX {
         }
     }
 
-    /**
-     * Сохранение запчасти
-     */
     public function ajax_save_part() {
         if (!check_ajax_referer('akpp45_nonce', 'nonce', false)) {
             wp_send_json_error(['message' => 'Ошибка безопасности']);
@@ -181,9 +166,6 @@ class AKPP_AJAX {
         }
     }
 
-    /**
-     * Сохранение лида
-     */
     public function ajax_save_lead() {
         if (!check_ajax_referer('akpp45_nonce', 'nonce', false)) {
             wp_send_json_error(['message' => 'Ошибка безопасности']);
@@ -226,9 +208,6 @@ class AKPP_AJAX {
         }
     }
 
-    /**
-     * Сохранение автомобиля
-     */
     public function ajax_save_vehicle() {
         if (!check_ajax_referer('akpp45_nonce', 'nonce', false)) {
             wp_send_json_error(['message' => 'Ошибка безопасности']);
@@ -271,9 +250,6 @@ class AKPP_AJAX {
         }
     }
 
-    /**
-     * Сохранение масла
-     */
     public function ajax_save_oil() {
         if (!check_ajax_referer('akpp45_nonce', 'nonce', false)) {
             wp_send_json_error(['message' => 'Ошибка безопасности']);
@@ -315,9 +291,6 @@ class AKPP_AJAX {
         }
     }
 
-    /**
-     * Сохранение АКПП
-     */
     public function ajax_save_transmission() {
         if (!check_ajax_referer('akpp45_nonce', 'nonce', false)) {
             wp_send_json_error(['message' => 'Ошибка безопасности']);
@@ -612,48 +585,264 @@ class AKPP_AJAX {
     }
 
     // ========================================================================
-    // СДЕЛКИ
+    // СДЕЛКИ - ИСПРАВЛЕННАЯ ВЕРСИЯ С УЧЁТОМ FOREIGN KEY
     // ========================================================================
 
-    public function ajax_save_deal() {
-        if (!check_ajax_referer('akpp45_nonce', 'nonce', false)) {
-            wp_send_json_error(['message' => 'Ошибка безопасности'], 403);
+    // ========================================================================
+// СДЕЛКИ - ИСПРАВЛЕННАЯ ВЕРСИЯ С УЧЁТОМ FOREIGN KEY
+// ========================================================================
+/**
+ * Сохранение сделки
+ * ИСПРАВЛЕНО:
+ * - employee_id и vehicle_id могут быть NULL
+ * - vehicle создаётся автоматически если не существует
+ * - Проверка дублей по client_id (не client_name)
+ */
+public function ajax_save_deal() {
+    if (!check_ajax_referer('akpp45_nonce', 'nonce', false)) {
+        wp_send_json_error(['message' => 'Ошибка безопасности'], 403);
+        return;
+    }
+    if (!$this->check_permissions()) return;
+    
+    global $wpdb;
+    
+    try {
+        // Получаем данные из формы
+        $deal_id = intval($_POST['deal_id'] ?? $_POST['id'] ?? 0);
+        $lead_id = intval($_POST['lead_id'] ?? 0);
+        
+        // ====================================================================
+        // 1. СОЗДАЁМ ИЛИ НАХОДИМ КЛИЕНТА (СНАЧАЛА!)
+        // ====================================================================
+        $client_name = sanitize_text_field($_POST['client_name'] ?? '');
+        $client_phone = sanitize_text_field($_POST['client_phone'] ?? '');
+        
+        if (empty($client_name) || empty($client_phone)) {
+            wp_send_json_error(['message' => 'Укажите ФИО и телефон клиента']);
             return;
         }
-        if (!$this->check_permissions()) return;
         
-        try {
-            $data = [
-                'client_name' => sanitize_text_field($_POST['client_name'] ?? ''),
-                'client_phone' => sanitize_text_field($_POST['client_phone'] ?? ''),
-                'vehicle_id' => intval($_POST['vehicle_id'] ?? 0),
-                'employee_id' => intval($_POST['employee_id'] ?? 0),
-                'services' => sanitize_textarea_field($_POST['services'] ?? ''),
-                'cost' => floatval($_POST['cost'] ?? 0),
-                'status' => sanitize_text_field($_POST['status'] ?? 'new'),
-                'comment' => sanitize_textarea_field($_POST['comment'] ?? ''),
-            ];
+        $client_id = intval($_POST['client_id'] ?? 0);
+        
+        // Если client_id не указан - ищем по телефону или создаём
+        if ($client_id <= 0) {
+            $clean_phone = preg_replace('/[^0-9]/', '', $client_phone);
             
-            $deal_id = intval($_POST['deal_id'] ?? 0);
+            // Ищем клиента по телефону
+            $existing_client = $wpdb->get_row($wpdb->prepare(
+                "SELECT id FROM {$wpdb->prefix}akpp_site_users WHERE phone = %s LIMIT 1",
+                $clean_phone
+            ), ARRAY_A);
             
-            global $wpdb;
-            $table = $wpdb->prefix . 'akpp_deals';
-            
-            if ($deal_id > 0) {
-                $data['updated_at'] = current_time('mysql');
-                $wpdb->update($table, $data, ['id' => $deal_id]);
-                $result_id = $deal_id;
+            if ($existing_client) {
+                $client_id = intval($existing_client['id']);
             } else {
-                $data['created_at'] = current_time('mysql');
-                $wpdb->insert($table, $data);
-                $result_id = $wpdb->insert_id;
+                // Создаём нового клиента
+                $wpdb->insert($wpdb->prefix . 'akpp_site_users', [
+                    'full_name' => $client_name,
+                    'phone' => $clean_phone,
+                    'status' => 'active',
+                    'registered_at' => current_time('mysql'),
+                ]);
+                $client_id = $wpdb->insert_id;
+            }
+        }
+        
+        // ====================================================================
+        // 2. ПРОВЕРКА НА ДУБЛИ (ПОСЛЕ получения client_id!)
+        // ====================================================================
+        if ($deal_id <= 0) {
+            $total_amount_check = floatval($_POST['cost'] ?? $_POST['total_amount'] ?? 0);
+            $created_today = date('Y-m-d');
+            
+            // Проверяем не создавалась ли такая же сделка сегодня для этого клиента
+            $duplicate_check = $wpdb->get_row($wpdb->prepare(
+                "SELECT id FROM {$wpdb->prefix}akpp_deals 
+                 WHERE client_id = %d 
+                 AND DATE(created_at) = %s
+                 LIMIT 1",
+                $client_id,
+                $created_today
+            ));
+            
+            if ($duplicate_check) {
+                // Такая сделка уже есть - возвращаем её ID
+                wp_send_json_success([
+                    'id' => intval($duplicate_check->id),
+                    'message' => 'Сделка уже существует (возвращена существующая)',
+                    'duplicate' => true
+                ]);
+                return;
+            }
+        }
+        
+        // ====================================================================
+        // 3. СОЗДАЁМ ИЛИ НАХОДИМ АВТОМОБИЛЬ
+        // ====================================================================
+        $vin = strtoupper(sanitize_text_field($_POST['vin'] ?? ''));
+        $make = sanitize_text_field($_POST['brand'] ?? $_POST['make'] ?? '');
+        $model = sanitize_text_field($_POST['model'] ?? '');
+        $year = intval($_POST['year'] ?? 0);
+        $engine = sanitize_text_field($_POST['engine'] ?? '');
+        
+        $vehicle_id = intval($_POST['vehicle_id'] ?? 0);
+        
+        // Если vehicle_id не указан и есть данные авто - ищем или создаём
+        if ($vehicle_id <= 0 && (!empty($vin) || (!empty($make) && !empty($model)))) {
+            // Ищем по VIN
+            if (!empty($vin)) {
+                $existing_vehicle = $wpdb->get_row($wpdb->prepare(
+                    "SELECT id FROM {$wpdb->prefix}akpp_vehicles WHERE vin = %s LIMIT 1",
+                    $vin
+                ), ARRAY_A);
+                
+                if ($existing_vehicle) {
+                    $vehicle_id = intval($existing_vehicle['id']);
+                }
             }
             
-            wp_send_json_success(['id' => $result_id, 'message' => 'Сделка сохранена']);
-        } catch (Exception $e) {
-            wp_send_json_error(['message' => 'Ошибка сохранения: ' . $e->getMessage()], 500);
+            // Если не нашли - создаём
+            if ($vehicle_id <= 0 && !empty($make) && !empty($model)) {
+                $wpdb->insert($wpdb->prefix . 'akpp_vehicles', [
+                    'vin' => $vin,
+                    'make' => $make,
+                    'model' => $model,
+                    'year' => $year,
+                    'engine' => $engine,
+                ]);
+                $vehicle_id = $wpdb->insert_id;
+            }
         }
+        
+        // Если vehicle_id всё ещё 0 - устанавливаем NULL для БД
+        if ($vehicle_id <= 0) {
+            $vehicle_id = null;
+        }
+        
+        // ====================================================================
+        // 4. РАСЧЁТ СТОИМОСТИ
+        // ====================================================================
+        $hours = floatval($_POST['hours'] ?? 0);
+        $hourly_rate = floatval($_POST['hourly_rate'] ?? 0);
+        $parts_markup = floatval($_POST['parts_markup'] ?? 0);
+        
+        $work_cost = $hours * $hourly_rate;
+        
+        // Обработка запчастей
+        $parts = $_POST['parts'] ?? [];
+        $parts_total = 0;
+        $parts_data = [];
+        
+        if (!empty($parts) && is_array($parts)) {
+            foreach ($parts as $part) {
+                $part_id = intval($part['id'] ?? 0);
+                $qty = intval($part['quantity'] ?? 0);
+                $price = floatval($part['price'] ?? 0);
+                
+                if ($part_id > 0 && $qty > 0) {
+                    $parts_total += $price * $qty;
+                    $parts_data[] = [
+                        'part_id' => $part_id,
+                        'quantity' => $qty,
+                        'price_at_deal' => $price,
+                    ];
+                }
+            }
+        }
+        
+        // Итоговая сумма
+        $total_amount = floatval($_POST['cost'] ?? $_POST['total_amount'] ?? 0);
+        if ($total_amount <= 0) {
+            $total_amount = $work_cost + $parts_total;
+        }
+        
+        // ====================================================================
+        // 5. ПОДГОТОВКА ДАННЫХ ДЛЯ СОХРАНЕНИЯ
+        // ====================================================================
+        $employee_id = intval($_POST['employee_id'] ?? 0);
+        if ($employee_id <= 0) {
+            $employee_id = null; // Разрешаем NULL для employee_id
+        }
+        
+        $data = [
+            'client_id' => $client_id,
+            'vehicle_id' => $vehicle_id,
+            'vin' => $vin,
+            'make' => $make,
+            'model' => $model,
+            'year' => $year,
+            'problem_description' => sanitize_textarea_field($_POST['comment'] ?? $_POST['problem'] ?? ''),
+            'status' => sanitize_text_field($_POST['status'] ?? 'new'),
+            'employee_id' => $employee_id, // Может быть NULL
+            'work_cost' => $work_cost,
+            'parts_total' => $parts_total,
+            'total_amount' => $total_amount,
+            'updated_at' => current_time('mysql'),
+        ];
+        
+        $table = $wpdb->prefix . 'akpp_deals';
+        
+        if ($deal_id > 0) {
+            // Обновление
+            $wpdb->update($table, $data, ['id' => $deal_id]);
+            $result_id = $deal_id;
+            
+            // Удаляем старые запчасти
+            $wpdb->delete($wpdb->prefix . 'akpp_deal_parts', ['deal_id' => $deal_id]);
+        } else {
+            // Создание
+            $data['created_at'] = current_time('mysql');
+            $wpdb->insert($table, $data);
+            $result_id = $wpdb->insert_id;
+        }
+        
+        // ====================================================================
+        // 6. СОХРАНЕНИЕ ЗАПЧАСТЕЙ
+        // ====================================================================
+        foreach ($parts_data as $part) {
+            $wpdb->insert($wpdb->prefix . 'akpp_deal_parts', [
+                'deal_id' => $result_id,
+                'part_id' => $part['part_id'],
+                'quantity' => $part['quantity'],
+                'price_at_deal' => $part['price_at_deal'],
+            ]);
+        }
+        
+        // ====================================================================
+        // 7. КОНВЕРТАЦИЯ ЛИДА (если есть lead_id)
+        // ====================================================================
+        if ($lead_id > 0) {
+            // Проверяем что лид существует
+            $lead_exists = $wpdb->get_var($wpdb->prepare(
+                "SELECT id FROM {$wpdb->prefix}akpp_leads WHERE id = %d",
+                $lead_id
+            ));
+            
+            if ($lead_exists) {
+                $wpdb->update(
+                    $wpdb->prefix . 'akpp_leads',
+                    [
+                        'status' => 'converted',
+                        'updated_at' => current_time('mysql'),
+                    ],
+                    ['id' => $lead_id]
+                );
+            }
+        }
+        
+        wp_send_json_success([
+            'id' => $result_id,
+            'message' => 'Сделка сохранена' . ($lead_id > 0 ? ' и лид конвертирован' : ''),
+            'client_id' => $client_id,
+            'vehicle_id' => $vehicle_id,
+            'total' => $total_amount,
+        ]);
+        
+    } catch (Exception $e) {
+        wp_send_json_error(['message' => 'Ошибка сохранения: ' . $e->getMessage()], 500);
     }
+}
 
     public function ajax_decode_vin() {
         if (!check_ajax_referer('akpp45_nonce', 'nonce', false)) {
@@ -672,14 +861,20 @@ class AKPP_AJAX {
         try {
             global $wpdb;
             $cache_table = $wpdb->prefix . 'akpp_vin_cache';
-            $cached = $wpdb->get_row($wpdb->prepare(
-                "SELECT * FROM $cache_table WHERE vin = %s",
-                $vin
-            ), ARRAY_A);
             
-            if ($cached) {
-                wp_send_json_success(json_decode($cached['decoded_data'] ?? $cached['data'] ?? '[]', true));
-                return;
+            // Проверяем существование таблицы
+            $table_exists = $wpdb->get_var("SHOW TABLES LIKE '$cache_table'") === $cache_table;
+            
+            if ($table_exists) {
+                $cached = $wpdb->get_row($wpdb->prepare(
+                    "SELECT * FROM $cache_table WHERE vin = %s",
+                    $vin
+                ), ARRAY_A);
+                
+                if ($cached) {
+                    wp_send_json_success(json_decode($cached['decoded_data'] ?? $cached['data'] ?? '[]', true));
+                    return;
+                }
             }
             
             $data = [

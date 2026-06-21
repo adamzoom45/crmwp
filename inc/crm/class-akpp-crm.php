@@ -4,7 +4,7 @@
  * Подключение файлов, регистрация хуков, меню и управление ресурсами.
  *
  * @package AKPP_CRM
- * @version 4.3
+ * @version 4.4
  */
 
 if (!defined('ABSPATH')) {
@@ -18,7 +18,7 @@ if (!defined('AKPP_CRM_URL')) {
     define('AKPP_CRM_URL', get_template_directory_uri() . '/inc/crm/');
 }
 if (!defined('AKPP_CRM_VERSION')) {
-    define('AKPP_CRM_VERSION', '4.3.0');
+    define('AKPP_CRM_VERSION', '4.4.0');
 }
 
 class AKPP_CRM {
@@ -86,7 +86,7 @@ class AKPP_CRM {
         }
         
         $current_version = get_option('akpp_crm_db_version', '0');
-        $target_version  = '4.3';
+        $target_version  = '4.4';
         
         if (version_compare($current_version, $target_version, '<')) {
             $lock_key = 'akpp_crm_db_installing';
@@ -279,8 +279,206 @@ class AKPP_CRM {
         include AKPP_CRM_PATH . 'templates/parser.php';
     }
 
+    /**
+     * Страница лидов с обработкой действий (удаление/редактирование)
+     */
     public function render_leads_page() {
-        include AKPP_CRM_PATH . 'templates/leads.php';
+        global $wpdb;
+        $table_name = $wpdb->prefix . 'akpp_leads';
+        
+        // ====================================================================
+        // ОБРАБОТКА ДЕЙСТВИЙ
+        // ====================================================================
+        
+        // 1. Удаление лида
+        if (isset($_GET['action']) && $_GET['action'] === 'delete' && isset($_GET['id'])) {
+            $id = intval($_GET['id']);
+            
+            // Проверка nonce
+            if (!isset($_GET['_wpnonce']) || !wp_verify_nonce($_GET['_wpnonce'], 'delete_lead_' . $id)) {
+                echo '<div class="notice notice-error is-dismissible"><p>❌ Ошибка безопасности (nonce). Попробуйте ещё раз.</p></div>';
+            } else {
+                $result = $wpdb->delete($table_name, ['id' => $id]);
+                if ($result !== false) {
+                    echo '<div class="notice notice-success is-dismissible"><p>✅ Лид #' . $id . ' успешно удалён</p></div>';
+                } else {
+                    echo '<div class="notice notice-error is-dismissible"><p>❌ Ошибка удаления лида</p></div>';
+                }
+            }
+        }
+        
+        // 2. Сохранение отредактированного лида (POST)
+        if (isset($_POST['save_lead']) && isset($_POST['lead_id'])) {
+            $lead_id = intval($_POST['lead_id']);
+            
+            $update_data = [
+                'client_name'  => sanitize_text_field($_POST['client_name'] ?? ''),
+                'client_phone' => sanitize_text_field($_POST['client_phone'] ?? ''),
+                'car_brand'    => sanitize_text_field($_POST['car_brand'] ?? ''),
+                'problem'      => sanitize_textarea_field($_POST['problem'] ?? ''),
+                'status'       => sanitize_text_field($_POST['status'] ?? 'new'),
+                'updated_at'   => current_time('mysql'),
+            ];
+            
+            $result = $wpdb->update($table_name, $update_data, ['id' => $lead_id]);
+            
+            if ($result !== false) {
+                echo '<div class="notice notice-success is-dismissible"><p>✅ Лид #' . $lead_id . ' успешно обновлён</p></div>';
+            } else {
+                echo '<div class="notice notice-error is-dismissible"><p>❌ Ошибка обновления лида</p></div>';
+            }
+        }
+        
+        // 3. Редактирование лида (GET с action=edit)
+        if (isset($_GET['action']) && $_GET['action'] === 'edit' && isset($_GET['id'])) {
+            $id = intval($_GET['id']);
+            $lead = $wpdb->get_row($wpdb->prepare(
+                "SELECT * FROM {$table_name} WHERE id = %d", 
+                $id
+            ), ARRAY_A);
+            
+            if (!$lead) {
+                echo '<div class="notice notice-error is-dismissible"><p>❌ Лид не найден</p></div>';
+            } else {
+                $this->render_lead_edit_form($lead);
+                return;
+            }
+        }
+        
+        // ====================================================================
+        // ОТОБРАЖЕНИЕ ТАБЛИЦЫ ЛИДОВ
+        // ====================================================================
+        if (!class_exists('AKPP_Leads_Table')) {
+            require_once AKPP_CRM_PATH . 'tables/class-leads-table.php';
+        }
+        
+        echo '<div class="wrap akpp-crm-wrap">';
+        echo '<h1 style="color: #00ff88; border-left: 4px solid #00ff88; padding-left: 15px;">🎯 Лиды</h1>';
+        
+        $table = new AKPP_Leads_Table();
+        $table->prepare_items();
+        
+        echo '<form method="get">';
+        echo '<input type="hidden" name="page" value="akpp-crm-leads">';
+        $table->display();
+        echo '</form>';
+        echo '</div>';
+    }
+    
+    /**
+     * Форма редактирования лида
+     */
+    private function render_lead_edit_form($lead) {
+        $statuses = [
+            'new'        => '🆕 Новый',
+            'contacted'  => '📞 Связались',
+            'diagnostic' => '🔍 Диагностика',
+            'in_work'    => '🔧 В работе',
+            'completed'  => '✅ Выполнено',
+            'converted'  => '💰 Конвертирован',
+            'cancelled'  => '❌ Отменено',
+            'lost'       => '❌ Потерян',
+        ];
+        ?>
+        <div class="wrap akpp-crm-wrap">
+            <h1 style="color: #00ff88; border-left: 4px solid #00ff88; padding-left: 15px;">
+                ✏️ Редактирование лида #<?php echo intval($lead['id']); ?>
+            </h1>
+            
+            <div class="akpp-card" style="background: #1a1f2e; border: 1px solid #2d3748; border-radius: 12px; padding: 24px; max-width: 800px;">
+                <form method="post" action="">
+                    
+                    <div class="form-group" style="margin-bottom: 20px;">
+                        <label style="display:block;margin-bottom:8px;font-weight:600;color:#a0aec0;text-transform:uppercase;font-size:13px;">
+                            ФИО Клиента <span style="color:#fc8181;">*</span>
+                        </label>
+                        <input type="text" name="client_name" 
+                               value="<?php echo esc_attr($lead['client_name']); ?>" 
+                               required
+                               style="width:100%;padding:12px 16px;background:#2d3748;border:2px solid #4a5568;border-radius:8px;color:#fff;font-size:14px;">
+                    </div>
+                    
+                    <div class="form-group" style="margin-bottom: 20px;">
+                        <label style="display:block;margin-bottom:8px;font-weight:600;color:#a0aec0;text-transform:uppercase;font-size:13px;">
+                            Телефон <span style="color:#fc8181;">*</span>
+                        </label>
+                        <input type="tel" name="client_phone" 
+                               value="<?php echo esc_attr($lead['client_phone']); ?>" 
+                               required
+                               style="width:100%;padding:12px 16px;background:#2d3748;border:2px solid #4a5568;border-radius:8px;color:#fff;font-size:14px;">
+                    </div>
+                    
+                    <div class="form-group" style="margin-bottom: 20px;">
+                        <label style="display:block;margin-bottom:8px;font-weight:600;color:#a0aec0;text-transform:uppercase;font-size:13px;">
+                            Автомобиль
+                        </label>
+                        <input type="text" name="car_brand" 
+                               value="<?php echo esc_attr($lead['car_brand']); ?>"
+                               placeholder="Toyota Camry 2020"
+                               style="width:100%;padding:12px 16px;background:#2d3748;border:2px solid #4a5568;border-radius:8px;color:#fff;font-size:14px;">
+                    </div>
+                    
+                    <div class="form-group" style="margin-bottom: 20px;">
+                        <label style="display:block;margin-bottom:8px;font-weight:600;color:#a0aec0;text-transform:uppercase;font-size:13px;">
+                            Проблема
+                        </label>
+                        <textarea name="problem" rows="5" 
+                                  style="width:100%;padding:12px 16px;background:#2d3748;border:2px solid #4a5568;border-radius:8px;color:#fff;font-size:14px;resize:vertical;"><?php echo esc_textarea($lead['problem']); ?></textarea>
+                    </div>
+                    
+                    <div class="form-group" style="margin-bottom: 20px;">
+                        <label style="display:block;margin-bottom:8px;font-weight:600;color:#a0aec0;text-transform:uppercase;font-size:13px;">
+                            Статус
+                        </label>
+                        <select name="status" 
+                                style="width:100%;padding:12px 16px;background:#2d3748;border:2px solid #4a5568;border-radius:8px;color:#fff;font-size:14px;">
+                            <?php foreach ($statuses as $key => $label) : ?>
+                                <option value="<?php echo esc_attr($key); ?>" 
+                                        <?php selected($lead['status'], $key); ?>>
+                                    <?php echo esc_html($label); ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    
+                    <div style="display: flex; gap: 12px; justify-content: flex-end; padding-top: 20px; border-top: 1px solid #2d3748;">
+                        <a href="?page=akpp-crm-leads" 
+                           class="button" 
+                           style="background:transparent;color:#a0aec0;border:2px solid #4a5568;padding:12px 24px;border-radius:8px;font-weight:600;text-decoration:none;">
+                            Отмена
+                        </a>
+                        <button type="submit" name="save_lead" value="1"
+                                style="background:linear-gradient(135deg,#00ff88 0%,#00cc6a 100%);color:#1a1f2e;border:none;padding:12px 24px;border-radius:8px;font-weight:600;cursor:pointer;box-shadow:0 4px 12px rgba(0,255,136,0.3);">
+                            💾 Сохранить изменения
+                        </button>
+                    </div>
+                    
+                    <input type="hidden" name="lead_id" value="<?php echo intval($lead['id']); ?>">
+                </form>
+                
+                <!-- Информация о лиде -->
+                <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #2d3748;">
+                    <h3 style="color: #00ff88; font-size: 14px; margin-bottom: 12px;">📋 Информация</h3>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; font-size: 13px; color: #a0aec0;">
+                        <div><strong>ID лида:</strong> #<?php echo intval($lead['id']); ?></div>
+                        <div><strong>Источник:</strong> <?php echo esc_html($lead['source'] ?? '—'); ?></div>
+                        <div><strong>Создан:</strong> <?php echo esc_html($lead['created_at'] ?? '—'); ?></div>
+                        <div><strong>Обновлён:</strong> <?php echo esc_html($lead['updated_at'] ?? '—'); ?></div>
+                    </div>
+                    
+                    <?php if (!empty($lead['source']) && $lead['source'] === 'site_booking') : ?>
+                    <div style="margin-top: 15px;">
+                        <a href="?page=akpp-crm-new-deal&lead_id=<?php echo intval($lead['id']); ?>&_wpnonce=<?php echo wp_create_nonce('create_deal_from_lead_' . $lead['id']); ?>" 
+                           class="button" 
+                           style="background:linear-gradient(135deg,#00ff88 0%,#00cc6a 100%);color:#1a1f2e;border:none;padding:10px 20px;border-radius:8px;font-weight:600;text-decoration:none;display:inline-flex;align-items:center;gap:8px;">
+                            💰 Создать сделку из этого лида
+                        </a>
+                    </div>
+                    <?php endif; ?>
+                </div>
+            </div>
+        </div>
+        <?php
     }
 
     public function render_users_page() {
