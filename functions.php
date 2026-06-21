@@ -79,9 +79,14 @@ function akpp45_enqueue_assets() {
     $theme_uri = AKPP_THEME_URI;
     $assets_uri = $theme_uri . '/assets';
     
+    // 🔴 КРИТИЧНО: Принудительно регистрируем jQuery
+    if (!wp_script_is('jquery', 'registered')) {
+        wp_register_script('jquery', includes_url('/js/jquery/jquery.js'), [], '3.7.1');
+    }
+    
     // === СТИЛИ ===
     
-    // Google Fonts - Inter
+    // Google Fonts
     wp_enqueue_style(
         'akpp45-fonts',
         'https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap',
@@ -97,7 +102,7 @@ function akpp45_enqueue_assets() {
         AKPP_THEME_VERSION
     );
     
-    // Admin CSS (только в админке)
+    // Admin CSS
     if (is_admin()) {
         wp_enqueue_style(
             'akpp45-admin',
@@ -124,62 +129,78 @@ function akpp45_enqueue_assets() {
     
     // === СКРИПТЫ ===
     
+    // 🔴 ПРИНУДИТЕЛЬНО загружаем jQuery
     wp_enqueue_script('jquery');
+    wp_enqueue_script('jquery-ui-core');
     
     // Frontend скрипты
     if (!is_admin()) {
-        // Booking (запись на ремонт)
-        wp_enqueue_script(
-            'akpp45-booking',
-            $assets_uri . '/js/booking.js',
-            ['jquery'],
-            AKPP_THEME_VERSION,
-            true
-        );
         
-        wp_localize_script('akpp45-booking', 'akpp_frontend', [
-            'ajax_url'     => admin_url('admin-ajax.php'),
-            'nonce'        => wp_create_nonce('akpp_booking_nonce'),
-            'is_logged_in' => is_user_logged_in(),
-            'home_url'     => home_url('/'),
-        ]);
-        
-        // Auth
-        wp_enqueue_script(
-            'akpp45-auth',
-            $assets_uri . '/js/auth.js',
-            ['jquery'],
-            AKPP_THEME_VERSION,
-            true
-        );
-        
-        wp_localize_script('akpp45-auth', 'akpp_auth_config', [
-            'ajax_url' => admin_url('admin-ajax.php'),
-            'nonce'    => wp_create_nonce('akpp_client_auth_nonce'),
-        ]);
-        
-        // Chat
-        wp_enqueue_script(
-            'akpp45-chat',
-            $assets_uri . '/js/chat.js',
-            ['jquery'],
-            AKPP_THEME_VERSION,
-            true
-        );
-        
-        wp_localize_script('akpp45-chat', 'akpp_chat_config', [
-            'ajax_url' => admin_url('admin-ajax.php'),
-            'nonce'    => wp_create_nonce('akpp_chat_action_nonce'),
-        ]);
-        
-        // Main (общий)
+        // Main.js - ОСНОВНОЙ файл (загружается ПЕРВЫМ после jQuery)
         wp_enqueue_script(
             'akpp45-main',
             $assets_uri . '/js/main.js',
-            ['jquery'],
+            ['jquery'],  // ← Зависимость от jQuery
             AKPP_THEME_VERSION,
-            true
+            false  // ← false = загрузка в HEADER (до контента)
         );
+        
+        // Локализация для AJAX
+        wp_localize_script('akpp45-main', 'akpp_ajax', [
+            'ajax_url' => admin_url('admin-ajax.php'),
+            'nonce'    => wp_create_nonce('akpp45_nonce'),
+            'home'     => home_url('/'),
+        ]);
+        
+        // Booking.js
+        if (file_exists(AKPP_THEME_DIR . '/assets/js/booking.js')) {
+            wp_enqueue_script(
+                'akpp45-booking',
+                $assets_uri . '/js/booking.js',
+                ['jquery', 'akpp45-main'],  // ← Зависит от main.js
+                AKPP_THEME_VERSION,
+                false  // ← false = в HEADER
+            );
+            
+            wp_localize_script('akpp45-booking', 'akpp_frontend', [
+                'ajax_url'     => admin_url('admin-ajax.php'),
+                'nonce'        => wp_create_nonce('akpp_booking_nonce'),
+                'is_logged_in' => is_user_logged_in(),
+                'home_url'     => home_url('/'),
+            ]);
+        }
+        
+        // Auth.js
+        if (file_exists(AKPP_THEME_DIR . '/assets/js/auth.js')) {
+            wp_enqueue_script(
+                'akpp45-auth',
+                $assets_uri . '/js/auth.js',
+                ['jquery'],
+                AKPP_THEME_VERSION,
+                false  // ← false = в HEADER
+            );
+            
+            wp_localize_script('akpp45-auth', 'akpp_auth_config', [
+                'ajax_url' => admin_url('admin-ajax.php'),
+                'nonce'    => wp_create_nonce('akpp_client_auth_nonce'),
+            ]);
+        }
+        
+        // Chat.js
+        if (file_exists(AKPP_THEME_DIR . '/assets/js/chat.js')) {
+            wp_enqueue_script(
+                'akpp45-chat',
+                $assets_uri . '/js/chat.js',
+                ['jquery'],
+                AKPP_THEME_VERSION,
+                false
+            );
+            
+            wp_localize_script('akpp45-chat', 'akpp_chat_config', [
+                'ajax_url' => admin_url('admin-ajax.php'),
+                'nonce'    => wp_create_nonce('akpp_chat_action_nonce'),
+            ]);
+        }
     }
     
     // Admin скрипты
@@ -197,7 +218,6 @@ function akpp45_enqueue_assets() {
             'nonce'    => wp_create_nonce('akpp45_nonce'),
         ]);
         
-        // Калькулятор сделок
         wp_enqueue_script(
             'akpp45-deal-calculator',
             $assets_uri . '/js/deal-calculator.js',
@@ -211,7 +231,6 @@ function akpp45_enqueue_assets() {
             'nonce'    => wp_create_nonce('akpp_save_deal_nonce'),
         ]);
         
-        // VIN декодер
         wp_enqueue_script(
             'akpp45-vin-decoder',
             $assets_uri . '/js/vin-decoder.js',
@@ -230,8 +249,8 @@ function akpp45_enqueue_assets() {
         wp_enqueue_script('comment-reply');
     }
 }
-add_action('wp_enqueue_scripts', 'akpp45_enqueue_assets');
-add_action('admin_enqueue_scripts', 'akpp45_enqueue_assets');
+add_action('wp_enqueue_scripts', 'akpp45_enqueue_assets', 1);  // ← Приоритет 1 (раньше всех)
+add_action('admin_enqueue_scripts', 'akpp45_enqueue_assets', 1);
 
 // =============================================================================
 // 4. WIDGETS
