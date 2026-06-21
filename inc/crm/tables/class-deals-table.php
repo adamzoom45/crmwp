@@ -135,19 +135,20 @@ class AKPP_Deals_Table extends WP_List_Table {
     
     public function process_bulk_action() {
         global $wpdb;
-        
         $action = $this->current_action();
         if (!$action) return;
-        
         check_admin_referer('bulk-' . $this->_args['plural']);
-        
         $deal_ids = isset($_REQUEST['deal']) ? array_map('intval', (array)$_REQUEST['deal']) : [];
         if (empty($deal_ids)) return;
-        
         $ids_placeholder = implode(',', array_fill(0, count($deal_ids), '%d'));
-        
         switch ($action) {
             case 'delete':
+                // ✅ Сначала удаляем запчасти сделок
+                $wpdb->query($wpdb->prepare(
+                    "DELETE FROM {$wpdb->prefix}akpp_deal_parts WHERE deal_id IN ({$ids_placeholder})",
+                    ...$deal_ids
+                ));
+                // ✅ Потом удаляем сделки
                 $wpdb->query($wpdb->prepare(
                     "DELETE FROM {$wpdb->prefix}akpp_deals WHERE id IN ({$ids_placeholder})",
                     ...$deal_ids
