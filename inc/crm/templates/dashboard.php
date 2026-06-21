@@ -68,7 +68,7 @@ $recent_deals = $wpdb->get_results(
         v.make,
         v.model,
         v.year,
-        CONCAT_WS(' ', v.make, v.model, v.year) as car_info
+        NULLIF(CONCAT_WS(' ', v.make, v.model, v.year), ' ') as car_info
      FROM {$deals_table} d
      LEFT JOIN {$clients_table} c ON d.client_id = c.id
      LEFT JOIN {$vehicles_table} v ON d.vehicle_id = v.id

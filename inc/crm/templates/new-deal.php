@@ -59,12 +59,13 @@ if ($action === 'edit' && $deal_id > 0) {
     
     // Получаем запчасти этой сделки
     $deal_parts = $wpdb->get_results($wpdb->prepare(
-        "SELECT dp.*, p.name as part_name, p.sku FROM {$wpdb->prefix}akpp_deal_parts dp 
-         LEFT JOIN {$wpdb->prefix}akpp_parts p ON dp.part_id = p.id 
-         WHERE dp.deal_id = %d", $deal_id), ARRAY_A);
+        "SELECT dp.*, p.name as part_name, p.sku FROM {$wpdb->prefix}akpp_deal_parts dp
+        LEFT JOIN {$wpdb->prefix}akpp_parts p ON dp.part_id = p.id
+        WHERE dp.deal_id = %d", $deal_id), ARRAY_A);
     
     // Данные авто из JOIN
     $vehicle_data = [
+        'id' => $deal_data['vehicle_id'] ?? 0,
         'vin' => $deal_data['vehicle_vin'] ?? '',
         'make' => $deal_data['vehicle_make'] ?? '',
         'model' => $deal_data['vehicle_model'] ?? '',
@@ -72,20 +73,19 @@ if ($action === 'edit' && $deal_id > 0) {
         'engine' => $deal_data['vehicle_engine'] ?? '',
     ];
     
-    // Данные клиента из JOIN
+    // ✅ Данные клиента из JOIN (внутри if!)
     $client_data = [
         'name' => $deal_data['client_name'] ?? '',
         'phone' => $deal_data['client_phone'] ?? '',
     ];
-}
+}  // ← Закрывает if ($action === 'edit')
 
 // ============================================================================
 // ДАННЫЕ ДЛЯ ПРЕДЗАПОЛНЕНИЯ (с правильными именами полей!)
 // ============================================================================
 if ($deal_data) {
-    // ✅ ИСПРАВЛЕНО: используем данные из JOIN
-    $prefill_client_name  = $client_data['name'] ?? '';
-    $prefill_client_phone = $client_data['phone'] ?? '';
+    $prefill_client_name  = $deal_data['client_name'] ?? '';
+    $prefill_client_phone = $deal_data['client_phone'] ?? '';
     $prefill_car_brand    = $vehicle_data['make'] ?? '';
     $prefill_car_model    = $vehicle_data['model'] ?? '';
     $prefill_problem      = $deal_data['problem_description'] ?? '';
@@ -94,7 +94,7 @@ if ($deal_data) {
     $prefill_vin          = $vehicle_data['vin'] ?? '';
     $prefill_year         = intval($vehicle_data['year'] ?? 0);
     $prefill_engine       = $vehicle_data['engine'] ?? '';
-    // ✅ ИСПРАВЛЕНО: work_hours, employee_percent
+    // ✅ ПРАВИЛЬНЫЕ ИМЕНА ПОЛЕЙ БД
     $prefill_hours        = floatval($deal_data['work_hours'] ?? $deal_data['standard_hours'] ?? 1.0);
     $prefill_emp_percent  = floatval($deal_data['employee_percent'] ?? 40);
 } elseif ($lead_data) {
@@ -228,7 +228,7 @@ function render_part_row($part_data, $all_parts, $index) {
                         <div class="form-group">
                             <label>Марка</label>
                             <input type="text" id="akpp_brand_input" name="brand" value="<?php echo esc_attr($prefill_car_brand); ?>" style="width: 100%;">
-                            <input type="hidden" name="vehicle_id" value="<?php echo esc_attr($deal_data['vehicle_id'] ?? 0); ?>">
+                            <input type="hidden" name="vehicle_id" value="<?php echo esc_attr($vehicle_data['id'] ?? 0); ?>">
                         </div>
                         <div class="form-group">
                             <label>Модель</label>
@@ -407,7 +407,6 @@ jQuery(document).ready(function($) {
         $(this).closest('.deal-part-row').find('.part-price').val(price);
     });
 
-    // ✅ ИСПРАВЛЕНО: Корректная обработка submit
     $('#akpp-deal-calculator').off('submit').on('submit', function(e) {
         e.preventDefault();
         
