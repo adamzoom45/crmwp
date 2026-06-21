@@ -1,13 +1,9 @@
 <?php
 /**
  * Класс для таблицы сделок в админке
- * 
- * @package AKPP45_CRM
  */
 
-if (!defined('ABSPATH')) {
-    exit;
-}
+if (!defined('ABSPATH')) exit;
 
 if (!class_exists('WP_List_Table')) {
     require_once ABSPATH . 'wp-admin/includes/class-wp-list-table.php';
@@ -15,22 +11,14 @@ if (!class_exists('WP_List_Table')) {
 
 class AKPP_Deals_Table extends WP_List_Table {
     
-    private $table_name;
-    
     public function __construct() {
         parent::__construct([
             'singular' => 'deal',
-            'plural' => 'deals',
-            'ajax' => false
+            'plural'   => 'deals',
+            'ajax'     => false
         ]);
-        
-        global $wpdb;
-        $this->table_name = $wpdb->prefix . 'akpp_deals';
     }
     
-    /**
-     * Получение данных для таблицы
-     */
     public function prepare_items() {
         global $wpdb;
         
@@ -48,299 +36,195 @@ class AKPP_Deals_Table extends WP_List_Table {
         $params = [];
         
         if ($status_filter !== 'all') {
-            $where[] = "status = %s";
+            $where[] = "d.status = %s";
             $params[] = $status_filter;
         }
         
         if ($employee_filter > 0) {
-            $where[] = "employee_id = %d";
+            $where[] = "d.employee_id = %d";
             $params[] = $employee_filter;
         }
         
         if (!empty($search)) {
-            $where[] = "(make LIKE '%%%s%%' OR model LIKE '%%%s%%' OR vin LIKE '%%%s%%')";
-            $params[] = $search;
-            $params[] = $search;
-            $params[] = $search;
+            $where[] = "(c.full_name LIKE %s OR c.phone LIKE %s OR d.vin LIKE %s)";
+            $params[] = '%' . $wpdb->esc_like($search) . '%';
+            $params[] = '%' . $wpdb->esc_like($search) . '%';
+            $params[] = '%' . $wpdb->esc_like($search) . '%';
         }
         
         $where_clause = !empty($where) ? "WHERE " . implode(" AND ", $where) : "";
         
         // Сортировка
-        $orderby = isset($_GET['orderby']) ? sanitize_sql_orderby($_GET['orderby']) : 'created_at';
+        $allowed_orderby = ['id', 'created_at', 'total_amount', 'status'];
+        $orderby = isset($_GET['orderby']) && in_array($_GET['orderby'], $allowed_orderby) 
+            ? sanitize_text_field($_GET['orderby']) 
+            : 'created_at';
         $order = isset($_GET['order']) && strtoupper($_GET['order']) === 'ASC' ? 'ASC' : 'DESC';
         
         // Получение общего количества
-        $count_query = "SELECT COUNT(*) FROM {$this->table_name} {$where_clause}";
+        $count_query = "SELECT COUNT(*) FROM {$wpdb->prefix}akpp_deals d {$where_clause}";
         if (!empty($params)) {
             $count_query = $wpdb->prepare($count_query, ...$params);
         }
         $total_items = $wpdb->get_var($count_query);
         
-        // Получение данных
-        $query = "SELECT * FROM {$this->table_name} {$where_clause} ORDER BY {$orderby} {$order} LIMIT %d OFFSET %d";
-        $params[] = $per_page;
-        $params[] = $offset;
+        // Получение данных с JOIN
+        $query = "SELECT 
+            d.*,
+            c.full_name as client_name,
+            c.phone as client_phone,
+            v.make,
+            v.model,
+            v.year,
+            e.name as employee_name
+        FROM {$wpdb->prefix}akpp_deals d
+        LEFT JOIN {$wpdb->prefix}akpp_site_users c ON d.client_id = c.id
+        LEFT JOIN {$wpdb->prefix}akpp_vehicles v ON d.vehicle_id = v.id
+        LEFT JOIN {$wpdb->prefix}akpp_employees e ON d.employee_id = e.id
+        {$where_clause}
+        ORDER BY d.{$orderby} {$order}
+        LIMIT %d OFFSET %d";
         
-        $query = $wpdb->prepare($query, ...$params);
-        $this->items = $wpdb->get_results($query);
+        $query_params = array_merge($params, [$per_page, $offset]);
+        $query = $wpdb->prepare($query, ...$query_params);
         
-        // Настройка пагинации
+        $this->items = $wpdb->get_results($query, ARRAY_A);
+        
         $this->set_pagination_args([
             'total_items' => $total_items,
-            'per_page' => $per_page,
+            'per_page'    => $per_page,
             'total_pages' => ceil($total_items / $per_page)
         ]);
+        
+        $this->_column_headers = [
+            $this->get_columns(),
+            [],
+            $this->get_sortable_columns()
+        ];
         
         $this->process_bulk_action();
     }
     
-    /**
-     * Определение колонок
-     */
     public function get_columns() {
         return [
-            'cb' => '<input type="checkbox" />',
-            'id' => 'ID',
-            'client' => 'Клиент',
-            'vehicle' => 'Автомобиль',
-            'employee' => 'Сотрудник',
+            'cb'           => '<input type="checkbox" />',
+            'id'           => 'ID',
+            'client_name'  => 'Клиент',
+            'vehicle'      => 'Автомобиль',
+            'status'       => 'Статус',
             'total_amount' => 'Сумма',
-            'status' => 'Статус',
-            'created_at' => 'Дата',
-            'actions' => 'Действия'
+            'created_at'   => 'Дата',
         ];
     }
     
-    /**
-     * Сортируемые колонки
-     */
     public function get_sortable_columns() {
         return [
-            'id' => ['id', false],
+            'id'           => ['id', false],
+            'created_at'   => ['created_at', true],
             'total_amount' => ['total_amount', false],
-            'created_at' => ['created_at', true],
-            'status' => ['status', false]
+            'status'       => ['status', false],
         ];
     }
     
-    /**
-     * Массовые действия
-     */
     public function get_bulk_actions() {
         return [
-            'delete' => 'Удалить',
-            'change_status_new' => 'Изменить статус на "Новая"',
-            'change_status_diagnostic' => 'Изменить статус на "Диагностика"',
-            'change_status_in_work' => 'Изменить статус на "В работе"',
-            'change_status_completed' => 'Изменить статус на "Выполнена"',
-            'change_status_rejected' => 'Изменить статус на "Отклонена"'
+            'delete' => '🗑️ Удалить',
         ];
     }
     
-    /**
-     * Обработка массовых действий
-     */
     public function process_bulk_action() {
         global $wpdb;
         
-        if (!$this->current_action()) return;
+        $action = $this->current_action();
+        if (!$action) return;
         
-        $deal_ids = isset($_GET['deal']) ? array_map('intval', $_GET['deal']) : [];
+        check_admin_referer('bulk-' . $this->_args['plural']);
         
+        $deal_ids = isset($_REQUEST['deal']) ? array_map('intval', (array)$_REQUEST['deal']) : [];
         if (empty($deal_ids)) return;
         
         $ids_placeholder = implode(',', array_fill(0, count($deal_ids), '%d'));
         
-        switch ($this->current_action()) {
+        switch ($action) {
             case 'delete':
                 $wpdb->query($wpdb->prepare(
-                    "DELETE FROM {$this->table_name} WHERE id IN ({$ids_placeholder})",
-                    $deal_ids
+                    "DELETE FROM {$wpdb->prefix}akpp_deals WHERE id IN ({$ids_placeholder})",
+                    ...$deal_ids
                 ));
-                echo '<div class="notice notice-success"><p>Сделки удалены</p></div>';
-                break;
-                
-            case 'change_status_new':
-                $this->bulk_update_status($deal_ids, 'new');
-                break;
-                
-            case 'change_status_diagnostic':
-                $this->bulk_update_status($deal_ids, 'diagnostic');
-                break;
-                
-            case 'change_status_in_work':
-                $this->bulk_update_status($deal_ids, 'in_work');
-                break;
-                
-            case 'change_status_completed':
-                $this->bulk_update_status($deal_ids, 'completed');
-                break;
-                
-            case 'change_status_rejected':
-                $this->bulk_update_status($deal_ids, 'rejected');
+                echo '<div class="notice notice-success is-dismissible"><p>✅ Удалено сделок: ' . count($deal_ids) . '</p></div>';
                 break;
         }
     }
     
-    /**
-     * Массовое обновление статуса
-     */
-    private function bulk_update_status($ids, $status) {
-        global $wpdb;
-        
-        $ids_placeholder = implode(',', array_fill(0, count($ids), '%d'));
-        $wpdb->query($wpdb->prepare(
-            "UPDATE {$this->table_name} SET status = %s, updated_at = %s WHERE id IN ({$ids_placeholder})",
-            $status,
-            current_time('mysql'),
-            ...$ids
-        ));
-        
-        echo '<div class="notice notice-success"><p>Статус обновлен для ' . count($ids) . ' сделок</p></div>';
-    }
-    
-    /**
-     * Отображение колонки cb (чекбокс)
-     */
     protected function column_cb($item) {
-        return sprintf('<input type="checkbox" name="deal[]" value="%s" />', $item->id);
+        return sprintf('<input type="checkbox" name="deal[]" value="%s" />', esc_attr($item['id']));
     }
     
-    /**
-     * Отображение колонки ID
-     */
     protected function column_id($item) {
-        return sprintf(
-            '<a href="?page=akpp-crm-deals&action=view&id=%d">#%d</a>',
-            $item->id,
-            $item->id
-        );
+        return sprintf('#%d', $item['id']);
     }
     
-    /**
-     * Отображение колонки клиента
-     */
-    protected function column_client($item) {
-        global $wpdb;
+    protected function column_client_name($item) {
+        $name = $item['client_name'] ?? '—';
+        $phone = $item['client_phone'] ?? '';
         
-        $client = $wpdb->get_row($wpdb->prepare(
-            "SELECT name, phone FROM {$wpdb->prefix}akpp_site_users WHERE id = %d",
-            $item->client_id
-        ));
-        
-        if ($client) {
-            return sprintf(
-                '<strong>%s</strong><br><small>%s</small>',
-                esc_html($client->name),
-                esc_html($client->phone)
-            );
+        $output = '<div style="font-weight: 600;">' . esc_html($name) . '</div>';
+        if ($phone) {
+            $output .= '<div style="font-size: 13px; color: #718096;">' . esc_html($phone) . '</div>';
         }
         
-        return '—';
+        return $output;
     }
     
-    /**
-     * Отображение колонки автомобиля
-     */
     protected function column_vehicle($item) {
-        $vehicle = '';
-        if ($item->make) {
-            $vehicle .= esc_html($item->make);
-        }
-        if ($item->model) {
-            $vehicle .= ' ' . esc_html($item->model);
-        }
-        if ($item->year) {
-            $vehicle .= ', ' . $item->year;
-        }
-        if ($item->vin) {
-            $vehicle .= '<br><small>VIN: ' . esc_html($item->vin) . '</small>';
+        $make = $item['make'] ?? '';
+        $model = $item['model'] ?? '';
+        $year = $item['year'] ?? '';
+        $vin = $item['vin'] ?? '';
+        
+        $car_info = trim("{$make} {$model} {$year}");
+        if (empty($car_info)) {
+            $car_info = $vin ?: '—';
         }
         
-        return !empty($vehicle) ? $vehicle : '—';
+        return esc_html($car_info);
     }
     
-    /**
-     * Отображение колонки сотрудника
-     */
-    protected function column_employee($item) {
-        global $wpdb;
-        
-        if (!$item->employee_id) {
-            return '—';
-        }
-        
-        $employee = $wpdb->get_row($wpdb->prepare(
-            "SELECT name FROM {$wpdb->prefix}akpp_employees WHERE id = %d",
-            $item->employee_id
-        ));
-        
-        return $employee ? esc_html($employee->name) : '—';
-    }
-    
-    /**
-     * Отображение колонки суммы
-     */
-    protected function column_total_amount($item) {
-        return number_format($item->total_amount, 0, ',', ' ') . ' ₽';
-    }
-    
-    /**
-     * Отображение колонки статуса
-     */
     protected function column_status($item) {
         $statuses = [
-            'new' => ['label' => '🆕 Новая', 'class' => 'status-new'],
-            'diagnostic' => ['label' => '🔧 Диагностика', 'class' => 'status-diagnostic'],
-            'in_work' => ['label' => '⚙️ В работе', 'class' => 'status-in_work'],
-            'completed' => ['label' => '✅ Выполнена', 'class' => 'status-completed'],
-            'rejected' => ['label' => '❌ Отклонена', 'class' => 'status-rejected']
+            'lead' => ['label' => '🔵 Лид', 'color' => '#63b3ed'],
+            'new' => ['label' => '🟢 Новая', 'color' => '#00ff88'],
+            'diagnostic' => ['label' => '🟡 Диагностика', 'color' => '#f6ad55'],
+            'in_work' => ['label' => '🟠 В работе', 'color' => '#f6ad55'],
+            'completed' => ['label' => '✅ Завершена', 'color' => '#00ff88'],
+            'cancelled' => ['label' => '❌ Отменена', 'color' => '#fc8181'],
         ];
         
-        $status = $statuses[$item->status] ?? ['label' => $item->status, 'class' => ''];
+        $status = $item['status'] ?? 'new';
+        $info = $statuses[$status] ?? ['label' => $status, 'color' => '#a0aec0'];
         
         return sprintf(
-            '<span class="status-badge %s">%s</span>',
-            esc_attr($status['class']),
-            esc_html($status['label'])
+            '<span style="display:inline-block;padding:4px 12px;border-radius:12px;font-size:12px;font-weight:600;background:%s22;color:%s;">%s</span>',
+            esc_attr($info['color']),
+            esc_attr($info['color']),
+            esc_html($info['label'])
         );
     }
     
-    /**
-     * Отображение колонки даты
-     */
+    protected function column_total_amount($item) {
+        $amount = floatval($item['total_amount'] ?? 0);
+        return '<span style="color: #00ff88; font-weight: 600;">' . number_format($amount, 0, '.', ' ') . ' ₽</span>';
+    }
+    
     protected function column_created_at($item) {
-        return date_i18n(get_option('date_format') . ' ' . get_option('time_format'), strtotime($item->created_at));
+        $date = $item['created_at'] ?? '';
+        return $date ? date_i18n('d.m.Y H:i', strtotime($date)) : '—';
     }
     
-    /**
-     * Отображение колонки действий
-     */
-    protected function column_actions($item) {
-        $actions = sprintf(
-            '<a href="?page=akpp-crm-deal-form&id=%d" class="button button-small">✏️ Редактировать</a> ',
-            $item->id
-        );
-        
-        $actions .= sprintf(
-            '<button class="button button-small delete-deal" data-id="%d">🗑️ Удалить</button>',
-            $item->id
-        );
-        
-        return $actions;
-    }
-    
-    /**
-     * Отображение по умолчанию для неизвестных колонок
-     */
     protected function column_default($item, $column_name) {
-        return isset($item->$column_name) ? esc_html($item->$column_name) : '—';
+        return isset($item[$column_name]) ? esc_html($item[$column_name]) : '—';
     }
     
-    /**
-     * Фильтры над таблицей
-     */
     protected function extra_tablenav($which) {
         if ($which !== 'top') return;
         
@@ -349,41 +233,41 @@ class AKPP_Deals_Table extends WP_List_Table {
         $status_filter = isset($_GET['status_filter']) ? sanitize_text_field($_GET['status_filter']) : 'all';
         $employee_filter = isset($_GET['employee_filter']) ? intval($_GET['employee_filter']) : 0;
         
-        // Фильтр по статусу
+        $statuses = [
+            'all' => 'Все статусы',
+            'lead' => '🔵 Лид',
+            'new' => '🟢 Новая',
+            'diagnostic' => '🟡 Диагностика',
+            'in_work' => '🟠 В работе',
+            'completed' => '✅ Завершена',
+            'cancelled' => '❌ Отменена',
+        ];
+        
+        $employees = $wpdb->get_results("SELECT id, name FROM {$wpdb->prefix}akpp_employees WHERE is_active = 1 ORDER BY name ASC", ARRAY_A);
         ?>
         <div class="alignleft actions">
             <select name="status_filter">
-                <option value="all" <?php selected($status_filter, 'all'); ?>>Все статусы</option>
-                <option value="new" <?php selected($status_filter, 'new'); ?>>🆕 Новая</option>
-                <option value="diagnostic" <?php selected($status_filter, 'diagnostic'); ?>>🔧 Диагностика</option>
-                <option value="in_work" <?php selected($status_filter, 'in_work'); ?>>⚙️ В работе</option>
-                <option value="completed" <?php selected($status_filter, 'completed'); ?>>✅ Выполнена</option>
-                <option value="rejected" <?php selected($status_filter, 'rejected'); ?>>❌ Отклонена</option>
-            </select>
-            
-            <?php
-            // Фильтр по сотрудникам
-            $employees = $wpdb->get_results("SELECT id, name FROM {$wpdb->prefix}akpp_employees ORDER BY name ASC");
-            if (!empty($employees)) :
-            ?>
-            <select name="employee_filter">
-                <option value="0" <?php selected($employee_filter, 0); ?>>Все сотрудники</option>
-                <?php foreach ($employees as $emp): ?>
-                    <option value="<?php echo $emp->id; ?>" <?php selected($employee_filter, $emp->id); ?>>
-                        <?php echo esc_html($emp->name); ?>
+                <?php foreach ($statuses as $value => $label) : ?>
+                    <option value="<?php echo esc_attr($value); ?>" <?php selected($status_filter, $value); ?>>
+                        <?php echo esc_html($label); ?>
                     </option>
                 <?php endforeach; ?>
             </select>
-            <?php endif; ?>
+            
+            <select name="employee_filter">
+                <option value="0" <?php selected($employee_filter, 0); ?>>Все сотрудники</option>
+                <?php foreach ($employees as $emp) : ?>
+                    <option value="<?php echo esc_attr($emp['id']); ?>" <?php selected($employee_filter, $emp['id']); ?>>
+                        <?php echo esc_html($emp['name']); ?>
+                    </option>
+                <?php endforeach; ?>
+            </select>
             
             <input type="submit" name="filter_action" class="button" value="Фильтровать">
         </div>
         <?php
     }
     
-    /**
-     * Отображение, если нет данных
-     */
     public function no_items() {
         echo 'Нет сделок для отображения';
     }
