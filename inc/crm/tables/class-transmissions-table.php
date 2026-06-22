@@ -63,19 +63,21 @@ class AKPP_Transmissions_Table extends WP_List_Table {
         $params[] = $offset;
         $query = $wpdb->prepare($query, ...$params);
         
+        // ✅ ЗАГРУЗКА ДАННЫХ
         $this->items = $wpdb->get_results($query);
         
-        $this->set_pagination_args([
+        // ✅ УСТАНОВКА COLUMN HEADERS (ОБЯЗАТЕЛЬНО!)
+        $this->_column_headers = array(
+            $this->get_columns(),
+            array(),
+            $this->get_sortable_columns()
+        );
+        
+        $this->set_pagination_args(array(
             'total_items' => $total_items,
             'per_page'    => $per_page,
             'total_pages' => ceil($total_items / $per_page)
-        ]);
-        
-        $this->_column_headers = [
-            $this->get_columns(),
-            [],
-            $this->get_sortable_columns()
-        ];
+        ));
         
         $this->process_bulk_action();
     }
