@@ -217,14 +217,16 @@ class AKPP_AJAX {
         global $wpdb;
         $id = intval($_POST['id'] ?? 0);
         
+        // ✅ ИСПРАВЛЕНО: добавлено поле market + strtoupper для VIN
         $data = [
-            'vin' => sanitize_text_field($_POST['vin'] ?? ''),
-            'make' => sanitize_text_field($_POST['make'] ?? ''),
-            'model' => sanitize_text_field($_POST['model'] ?? ''),
-            'year' => intval($_POST['year'] ?? 0),
-            'engine' => sanitize_text_field($_POST['engine'] ?? ''),
-            'fuel_type' => sanitize_text_field($_POST['fuel_type'] ?? ''),
-            'drive_type' => sanitize_text_field($_POST['drive_type'] ?? '')
+            'vin'        => strtoupper(sanitize_text_field($_POST['vin'] ?? '')),
+            'make'       => sanitize_text_field($_POST['make'] ?? ''),
+            'model'      => sanitize_text_field($_POST['model'] ?? ''),
+            'year'       => intval($_POST['year'] ?? 0),
+            'engine'     => sanitize_text_field($_POST['engine'] ?? ''),
+            'fuel_type'  => sanitize_text_field($_POST['fuel_type'] ?? ''),
+            'drive_type' => sanitize_text_field($_POST['drive_type'] ?? ''),
+            'market'     => sanitize_text_field($_POST['market'] ?? ''),
         ];
         
         if (empty($data['make']) || empty($data['model'])) {
@@ -994,10 +996,31 @@ public function ajax_save_deal() {
         try {
             global $wpdb;
             $items = $wpdb->get_results("SELECT * FROM {$wpdb->prefix}akpp_parser_items ORDER BY created_at DESC", ARRAY_A);
-            $csv = "ID;URL;Заголовок;Статус;Дата\n";
+            
+            // ✅ ИСПРАВЛЕНО: защита от CSV injection
+            $sanitize_csv = function($value) {
+                if (empty($value)) return '';
+                // Защита от формул Excel (начинаются с =, +, -, @)
+                if (preg_match('/^[=+\-@]/', $value)) {
+                    $value = "'" . $value;
+                }
+                // Экранирование кавычек и переносов
+                return str_replace(['"', "\r", "\n", ";"], ['""', ' ', ' ', ','], $value);
+            };
+            
+            $csv = "ID;URL;Заголовок;Тип;Статус;Дата\n";
             foreach ($items as $item) {
-                $csv .= "{$item['id']};{$item['url']};{$item['title']};{$item['status']};{$item['created_at']}\n";
+                $csv .= sprintf(
+                    "%d;\"%s\";\"%s\";\"%s\";\"%s\";\"%s\"\n",
+                    intval($item['id']),
+                    $sanitize_csv($item['url']),
+                    $sanitize_csv($item['title']),
+                    $sanitize_csv($item['content_type'] ?? ''),
+                    $sanitize_csv($item['status']),
+                    $sanitize_csv($item['created_at'])
+                );
             }
+            
             wp_send_json_success(['csv' => $csv, 'count' => count($items)]);
         } catch (Exception $e) {
             wp_send_json_error(['message' => 'Ошибка: ' . $e->getMessage()], 500);
@@ -1066,19 +1089,64 @@ public function ajax_save_deal() {
         if (!$this->check_permissions()) return;
         
         try {
-            $ids = array_map('intval', (array)($_POST['ids'] ?? []));
-            $analyzed = 0;
+            require_once dirname(__FILE__) . '/class-akpp-parser.php';
+            $parser = AKPP_Parser::get_instance();
+            
             global $wpdb;
+            
+            // ✅ ИСПРАВЛЕНО: получаем ВСЕ pending записи, а не только переданные IDs
+            $ids = !empty($_POST['ids']) 
+                ? array_map('intval', (array)$_POST['ids'])
+                : $wpdb->get_col("SELECT id FROM {$wpdb->prefix}akpp_parser_items WHERE status = 'pending' LIMIT 10");
+            
+            $analyzed = 0;
+            $errors = [];
+            
             foreach ($ids as $id) {
                 if ($id <= 0) continue;
-                $wpdb->update($wpdb->prefix . 'akpp_parser_items', [
-                    'ai_analysis' => json_encode(['status' => 'analyzed']),
-                    'status' => 'analyzed',
-                    'updated_at' => current_time('mysql')
-                ], ['id' => $id]);
-                $analyzed++;
+                
+                $item = $wpdb->get_row($wpdb->prepare(
+                    "SELECT * FROM {$wpdb->prefix}akpp_parser_items WHERE id = %d",
+                    $id
+                ), ARRAY_A);
+                
+                if (!$item || empty($item['content'])) {
+                    $errors[] = "ID {$id}: нет контента";
+                    continue;
+                }
+                
+                // ✅ ВЫЗЫВАЕМ РЕАЛЬНЫЙ AI АНАЛИЗ
+                $analysis = $parser->analyze_with_qwen($item['content']);
+                
+                if ($analysis) {
+                    $saved = $parser->save_extracted_entities($analysis);
+                    
+                    $wpdb->update($wpdb->prefix . 'akpp_parser_items', [
+                        'ai_analysis' => json_encode($analysis, JSON_UNESCAPED_UNICODE),
+                        'status'      => 'ai_processed',
+                        'updated_at'  => current_time('mysql')
+                    ], ['id' => $id]);
+                    
+                    $analyzed++;
+                } else {
+                    $errors[] = "ID {$id}: AI не ответил";
+                }
+                
+                // Задержка чтобы не превысить rate limit API
+                usleep(500000); // 0.5 сек
             }
-            wp_send_json_success(['message' => "Проанализировано: $analyzed"]);
+            
+            $message = "✅ Проанализировано: {$analyzed}";
+            if (!empty($errors)) {
+                $message .= " | Ошибок: " . count($errors);
+            }
+            
+            wp_send_json_success([
+                'message'  => $message,
+                'analyzed' => $analyzed,
+                'errors'   => $errors
+            ]);
+            
         } catch (Exception $e) {
             wp_send_json_error(['message' => 'Ошибка: ' . $e->getMessage()], 500);
         }
