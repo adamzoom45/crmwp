@@ -309,7 +309,9 @@ class AKPP_AJAX {
             'engine' => sanitize_text_field($_POST['engine'] ?? ''),
             'common_problems' => sanitize_textarea_field($_POST['common_problems'] ?? ''),
             'repair_cost' => intval($_POST['repair_cost'] ?? 0),
-            'difficulty' => intval($_POST['difficulty'] ?? 3)
+            'difficulty' => intval($_POST['difficulty'] ?? 3),
+            'manufacturer' => sanitize_text_field($_POST['manufacturer'] ?? ''),
+            'region' => sanitize_text_field($_POST['region'] ?? '')
         ];
         
         if (empty($data['code'])) {
@@ -584,9 +586,8 @@ class AKPP_AJAX {
         }
     }
 
-  //=======================================================================
-  // сделки
-  // ========================================================================
+//=======================================================================
+// сделки
 public function ajax_save_deal() {
     if (!check_ajax_referer('akpp45_nonce', 'nonce', false)) {
         wp_send_json_error(['message' => 'Ошибка безопасности'], 403);
