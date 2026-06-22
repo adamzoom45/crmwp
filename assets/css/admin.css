@@ -935,3 +935,614 @@ textarea::placeholder {
         font-size: 13px !important;
     }
 }
+/* ============================================================================
+   АВТОМОБИЛИ - База автомобилей
+   ============================================================================ */
+
+.vehicles-page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+.vehicles-page-header h1 {
+    color: var(--akpp-accent);
+    margin: 0;
+}
+
+.vehicles-filters {
+    background: #1a1f2e;
+    border: 1px solid #2d3748;
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 20px;
+}
+
+.vehicles-filters form {
+    display: flex;
+    gap: 15px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.vehicles-filters select {
+    padding: 10px;
+    background: #0a0f1c;
+    border: 1px solid #2d3748;
+    border-radius: 6px;
+    color: #fff;
+    min-width: 200px;
+}
+
+.vehicles-filters .button {
+    background: #00ff88;
+    border-color: #00ff88;
+    color: #1a1f2e;
+    font-weight: 600;
+}
+
+.vehicles-table-wrapper {
+    background: #1a1f2e;
+    border: 1px solid #2d3748;
+    border-radius: 12px;
+    padding: 20px;
+}
+
+.vehicles-empty-state {
+    text-align: center;
+    padding: 60px 20px;
+    color: #718096;
+}
+
+.vehicles-empty-state .icon {
+    font-size: 64px;
+    margin-bottom: 20px;
+}
+
+.vehicles-empty-state p {
+    font-size: 16px;
+    margin-bottom: 20px;
+}
+
+.vehicles-table {
+    background: #0a0f1c;
+    border: 1px solid #2d3748;
+    width: 100%;
+}
+
+.vehicles-table th {
+    background: #1a1f2e;
+    color: #a0aec0;
+    font-weight: 600;
+    padding: 12px;
+    text-align: left;
+}
+
+.vehicles-table td {
+    padding: 12px;
+    border-bottom: 1px solid #2d3748;
+    color: #e2e8f0;
+}
+
+.vehicles-table .vehicle-make {
+    font-weight: 600;
+    color: #fff;
+}
+
+.vehicles-table .vehicle-vin {
+    font-family: monospace;
+    background: #2d3748;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 13px;
+}
+
+.vehicles-market-badge {
+    display: inline-block;
+    padding: 4px 12px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.vehicles-market-badge.japan { background: #63b3ed22; color: #63b3ed; }
+.vehicles-market-badge.korea { background: #f6ad5522; color: #f6ad55; }
+.vehicles-market-badge.europe { background: #00ff8822; color: #00ff88; }
+.vehicles-market-badge.usa { background: #fc818122; color: #fc8181; }
+.vehicles-market-badge.asia { background: #9f7aea22; color: #9f7aea; }
+
+.vehicles-actions {
+    display: flex;
+    gap: 5px;
+}
+
+.vehicles-actions .button {
+    padding: 4px 8px;
+    font-size: 14px;
+}
+
+.vehicles-actions .btn-edit {
+    background: #00ff88;
+    border-color: #00ff88;
+    color: #1a1f2e;
+}
+
+.vehicles-actions .btn-delete {
+    background: #fc8181;
+    border-color: #fc8181;
+    color: #fff;
+}
+
+.vehicles-stats {
+    margin-top: 15px;
+    padding: 10px;
+    background: #0a0f1c;
+    border-radius: 6px;
+    text-align: center;
+    color: #a0aec0;
+}
+
+.vehicles-stats strong {
+    color: #00ff88;
+}
+
+/* Модальное окно */
+.akpp-modal {
+    display: none;
+    position: fixed;
+    z-index: 100000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0,0,0,0.7);
+}
+
+.akpp-modal.active {
+    display: block;
+}
+
+.akpp-modal-content {
+    background: #1a1f2e;
+    border: 1px solid #2d3748;
+    border-radius: 12px;
+    margin: 5% auto;
+    padding: 30px;
+    width: 90%;
+    max-width: 700px;
+    max-height: 90vh;
+    overflow-y: auto;
+}
+
+.akpp-modal-content h2 {
+    margin-top: 0;
+    color: var(--akpp-accent);
+    margin-bottom: 20px;
+}
+
+.akpp-modal-close {
+    color: #a0aec0;
+    float: right;
+    font-size: 28px;
+    font-weight: bold;
+    cursor: pointer;
+    line-height: 1;
+}
+
+.akpp-modal-close:hover {
+    color: #fff;
+}
+
+.vehicle-form-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 15px;
+    margin-bottom: 15px;
+}
+
+.vehicle-form-grid .form-group label {
+    display: block;
+    color: #a0aec0;
+    margin-bottom: 8px;
+    font-weight: 600;
+    font-size: 14px;
+}
+
+.vehicle-form-grid input,
+.vehicle-form-grid select {
+    width: 100%;
+    padding: 10px;
+    background: #0a0f1c;
+    border: 1px solid #2d3748;
+    border-radius: 6px;
+    color: #fff;
+}
+
+.vehicle-form-grid input:focus,
+.vehicle-form-grid select:focus {
+    border-color: var(--akpp-accent);
+    outline: none;
+}
+
+.vehicle-form-actions {
+    text-align: right;
+    margin-top: 20px;
+}
+
+.vehicle-form-actions .button {
+    margin-left: 10px;
+}
+
+/* Адаптивность */
+@media (max-width: 768px) {
+    .vehicle-form-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .vehicles-filters form {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    
+    .vehicles-filters select {
+        min-width: 100%;
+    }
+}
+/* ============================================================================
+   ПАРСЕР + AI АНАЛИЗ
+   ============================================================================ */
+
+.parser-page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+.parser-stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 15px;
+    margin-bottom: 25px;
+}
+
+.parser-stat-card {
+    background: #1a1f2e;
+    border: 1px solid #2d3748;
+    border-radius: 12px;
+    padding: 20px;
+    text-align: center;
+    transition: transform 0.2s;
+}
+
+.parser-stat-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 255, 136, 0.1);
+}
+
+.parser-stat-value {
+    font-size: 32px;
+    font-weight: 700;
+    margin-bottom: 8px;
+}
+
+.parser-stat-value.total { color: #63b3ed; }
+.parser-stat-value.pending { color: #f6ad55; }
+.parser-stat-value.ai-processed { color: #00ff88; }
+.parser-stat-value.approved { color: #00ff88; }
+.parser-stat-value.rejected { color: #fc8181; }
+
+.parser-stat-label {
+    color: #a0aec0;
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.parser-section {
+    background: #1a1f2e;
+    border: 1px solid #2d3748;
+    border-radius: 12px;
+    padding: 24px;
+    margin-bottom: 20px;
+}
+
+.parser-section h2 {
+    margin: 0 0 20px 0;
+    color: #00ff88;
+    font-size: 18px;
+    border-bottom: 1px solid #2d3748;
+    padding-bottom: 12px;
+}
+
+.parser-url-form {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.parser-url-input {
+    flex: 1;
+    min-width: 300px;
+    padding: 12px 16px;
+    background: #0a0f1c;
+    border: 1px solid #2d3748;
+    border-radius: 6px;
+    color: #fff;
+    font-size: 14px;
+}
+
+.parser-url-input:focus {
+    border-color: #00ff88;
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(0, 255, 136, 0.15);
+}
+
+.parser-api-input {
+    flex: 1;
+    min-width: 300px;
+    padding: 12px 16px;
+    background: #0a0f1c;
+    border: 1px solid #2d3748;
+    border-radius: 6px;
+    color: #fff;
+    font-size: 14px;
+    font-family: monospace;
+}
+
+.parser-api-input:focus {
+    border-color: #00ff88;
+    outline: none;
+}
+
+.parser-table {
+    width: 100%;
+    background: #0a0f1c;
+    border: 1px solid #2d3748;
+    border-collapse: collapse;
+}
+
+.parser-table th {
+    background: #1a1f2e;
+    color: #a0aec0;
+    padding: 12px;
+    text-align: left;
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 12px;
+    letter-spacing: 0.5px;
+}
+
+.parser-table td {
+    padding: 12px;
+    border-bottom: 1px solid #2d3748;
+    color: #e2e8f0;
+}
+
+.parser-table tr:hover {
+    background: #1a1f2e;
+}
+
+.parser-link {
+    color: #63b3ed;
+    text-decoration: none;
+    word-break: break-all;
+}
+
+.parser-link:hover {
+    text-decoration: underline;
+    color: #00ff88;
+}
+
+.parser-status-badge {
+    display: inline-block;
+    padding: 4px 12px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.parser-status-pending {
+    background: #f6ad5522;
+    color: #f6ad55;
+}
+
+.parser-status-ai-processed {
+    background: #00ff8822;
+    color: #00ff88;
+}
+
+.parser-status-approved {
+    background: #00ff8822;
+    color: #00ff88;
+}
+
+.parser-status-rejected {
+    background: #fc818122;
+    color: #fc8181;
+}
+
+.parser-content-type {
+    display: inline-block;
+    padding: 4px 10px;
+    border-radius: 10px;
+    font-size: 11px;
+    font-weight: 600;
+    background: #63b3ed22;
+    color: #63b3ed;
+}
+
+.parser-btn {
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    border: none;
+}
+
+.parser-btn-ai {
+    background: #00ff88;
+    color: #1a1f2e;
+}
+
+.parser-btn-ai:hover {
+    background: #00cc6a;
+    transform: translateY(-1px);
+}
+
+.parser-btn-approve {
+    background: #00ff88;
+    color: #1a1f2e;
+}
+
+.parser-btn-reject {
+    background: #fc8181;
+    color: #fff;
+}
+
+.parser-btn-reject:hover {
+    background: #e53e3e;
+}
+
+.parser-btn-view {
+    background: #63b3ed;
+    color: #1a1f2e;
+}
+
+.parser-empty-state {
+    text-align: center;
+    padding: 60px 20px;
+    color: #718096;
+}
+
+.parser-empty-state .icon {
+    font-size: 64px;
+    margin-bottom: 20px;
+}
+
+.parser-notice {
+    padding: 12px 20px;
+    border-radius: 6px;
+    margin-bottom: 15px;
+    font-weight: 600;
+}
+
+.parser-notice.success {
+    background: #00ff88;
+    color: #0a0f1c;
+}
+
+.parser-notice.error {
+    background: #fc8181;
+    color: #fff;
+}
+
+/* Модальное окно просмотра */
+.parser-modal {
+    display: none;
+    position: fixed;
+    z-index: 100000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.85);
+}
+
+.parser-modal.active {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.parser-modal-content {
+    background: #1a1f2e;
+    border: 1px solid #2d3748;
+    border-radius: 12px;
+    width: 90%;
+    max-width: 800px;
+    max-height: 85vh;
+    overflow-y: auto;
+}
+
+.parser-modal-header {
+    padding: 20px 24px;
+    border-bottom: 1px solid #2d3748;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.parser-modal-header h3 {
+    margin: 0;
+    color: #00ff88;
+}
+
+.parser-modal-close {
+    background: none;
+    border: none;
+    font-size: 28px;
+    color: #a0aec0;
+    cursor: pointer;
+    padding: 0;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 6px;
+}
+
+.parser-modal-close:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: #fff;
+}
+
+.parser-modal-body {
+    padding: 24px;
+}
+
+.parser-modal-body h4 {
+    color: #00ff88;
+    margin: 20px 0 10px 0;
+    font-size: 16px;
+}
+
+.parser-modal-body pre {
+    background: #0a0f1c;
+    border: 1px solid #2d3748;
+    border-radius: 6px;
+    padding: 15px;
+    overflow-x: auto;
+    color: #e2e8f0;
+    font-size: 13px;
+}
+
+.parser-modal-body a {
+    color: #63b3ed;
+    text-decoration: none;
+}
+
+.parser-modal-body a:hover {
+    text-decoration: underline;
+}
+
+/* Адаптивность */
+@media (max-width: 768px) {
+    .parser-url-form {
+        flex-direction: column;
+    }
+    
+    .parser-url-input,
+    .parser-api-input {
+        min-width: 100%;
+    }
+    
+    .parser-stats-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
