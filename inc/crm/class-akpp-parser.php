@@ -1,391 +1,381 @@
 <?php
 /**
  * АКПП45 CRM - Универсальный парсер веб-страниц
- * С поддержкой Qwen AI
+ * Извлечение заголовков, текста и изображений с помощью DOMDocument.
+ *
+ * @package AKPP_CRM
+ * @version 4.4
  */
-if (!defined('ABSPATH')) exit;
+if (!defined('ABSPATH')) {
+    exit;
+}
 
 class AKPP_Parser {
-    
+
     private static $instance = null;
-    private $qwen_api_key = '';
-    private $qwen_api_url = 'https://dashscope.aliyuncs.com/api/v1/services/aigc/text-generation/generation';
-    private $qwen_model = 'qwen-turbo';
-    
+
     public static function get_instance() {
         if (null === self::$instance) {
             self::$instance = new self();
         }
         return self::$instance;
     }
-    
-    private function __construct() {
-        $this->qwen_api_key = get_option('akpp_openai_api_key', '');
-    }
-    
+
     /**
-     * Основной метод парсинга - ПРОСТОЙ И РАБОЧИЙ
+     * Основной метод парсинга URL
      */
     public function parse($url) {
-        global $wpdb;
-        
+        $url = esc_url_raw($url);
+        if (!filter_var($url, FILTER_VALIDATE_URL)) {
+            $this->log_error('Invalid URL provided', $url);
+            return false;
+        }
+
         $html = $this->fetch_html($url);
-        if (!$html) return false;
-        
-        $data = $this->extract_simple($html, $url);
-        if (!$data) return false;
-        
-        $table = $wpdb->prefix . 'akpp_parser_items';
-        $insert_data = [
-            'url' => $url,
-            'title' => $data['title'],
-            'content' => $data['content'],
-            'content_type' => $data['content_type'],
-            'status' => 'pending',
-            'created_at' => current_time('mysql'),
-            'updated_at' => current_time('mysql')
-        ];
-        
-        $result = $wpdb->insert($table, $insert_data);
-        if ($result) {
-            return ['id' => $wpdb->insert_id, 'title' => $data['title']];
+        if (!$html) {
+            return false;
+        }
+
+        $data = $this->extract_data($html, $url);
+        if (!$data) {
+            return false;
+        }
+
+        $item_id = $this->save_to_db($url, $data);
+        if ($item_id) {
+            $data['id'] = $item_id;
+            return $data;
         }
         return false;
     }
-    
+
     /**
-     * Загрузка HTML
+     * Загрузка HTML-кода страницы
      */
     private function fetch_html($url) {
-        $response = wp_remote_get($url, [
-            'timeout' => 30,
-            'user-agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-            'sslverify' => false
-        ]);
+        $args = [
+            'timeout'     => 15,
+            'redirection' => 5,
+            'headers'     => [
+                'User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36',
+                'Accept'     => 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+            ],
+            'sslverify'   => false,
+        ];
+
+        $response = wp_remote_get($url, $args);
         if (is_wp_error($response)) {
-            error_log('[Parser] Error: ' . $response->get_error_message());
+            $this->log_error('wp_remote_get failed', $response->get_error_message() . ' | URL: ' . $url);
             return false;
         }
-        $code = wp_remote_retrieve_response_code($response);
-        if ($code < 200 || $code >= 300) {
-            error_log('[Parser] HTTP Error: ' . $code);
+
+        $response_code = wp_remote_retrieve_response_code($response);
+        if ($response_code < 200 || $response_code >= 300) {
+            $this->log_error('HTTP Error', "Code: {$response_code} | URL: {$url}");
             return false;
         }
+
         return wp_remote_retrieve_body($response);
     }
-    
+
     /**
-     * Простое извлечение данных
+     * Извлечение структурированных данных из HTML
      */
-    private function extract_simple($html, $url) {
-        $data = ['title' => '', 'content' => '', 'content_type' => 'general'];
-        if (preg_match('/<title[^>]*>(.*?)<\/title>/is', $html, $matches)) {
-            $data['title'] = trim(strip_tags($matches[1]));
+    private function extract_data($html, $base_url) {
+        libxml_use_internal_errors(true);
+        $dom = new DOMDocument();
+
+        // ✅ ИСПРАВЛЕНО: mb_encode_numericentity вместо deprecated mb_convert_encoding
+        $html_encoded = mb_encode_numericentity($html, [0x80, 0x10FFFF, 0, 0x1FFFFF], 'UTF-8');
+        $dom->loadHTML('<?xml encoding="UTF-8">' . $html_encoded, LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD);
+
+        libxml_clear_errors();
+        $xpath = new DOMXPath($dom);
+
+        // 1. Заголовок
+        $title_nodes = $xpath->query('//title');
+        $title = $title_nodes->length > 0 ? trim($title_nodes->item(0)->textContent) : 'Без заголовка';
+
+        // 2. Очистка от мусора
+        $junk_tags = ['script', 'style', 'noscript', 'nav', 'footer', 'header', 'iframe', 'svg'];
+        foreach ($junk_tags as $tag) {
+            $nodes = $xpath->query("//{$tag}");
+            foreach ($nodes as $node) {
+                if ($node->parentNode) {
+                    $node->parentNode->removeChild($node);
+                }
+            }
         }
-        $html = preg_replace('/<script\b[^>]*>(.*?)<\/script>/is', '', $html);
-        $html = preg_replace('/<style\b[^>]*>(.*?)<\/style>/is', '', $html);
-        $text = strip_tags($html);
-        $text = preg_replace('/\s+/', ' ', $text);
-        $text = trim($text);
-        $data['content'] = mb_substr($text, 0, 10000);
-        $lower = mb_strtolower($text);
-        if (strpos($lower, 'акпп') !== false || strpos($lower, 'коробка') !== false) {
-            $data['content_type'] = 'transmission_related';
-        } elseif (strpos($lower, 'запчасть') !== false || strpos($lower, 'купить') !== false) {
-            $data['content_type'] = 'parts_store';
+
+        // 3. Основной текст
+        $content_nodes = $xpath->query('//main | //article | //div[@id="content"] | //body');
+        $raw_text = '';
+        if ($content_nodes->length > 0) {
+            $raw_text = $content_nodes->item(0)->textContent;
+        } else {
+            $raw_text = $dom->textContent;
         }
-        return $data;
-    }
-    
-    // ========================================================================
-    // ДОПОЛНЕНИЕ: AI-парсинг с Qwen
-    // ========================================================================
-    
-    /**
-     * Парсинг URL с использованием Qwen AI
-     *
-     * @param string $url
-     * @return array|false
-     */
-    public function parse_with_ai($url) {
-        global $wpdb;
-        
-        $basic_result = $this->parse($url);
-        if (!$basic_result) return false;
-        
-        $item_id = $basic_result['id'];
-        $table = $wpdb->prefix . 'akpp_parser_items';
-        $item = $wpdb->get_row($wpdb->prepare("SELECT * FROM $table WHERE id = %d", $item_id), ARRAY_A);
-        if (!$item) return false;
-        
-        $content = $item['content'] ?? '';
-        $analysis = $this->analyze_with_qwen($content);
-        
-        if (!$analysis) {
-            $wpdb->update($table, ['status' => 'ai_processed', 'updated_at' => current_time('mysql')], ['id' => $item_id]);
-            return ['id' => $item_id, 'error' => 'AI не ответил'];
+
+        $clean_text = preg_replace('/\s+/', ' ', $raw_text);
+        $clean_text = trim($clean_text);
+        $clean_text = mb_substr($clean_text, 0, 50000);
+
+        // 4. Изображения
+        $images = [];
+        $img_nodes = $xpath->query('//img/@src');
+        foreach ($img_nodes as $img) {
+            $src = trim($img->nodeValue);
+            if (empty($src) || strpos($src, 'data:image') === 0 || strpos($src, 'pixel') !== false) {
+                continue;
+            }
+            if (strpos($src, 'http') !== 0) {
+                $src = $this->make_absolute_url($src, $base_url);
+            }
+            $images[] = esc_url_raw($src);
         }
-        
-        $wpdb->update($table, [
-            'ai_analysis' => json_encode($analysis, JSON_UNESCAPED_UNICODE),
-            'status' => 'ai_processed',
-            'updated_at' => current_time('mysql')
-        ], ['id' => $item_id]);
-        
-        $saved = $this->save_extracted_entities($analysis);
-        
+        $images = array_values(array_unique($images));
+
+        // 5. Тип контента
+        $content_type = 'general';
+        $lower_text = mb_strtolower($clean_text);
+        if (strpos($lower_text, 'акпп') !== false || strpos($lower_text, 'коробка') !== false || strpos($lower_text, 'трансмиссия') !== false) {
+            $content_type = 'transmission_related';
+        } elseif (strpos($lower_text, 'запчасть') !== false || strpos($lower_text, 'купить') !== false) {
+            $content_type = 'parts_store';
+        }
+
         return [
-            'id' => $item_id,
-            'saved' => $saved,
-            'analysis' => $analysis
+            'title'        => sanitize_text_field($title),
+            'content'      => sanitize_textarea_field($clean_text),
+            'images'       => $images,
+            'content_type' => sanitize_text_field($content_type)
         ];
     }
-    
+
     /**
-     * Анализ текста через Qwen API
+     * Преобразование относительного URL в абсолютный
      */
-    private function analyze_with_qwen($text) {
-        if (empty($this->qwen_api_key)) {
-            error_log('[Qwen] API ключ не установлен');
+    private function make_absolute_url($relative, $base) {
+        if (parse_url($relative, PHP_URL_SCHEME) !== null) {
+            return $relative;
+        }
+        $base_parts = parse_url($base);
+        $base_url = $base_parts['scheme'] . '://' . $base_parts['host'];
+        if (strpos($relative, '/') === 0) {
+            return $base_url . $relative;
+        }
+        $base_dir = dirname($base_parts['path']);
+        if ($base_dir === '/' || $base_dir === '.') {
+            $base_dir = '';
+        }
+        return $base_url . $base_dir . '/' . ltrim($relative, '/');
+    }
+
+    /**
+     * Сохранение распарсенных данных в БД
+     */
+    private function save_to_db($url, $data) {
+        global $wpdb;
+        $table = $wpdb->prefix . 'akpp_parser_items';
+
+        $insert_data = [
+            'url'          => $url,
+            'title'        => $data['title'],
+            'content'      => $data['content'],
+            'images'       => wp_json_encode($data['images'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+            'content_type' => $data['content_type'],
+            'status'       => 'pending',
+            'created_at'   => current_time('mysql'),
+            'updated_at'   => current_time('mysql')
+        ];
+
+        $result = $wpdb->insert($table, $insert_data);
+        if ($result === false) {
+            $this->log_error('DB Insert Failed', $wpdb->last_error);
             return false;
         }
-        
-        $prompt = $this->build_prompt($text);
-        $response = $this->call_qwen_api($prompt);
-        if ($response) {
-            return $this->parse_qwen_response($response);
+        return $wpdb->insert_id;
+    }
+
+    // ========================================================================
+    // ✅ ДОБАВЛЕНО: AI анализ через Qwen API
+    // ========================================================================
+    public function analyze_with_qwen($content) {
+        $api_key = get_option('akpp_openai_api_key', '');
+        if (empty($api_key)) {
+            $this->log_error('Qwen API', 'API ключ не установлен');
+            return false;
         }
-        return false;
-    }
-    
-    /**
-     * Формирование промпта
-     */
-    private function build_prompt($text) {
-        $prompt = "Ты — эксперт по автоматическим коробкам передач (АКПП). Проанализируй следующий текст и извлеки структурированную информацию.\n\n";
-        $prompt .= "Текст:\n" . mb_substr($text, 0, 8000) . "\n\n";
-        $prompt .= "Верни ответ строго в формате JSON со следующими полями:\n";
-        $prompt .= "{\n";
-        $prompt .= "  \"vehicles\": [{\"make\": \"марка\", \"model\": \"модель\", \"year\": год, \"engine\": \"двигатель\"}],\n";
-        $prompt .= "  \"transmissions\": [{\"code\": \"код АКПП\", \"type\": \"тип (AT/CVT/DCT)\", \"manufacturer\": \"производитель\", \"problems\": [\"проблемы\"], \"symptoms\": [\"симптомы\"]}],\n";
-        $prompt .= "  \"problems\": [{\"description\": \"описание\", \"causes\": [\"причины\"], \"solutions\": [\"решения\"]}],\n";
-        $prompt .= "  \"schemas\": [{\"url\": \"ссылка на схему\", \"description\": \"описание\"}],\n";
-        $prompt .= "  \"engine_models\": [{\"model\": \"модель двигателя\", \"power\": \"мощность\", \"volume\": \"объем\"}],\n";
-        $prompt .= "  \"gearboxes\": [{\"code\": \"код КПП\", \"type\": \"тип\"}]\n";
-        $prompt .= "}\n";
-        $prompt .= "Если какие-то данные отсутствуют, оставляй пустые массивы. Не добавляй пояснений, только JSON.";
-        return $prompt;
-    }
-    
-    /**
-     * Вызов Qwen API
-     */
-    private function call_qwen_api($prompt) {
+
+        $model = get_option('akpp_openai_model', 'qwen-turbo');
+        $short_content = mb_substr($content, 0, 4000);
+
+        $prompt = "Ты эксперт по автоматическим коробкам передач (АКПП) автомобилей. " .
+                  "Проанализируй текст и извлеки структурированную информацию в формате JSON.\n\n" .
+                  "Текст для анализа:\n{$short_content}\n\n" .
+                  "Верни JSON в формате:\n" .
+                  "{\n" .
+                  "  \"transmission_code\": \"код АКПП если есть\",\n" .
+                  "  \"transmission_type\": \"тип (гидротрансформатор/вариатор/робот)\",\n" .
+                  "  \"car_make\": \"марка авто если есть\",\n" .
+                  "  \"car_model\": \"модель авто если есть\",\n" .
+                  "  \"years\": \"годы выпуска если есть\",\n" .
+                  "  \"problems\": [\"список характерных проблем\"],\n" .
+                  "  \"symptoms\": [\"список симптомов\"],\n" .
+                  "  \"repair_cost\": число (примерная стоимость ремонта в рублях),\n" .
+                  "  \"difficulty\": число от 1 до 5 (сложность ремонта),\n" .
+                  "  \"recommendation\": \"общая рекомендация\",\n" .
+                  "  \"confidence\": число от 0 до 100 (уверенность анализа)\n" .
+                  "}";
+
+        $api_url = 'https://dashscope-intl.aliyuncs.com/api/v1/services/aigc/text-generation/generation';
+
         $body = [
-            'model' => $this->qwen_model,
+            'model' => $model,
             'input' => [
                 'messages' => [
-                    ['role' => 'system', 'content' => 'Ты эксперт по АКПП. Отвечай только в формате JSON.'],
+                    ['role' => 'system', 'content' => 'Ты эксперт по АКПП. Отвечай только валидным JSON.'],
                     ['role' => 'user', 'content' => $prompt]
                 ]
             ],
             'parameters' => [
                 'result_format' => 'message',
-                'temperature' => 0.3,
-                'max_tokens' => 2000
+                'temperature' => 0.3
             ]
         ];
-        
-        $response = wp_remote_post($this->qwen_api_url, [
+
+        $response = wp_remote_post($api_url, [
             'headers' => [
-                'Authorization' => 'Bearer ' . $this->qwen_api_key,
-                'Content-Type' => 'application/json',
+                'Authorization' => 'Bearer ' . $api_key,
+                'Content-Type'  => 'application/json',
             ],
-            'body' => json_encode($body),
+            'body'    => wp_json_encode($body),
             'timeout' => 60,
         ]);
-        
+
         if (is_wp_error($response)) {
-            error_log('[Qwen] Ошибка запроса: ' . $response->get_error_message());
+            $this->log_error('Qwen API Error', $response->get_error_message());
             return false;
         }
-        $status = wp_remote_retrieve_response_code($response);
-        $body = wp_remote_retrieve_body($response);
-        $data = json_decode($body, true);
-        if ($status !== 200) {
-            error_log('[Qwen] Ошибка API: ' . ($data['message'] ?? 'Unknown error'));
+
+        $status_code = wp_remote_retrieve_response_code($response);
+        $response_body = json_decode(wp_remote_retrieve_body($response), true);
+
+        if ($status_code !== 200) {
+            $error_msg = $response_body['message'] ?? 'Unknown error';
+            $this->log_error('Qwen API HTTP ' . $status_code, $error_msg);
             return false;
         }
-        return $data['output']['choices'][0]['message']['content'] ?? false;
-    }
-    
-    /**
-     * Парсинг ответа Qwen (извлечение JSON)
-     */
-    private function parse_qwen_response($response_text) {
-        if (preg_match('/\{[\s\S]*\}/', $response_text, $matches)) {
-            $json = json_decode($matches[0], true);
-            if ($json) return $json;
+
+        $analysis_text = $response_body['output']['choices'][0]['message']['content'] ?? '';
+
+        if (empty($analysis_text)) {
+            $this->log_error('Qwen API', 'Пустой ответ от API');
+            return false;
         }
+
+        // Извлекаем JSON из ответа (может быть обёрнут в ```json ... ```)
+        if (preg_match('/\{[\s\S]*\}/', $analysis_text, $matches)) {
+            $json_data = json_decode($matches[0], true);
+            if ($json_data) {
+                $json_data['raw_analysis'] = $analysis_text;
+                $json_data['analyzed_at'] = current_time('mysql');
+                return $json_data;
+            }
+        }
+
+        // Если JSON не распарсился — возвращаем как есть
         return [
-            'vehicles' => [],
-            'transmissions' => [],
-            'problems' => [],
-            'schemas' => [],
-            'engine_models' => [],
-            'gearboxes' => []
+            'raw_analysis' => $analysis_text,
+            'confidence'   => 0,
+            'analyzed_at'  => current_time('mysql')
         ];
     }
-    
-    /**
-     * Сохранение извлечённых сущностей в БД
-     */
-    private function save_extracted_entities($analysis) {
+
+    // ========================================================================
+    // ✅ ДОБАВЛЕНО: Сохранение извлеченных сущностей в БД
+    // ========================================================================
+    public function save_extracted_entities($analysis) {
+        if (empty($analysis) || !is_array($analysis)) {
+            return ['saved' => 0];
+        }
+
         global $wpdb;
-        $result = ['vehicles' => 0, 'transmissions' => 0, 'problems' => 0, 'schemas' => 0, 'engine_models' => 0, 'gearboxes' => 0];
-        
-        // Автомобили
-        if (!empty($analysis['vehicles'])) {
-            foreach ($analysis['vehicles'] as $vehicle) {
-                if (empty($vehicle['make']) || empty($vehicle['model'])) continue;
-                $exists = $wpdb->get_var($wpdb->prepare(
-                    "SELECT id FROM {$wpdb->prefix}akpp_vehicles WHERE make = %s AND model = %s AND year = %d",
-                    $vehicle['make'], $vehicle['model'], intval($vehicle['year'] ?? 0)
-                ));
-                if (!$exists) {
-                    $wpdb->insert($wpdb->prefix . 'akpp_vehicles', [
-                        'make' => $vehicle['make'],
-                        'model' => $vehicle['model'],
-                        'year' => intval($vehicle['year'] ?? 0),
-                        'engine' => $vehicle['engine'] ?? '',
-                        'created_at' => current_time('mysql')
+        $saved = 0;
+
+        // 1. Сохраняем АКПП
+        if (!empty($analysis['transmission_code'])) {
+            $trans_table = $wpdb->prefix . 'akpp_transmissions';
+            $exists = $wpdb->get_var($wpdb->prepare(
+                "SELECT id FROM {$trans_table} WHERE code = %s LIMIT 1",
+                $analysis['transmission_code']
+            ));
+
+            if (!$exists) {
+                $wpdb->insert($trans_table, [
+                    'code'              => sanitize_text_field($analysis['transmission_code']),
+                    'type'              => sanitize_text_field($analysis['transmission_type'] ?? ''),
+                    'make'              => sanitize_text_field($analysis['car_make'] ?? ''),
+                    'model'             => sanitize_text_field($analysis['car_model'] ?? ''),
+                    'years'             => sanitize_text_field($analysis['years'] ?? ''),
+                    'common_problems'   => !empty($analysis['problems']) ? implode("\n", $analysis['problems']) : '',
+                    'symptoms'          => !empty($analysis['symptoms']) ? implode("\n", $analysis['symptoms']) : '',
+                    'repair_cost'       => intval($analysis['repair_cost'] ?? 0),
+                    'difficulty'        => intval($analysis['difficulty'] ?? 3),
+                    'created_at'        => current_time('mysql'),
+                ]);
+                $saved++;
+            }
+        }
+
+        // 2. Сохраняем автомобиль
+        if (!empty($analysis['car_make']) && !empty($analysis['car_model'])) {
+            $veh_table = $wpdb->prefix . 'akpp_vehicles';
+            $exists = $wpdb->get_var($wpdb->prepare(
+                "SELECT id FROM {$veh_table} WHERE make = %s AND model = %s LIMIT 1",
+                $analysis['car_make'],
+                $analysis['car_model']
+            ));
+
+            if (!$exists) {
+                $wpdb->insert($veh_table, [
+                    'make'       => sanitize_text_field($analysis['car_make']),
+                    'model'      => sanitize_text_field($analysis['car_model']),
+                    'year'       => !empty($analysis['years']) ? intval(explode('-', $analysis['years'])[0]) : 0,
+                    'created_at' => current_time('mysql'),
+                ]);
+                $saved++;
+            }
+        }
+
+        // 3. Сохраняем проблемы АКПП
+        if (!empty($analysis['problems']) && is_array($analysis['problems'])) {
+            $prob_table = $wpdb->prefix . 'akpp_transmission_problems';
+            $table_exists = $wpdb->get_var("SHOW TABLES LIKE '{$wpdb->prefix}akpp_transmission_problems'") === "{$wpdb->prefix}akpp_transmission_problems";
+
+            if ($table_exists) {
+                foreach ($analysis['problems'] as $problem) {
+                    $wpdb->insert($prob_table, [
+                        'transmission_code' => sanitize_text_field($analysis['transmission_code'] ?? ''),
+                        'car_make'          => sanitize_text_field($analysis['car_make'] ?? ''),
+                        'car_model'         => sanitize_text_field($analysis['car_model'] ?? ''),
+                        'problem_title'     => sanitize_text_field($problem),
+                        'severity'          => 'medium',
+                        'parsed_at'         => current_time('mysql'),
+                        'ai_analyzed'       => 1,
                     ]);
-                    $result['vehicles']++;
+                    $saved++;
                 }
             }
         }
-        
-        // АКПП
-        if (!empty($analysis['transmissions'])) {
-            foreach ($analysis['transmissions'] as $trans) {
-                if (empty($trans['code'])) continue;
-                $exists = $wpdb->get_var($wpdb->prepare(
-                    "SELECT id FROM {$wpdb->prefix}akpp_transmissions WHERE code = %s",
-                    $trans['code']
-                ));
-                if (!$exists) {
-                    $wpdb->insert($wpdb->prefix . 'akpp_transmissions', [
-                        'code' => $trans['code'],
-                        'type' => $trans['type'] ?? 'AT',
-                        'manufacturer' => $trans['manufacturer'] ?? '',
-                        'common_problems' => is_array($trans['problems'] ?? null) ? implode('|', $trans['problems']) : '',
-                        'symptoms' => is_array($trans['symptoms'] ?? null) ? implode('|', $trans['symptoms']) : '',
-                        'created_at' => current_time('mysql')
-                    ]);
-                    $result['transmissions']++;
-                }
-            }
-        }
-        
-        // Проблемы
-        if (!empty($analysis['problems'])) {
-            foreach ($analysis['problems'] as $problem) {
-                if (empty($problem['description'])) continue;
-                $wpdb->insert($wpdb->prefix . 'akpp_parser_items', [
-                    'url' => '',
-                    'title' => mb_substr($problem['description'], 0, 255),
-                    'content' => $problem['description'],
-                    'content_type' => 'transmission_problem',
-                    'ai_analysis' => json_encode($problem),
-                    'status' => 'approved',
-                    'created_at' => current_time('mysql')
-                ]);
-                $result['problems']++;
-            }
-        }
-        
-        // Схемы
-        if (!empty($analysis['schemas'])) {
-            foreach ($analysis['schemas'] as $schema) {
-                if (empty($schema['url'])) continue;
-                $wpdb->insert($wpdb->prefix . 'akpp_parser_items', [
-                    'url' => $schema['url'],
-                    'title' => $schema['description'] ?? 'Схема АКПП',
-                    'content' => $schema['description'] ?? '',
-                    'content_type' => 'schema',
-                    'status' => 'approved',
-                    'created_at' => current_time('mysql')
-                ]);
-                $result['schemas']++;
-            }
-        }
-        
-        // Модели двигателей
-        if (!empty($analysis['engine_models'])) {
-            foreach ($analysis['engine_models'] as $engine) {
-                if (empty($engine['model'])) continue;
-                $wpdb->insert($wpdb->prefix . 'akpp_parser_items', [
-                    'url' => '',
-                    'title' => $engine['model'],
-                    'content' => json_encode($engine),
-                    'content_type' => 'engine_model',
-                    'status' => 'approved',
-                    'created_at' => current_time('mysql')
-                ]);
-                $result['engine_models']++;
-            }
-        }
-        
-        // КПП
-        if (!empty($analysis['gearboxes'])) {
-            foreach ($analysis['gearboxes'] as $gb) {
-                if (empty($gb['code'])) continue;
-                $wpdb->insert($wpdb->prefix . 'akpp_parser_items', [
-                    'url' => '',
-                    'title' => $gb['code'],
-                    'content' => json_encode($gb),
-                    'content_type' => 'gearbox',
-                    'status' => 'approved',
-                    'created_at' => current_time('mysql')
-                ]);
-                $result['gearboxes']++;
-            }
-        }
-        
-        return $result;
+
+        return ['saved' => $saved, 'analysis' => $analysis];
     }
-    
+
     /**
-     * Массовый AI анализ
+     * Логирование ошибок
      */
-    public function bulk_ai_analysis($limit = 10) {
-        global $wpdb;
-        $table = $wpdb->prefix . 'akpp_parser_items';
-        $items = $wpdb->get_results($wpdb->prepare(
-            "SELECT id, content FROM $table WHERE status = 'pending' OR status = 'parsed' ORDER BY created_at ASC LIMIT %d",
-            $limit
-        ), ARRAY_A);
-        
-        if (empty($items)) {
-            return ['processed' => 0, 'message' => 'Нет записей для анализа'];
-        }
-        
-        $processed = 0;
-        foreach ($items as $item) {
-            $analysis = $this->analyze_with_qwen($item['content']);
-            if ($analysis) {
-                $this->save_extracted_entities($analysis);
-                $wpdb->update($table, [
-                    'ai_analysis' => json_encode($analysis, JSON_UNESCAPED_UNICODE),
-                    'status' => 'ai_processed',
-                    'updated_at' => current_time('mysql')
-                ], ['id' => $item['id']]);
-                $processed++;
-            } else {
-                $wpdb->update($table, ['status' => 'ai_processed', 'updated_at' => current_time('mysql')], ['id' => $item['id']]);
-            }
-            usleep(500000);
-        }
-        return ['processed' => $processed, 'message' => "Обработано $processed записей"];
+    private function log_error($context, $message) {
+        error_log(sprintf('[AKPP Parser] ERROR: %s - %s', $context, $message));
     }
 }
