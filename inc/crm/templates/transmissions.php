@@ -1,4 +1,7 @@
 <?php
+/**
+ * Шаблон страницы АКПП
+ */
 if (!defined('ABSPATH')) exit;
 
 if (!class_exists('AKPP_Transmissions_Table')) {
@@ -6,226 +9,249 @@ if (!class_exists('AKPP_Transmissions_Table')) {
 }
 
 global $wpdb;
+$table_name = $wpdb->prefix . 'akpp_transmissions';
 
-$action = isset($_GET['action']) ? sanitize_text_field($_GET['action']) : '';
-$transmission_id = isset($_GET['id']) ? intval($_GET['id']) : 0;
-$transmission_data = null;
-
-if ($action === 'edit' && $transmission_id > 0) {
-    $table_name = $wpdb->prefix . 'akpp_transmissions';
-    $transmission_data = $wpdb->get_row($wpdb->prepare("SELECT * FROM $table_name WHERE id = %d", $transmission_id), ARRAY_A);
-    if (!$transmission_data) {
-        echo '<div class="notice notice-error"><p>Запись не найдена.</p></div>';
-        return;
-    }
+// Проверка таблицы
+$table_exists = $wpdb->get_var("SHOW TABLES LIKE '$table_name'") === $table_name;
+if (!$table_exists) {
+    echo '<div class="notice notice-error"><p>❌ Таблица АКПП не существует</p></div>';
+    return;
 }
 
-$transmissions_table = new AKPP_Transmissions_Table();
-$transmissions_table->prepare_items();
-
-// Статистика по регионам
-$region_stats = $wpdb->get_results("SELECT region, COUNT(*) as count FROM {$wpdb->prefix}akpp_transmissions GROUP BY region ORDER BY region", ARRAY_A);
-$region_labels = ['japan' => '🇯🇵 Япония', 'korea' => '🇰🇷 Корея', 'china' => '🇨🇳 Китай', 'europe' => '🇪🇺 Европа', 'america' => '🇺🇸 Америка'];
-$total = array_sum(array_column($region_stats, 'count'));
-$current_region = isset($_GET['region_filter']) ? sanitize_text_field($_GET['region_filter']) : '';
+// Статистика
+$total = (int)$wpdb->get_var("SELECT COUNT(*) FROM {$table_name}");
+$by_type = $wpdb->get_results("SELECT type, COUNT(*) as cnt FROM {$table_name} GROUP BY type", ARRAY_A);
 ?>
 
 <div class="wrap akpp-crm-wrap">
-    <!-- Статистика по регионам -->
-    <div class="akpp-region-stats" style="display: flex; gap: 20px; flex-wrap: wrap; margin: 15px 0; background: #1a1f2e; padding: 15px; border-radius: 10px; border: 1px solid #2d3748;">
-        <div style="color: #a0aec0; font-weight: 600; padding-right: 20px; border-right: 1px solid #2d3748;">📊 Регионы:</div>
-        <?php foreach ($region_stats as $stat) : 
-            $region = $stat['region'];
-            $count = $stat['count'];
-            $label = $region_labels[$region] ?? $region;
-            $is_active = ($current_region === $region);
-            $url = add_query_arg('region_filter', $region, remove_query_arg('paged'));
+    <div class="transmissions-page-header">
+        <h1>🔧 База АКПП</h1>
+        <button type="button" class="button button-primary akpp-open-modal" data-target="#akpp-transmission-modal">
+            + Добавить АКПП
+        </button>
+    </div>
+
+    <!-- Статистика -->
+    <div class="transmissions-stats-grid">
+        <div class="transmissions-stat-card">
+            <div class="transmissions-stat-value total"><?php echo $total; ?></div>
+            <div class="transmissions-stat-label">Всего АКПП</div>
+        </div>
+        <?php foreach ($by_type as $type) : 
+            $label = $type['type'] ?: 'Не указан';
+            $icon = strpos(mb_strtolower($label), 'гидро') !== false ? '🔄' : (strpos(mb_strtolower($label), 'вариатор') !== false ? '⚙️' : (strpos(mb_strtolower($label), 'робот') !== false ? '🤖' : '🔧'));
         ?>
-            <a href="<?php echo esc_url($url); ?>" style="color: <?php echo $is_active ? '#00ff88' : '#e2e8f0'; ?>; background: <?php echo $is_active ? 'rgba(0,255,136,0.1)' : 'transparent'; ?>; padding: 5px 12px; border-radius: 20px; border: 1px solid <?php echo $is_active ? '#00ff88' : '#4a5568'; ?>; text-decoration: none; font-weight: <?php echo $is_active ? '700' : '400'; ?>;">
-                <?php echo esc_html($label); ?> (<?php echo $count; ?>)
-            </a>
+        <div class="transmissions-stat-card">
+            <div class="transmissions-stat-value"><?php echo $icon . ' ' . $type['cnt']; ?></div>
+            <div class="transmissions-stat-label"><?php echo esc_html($label); ?></div>
+        </div>
         <?php endforeach; ?>
-        <a href="<?php echo remove_query_arg('region_filter'); ?>" style="color: #a0aec0; padding: 5px 12px; border-radius: 20px; border: 1px solid #4a5568; text-decoration: none; <?php echo empty($current_region) ? 'background: rgba(0,255,136,0.1); border-color: #00ff88; color: #00ff88;' : ''; ?>">Все (<?php echo $total; ?>)</a>
     </div>
 
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-        <h1 style="color: var(--akpp-accent); margin: 0;">⚙️ Каталог АКПП</h1>
-        <button type="button" class="button button-primary akpp-open-modal" data-target="#akpp-transmission-modal" style="background-color: var(--akpp-accent); border-color: var(--akpp-accent); color: var(--akpp-bg-primary); font-weight: 600;">+ Добавить АКПП</button>
+    <!-- Таблица -->
+    <div class="transmissions-table-wrapper">
+        <?php
+        $table = new AKPP_Transmissions_Table();
+        $table->prepare_items();
+        ?>
+        <form method="get">
+            <input type="hidden" name="page" value="akpp-crm-transmissions">
+            <?php $table->search_box('Поиск по коду, марке, модели', 'transmission_search'); ?>
+            <?php $table->display(); ?>
+        </form>
     </div>
-
-    <form method="get">
-        <input type="hidden" name="page" value="<?php echo esc_attr($_REQUEST['page']); ?>">
-        <?php $transmissions_table->search_box('Поиск по коду или производителю', 'transmission_search'); ?>
-        <?php $transmissions_table->display(); ?>
-    </form>
 </div>
 
-<!-- Модальное окно (упрощённое) -->
+<!-- Модальное окно -->
 <div id="akpp-transmission-modal" class="akpp-modal">
-    <div class="akpp-modal-content" style="max-width: 700px; width: 95%;">
-        <div class="akpp-modal-header">
-            <h2 style="margin: 0; color: #00ff88; border: none; padding: 0;"><?php echo $action === 'edit' ? '✏️ Редактировать АКПП' : '➕ Новая АКПП'; ?></h2>
-            <span class="akpp-modal-close">&times;</span>
-        </div>
-        <div class="akpp-modal-body">
-            <form class="akpp-ajax-form" data-action="akpp_save_transmission">
-                <?php wp_nonce_field('akpp45_nonce', 'nonce'); ?>
-                <?php if ($action === 'edit' && $transmission_data) : ?>
-                    <input type="hidden" name="id" value="<?php echo esc_attr($transmission_data['id']); ?>">
-                <?php endif; ?>
-
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
-                    <div class="form-group">
-                        <label for="trans_code">Код АКПП <span style="color: #fc8181;">*</span></label>
-                        <input type="text" id="trans_code" name="code" value="<?php echo esc_attr($transmission_data['code'] ?? ''); ?>" required style="width: 100%; text-transform: uppercase;" placeholder="U140E">
-                    </div>
-                    <div class="form-group">
-                        <label for="trans_type">Тип трансмиссии <span style="color: #fc8181;">*</span></label>
-                        <select id="trans_type" name="type" required style="width: 100%;">
-                            <option value="AT" <?php selected($transmission_data['type'] ?? '', 'AT'); ?>>AT</option>
-                            <option value="CVT" <?php selected($transmission_data['type'] ?? '', 'CVT'); ?>>CVT</option>
-                            <option value="DCT" <?php selected($transmission_data['type'] ?? '', 'DCT'); ?>>DCT</option>
-                            <option value="AMT" <?php selected($transmission_data['type'] ?? '', 'AMT'); ?>>AMT</option>
-                            <option value="MT" <?php selected($transmission_data['type'] ?? '', 'MT'); ?>>MT</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label for="trans_manufacturer">Производитель</label>
-                        <input type="text" id="trans_manufacturer" name="manufacturer" value="<?php echo esc_attr($transmission_data['manufacturer'] ?? ''); ?>" style="width: 100%;" placeholder="Aisin, Jatco, ZF...">
-                    </div>
-                    <div class="form-group">
-                        <label for="trans_region">Регион</label>
-                        <select id="trans_region" name="region" style="width: 100%;">
-                            <option value="">— Не выбран —</option>
-                            <option value="japan" <?php selected($transmission_data['region'] ?? '', 'japan'); ?>>🇯🇵 Япония</option>
-                            <option value="korea" <?php selected($transmission_data['region'] ?? '', 'korea'); ?>>🇰🇷 Корея</option>
-                            <option value="china" <?php selected($transmission_data['region'] ?? '', 'china'); ?>>🇨🇳 Китай</option>
-                            <option value="europe" <?php selected($transmission_data['region'] ?? '', 'europe'); ?>>🇪🇺 Европа</option>
-                            <option value="america" <?php selected($transmission_data['region'] ?? '', 'america'); ?>>🇺🇸 Америка</option>
-                        </select>
-                    </div>
+    <div class="akpp-modal-content">
+        <span class="akpp-modal-close">&times;</span>
+        <h2 id="transmission-modal-title">➕ Новая АКПП</h2>
+        
+        <form class="akpp-ajax-form" data-action="akpp_save_transmission" id="transmission-form">
+            <?php wp_nonce_field('akpp45_nonce', 'nonce'); ?>
+            <input type="hidden" name="id" id="transmission-id">
+            
+            <div class="transmission-form-grid">
+                <div class="form-group">
+                    <label>Код АКПП *</label>
+                    <input type="text" name="code" id="transmission-code" required placeholder="U660E, A340E, 09G...">
                 </div>
-
-                <div style="text-align: right; padding-top: 20px; margin-top: 20px; border-top: 1px solid #2d3748;">
-                    <button type="button" class="button akpp-modal-close" style="margin-right: 10px;">Отмена</button>
-                    <button type="submit" class="button button-primary" style="background-color: var(--akpp-accent); border-color: var(--akpp-accent); color: var(--akpp-bg-primary); font-weight: 600;">
-                        <?php echo $action === 'edit' ? '💾 Сохранить' : '➕ Добавить'; ?>
-                    </button>
+                <div class="form-group">
+                    <label>Тип</label>
+                    <select name="type" id="transmission-type">
+                        <option value="">Не указан</option>
+                        <option value="гидротрансформатор">Гидротрансформатор</option>
+                        <option value="вариатор">Вариатор (CVT)</option>
+                        <option value="робот">Робот (DCT/DSG)</option>
+                    </select>
                 </div>
-            </form>
-        </div>
+            </div>
+            
+            <div class="transmission-form-grid">
+                <div class="form-group">
+                    <label>Марка</label>
+                    <input type="text" name="make" id="transmission-make" placeholder="Toyota, Hyundai...">
+                </div>
+                <div class="form-group">
+                    <label>Модель</label>
+                    <input type="text" name="model" id="transmission-model" placeholder="Camry, Sonata...">
+                </div>
+            </div>
+            
+            <div class="transmission-form-grid">
+                <div class="form-group">
+                    <label>Годы выпуска</label>
+                    <input type="text" name="years" id="transmission-years" placeholder="2010-2020">
+                </div>
+                <div class="form-group">
+                    <label>Двигатель</label>
+                    <input type="text" name="engine" id="transmission-engine" placeholder="2.5L 2AR-FE">
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <label>Характерные проблемы</label>
+                <textarea name="common_problems" id="transmission-problems" rows="3" placeholder="Опишите типичные проблемы этой АКПП..."></textarea>
+            </div>
+            
+            <div class="transmission-form-grid">
+                <div class="form-group">
+                    <label>Стоимость ремонта (₽)</label>
+                    <input type="number" name="repair_cost" id="transmission-cost" min="0" placeholder="50000">
+                </div>
+                <div class="form-group">
+                    <label>Сложность (1-5)</label>
+                    <select name="difficulty" id="transmission-difficulty">
+                        <option value="1">⭐ Очень легко</option>
+                        <option value="2">⭐⭐ Легко</option>
+                        <option value="3" selected>⭐⭐⭐ Средне</option>
+                        <option value="4">⭐⭐⭐⭐ Сложно</option>
+                        <option value="5">⭐⭐⭐⭐⭐ Очень сложно</option>
+                    </select>
+                </div>
+            </div>
+            
+            <div class="transmission-form-actions">
+                <button type="button" class="button button-secondary akpp-modal-close">Отмена</button>
+                <button type="submit" class="button button-primary">💾 Сохранить</button>
+            </div>
+        </form>
     </div>
 </div>
 
 <script>
 jQuery(document).ready(function($) {
-    // Открыть/закрыть модалку
-    $('.akpp-open-modal').on('click', function(e) {
-        e.preventDefault();
+    var isSubmitting = false;
+    
+    // Открытие модалки
+    $('.akpp-open-modal').on('click', function() {
         var target = $(this).data('target');
+        $('#transmission-modal-title').text('➕ Новая АКПП');
+        $('#transmission-form')[0].reset();
+        $('#transmission-id').val('');
         $(target).addClass('active');
     });
-    $(document).on('click', '.akpp-modal-close, .akpp-modal', function(e) {
-        if ($(e.target).hasClass('akpp-modal-close') || $(e.target).hasClass('akpp-modal')) {
+    
+    // Закрытие
+    $('.akpp-modal-close, .akpp-modal').on('click', function(e) {
+        if (e.target === this || $(this).hasClass('akpp-modal-close')) {
             $('.akpp-modal').removeClass('active');
         }
     });
-    // AJAX отправка формы
-    $('.akpp-ajax-form').on('submit', function(e) {
+    
+    // Редактирование
+    $(document).on('click', '.btn-edit-transmission', function(e) {
         e.preventDefault();
-        var $form = $(this);
-        var $submitBtn = $form.find('button[type="submit"]');
-        var action = $form.data('action');
-        $submitBtn.prop('disabled', true).text('⏳ Сохранение...');
+        var data = $(this).data();
+        
+        $('#transmission-modal-title').text('✏️ Редактировать АКПП');
+        $('#transmission-id').val(data.id);
+        $('#transmission-code').val(data.code);
+        $('#transmission-type').val(data.type);
+        $('#transmission-make').val(data.make);
+        $('#transmission-model').val(data.model);
+        $('#transmission-years').val(data.years);
+        $('#transmission-engine').val(data.engine);
+        $('#transmission-problems').val(data.problems);
+        $('#transmission-cost').val(data.cost);
+        $('#transmission-difficulty').val(data.difficulty);
+        
+        $('#akpp-transmission-modal').addClass('active');
+    });
+    
+    // Удаление
+    $(document).on('click', '.btn-delete-transmission', function(e) {
+        e.preventDefault();
+        if (!confirm('Удалить АКПП?')) return;
+        
+        var id = $(this).data('id');
         $.ajax({
-            url: ajaxurl,
+            url: '/wp-admin/admin-ajax.php',
             type: 'POST',
-            data: $form.serialize() + '&action=' + action,
-            dataType: 'json',
-            success: function(response) {
-                $submitBtn.prop('disabled', false).text($submitBtn.data('original-text') || 'Сохранить');
-                if (response.success) {
-                    $('#akpp-transmission-modal').removeClass('active');
-                    location.reload();
-                } else {
-                    alert('Ошибка: ' + response.data.message);
-                }
+            data: {
+                action: 'akpp_delete_transmission',
+                id: id,
+                nonce: '<?php echo wp_create_nonce("akpp45_nonce"); ?>'
             },
-            error: function() {
-                $submitBtn.prop('disabled', false).text($submitBtn.data('original-text') || 'Сохранить');
-                alert('Ошибка соединения.');
+            dataType: 'json',
+            success: function(res) {
+                if (res.success) {
+                    showNotice('🗑️ АКПП удалена', 'success');
+                    setTimeout(function() { location.reload(); }, 1000);
+                } else {
+                    showNotice(res.data.message || '❌ Ошибка', 'error');
+                }
             }
         });
     });
-    $('.akpp-ajax-form button[type="submit"]').each(function() {
-        $(this).data('original-text', $(this).text());
+    
+    // Сохранение
+    $('#transmission-form').off('submit').on('submit', function(e) {
+        e.preventDefault();
+        if (isSubmitting) return false;
+        isSubmitting = true;
+        
+        var $form = $(this);
+        var $btn = $form.find('button[type="submit"]');
+        var originalText = $btn.html();
+        
+        $btn.prop('disabled', true).html('⏳ Сохранение...');
+        
+        var formData = $form.serializeArray();
+        formData.push({name: 'action', value: $form.data('action')});
+        
+        $.ajax({
+            url: '/wp-admin/admin-ajax.php',
+            type: 'POST',
+            data: formData,
+            dataType: 'json',
+            success: function(res) {
+                if (res.success) {
+                    showNotice(res.data.message || '✅ Сохранено', 'success');
+                    setTimeout(function() { location.reload(); }, 1000);
+                } else {
+                    showNotice(res.data.message || '❌ Ошибка', 'error');
+                    $btn.prop('disabled', false).html(originalText);
+                    isSubmitting = false;
+                }
+            },
+            error: function() {
+                showNotice('❌ Ошибка соединения', 'error');
+                $btn.prop('disabled', false).html(originalText);
+                isSubmitting = false;
+            }
+        });
+        
+        return false;
     });
-    <?php if ($action === 'edit' && $transmission_data) : ?>
-        $('#akpp-transmission-modal').addClass('active');
-    <?php endif; ?>
+    
+    function showNotice(message, type) {
+        var bgColor = type === 'success' ? '#00ff88' : '#fc8181';
+        var textColor = type === 'success' ? '#0a0f1c' : '#fff';
+        var $notice = $('<div style="position:fixed;top:20px;right:20px;background:' + bgColor + ';color:' + textColor + ';padding:16px 24px;border-radius:8px;box-shadow:0 4px 20px rgba(0,0,0,0.3);z-index:99999;font-weight:600;">' + message + '</div>');
+        $('body').append($notice);
+        setTimeout(function() { $notice.fadeOut(300, function() { $(this).remove(); }); }, 3000);
+    }
 });
 </script>
-
-<style>
-.akpp-modal {
-    display: none !important;
-    position: fixed;
-    top: 0; left: 0; right: 0; bottom: 0;
-    background: rgba(0,0,0,0.85);
-    z-index: 999999;
-    align-items: center;
-    justify-content: center;
-}
-.akpp-modal.active { display: flex !important; }
-.akpp-modal-content {
-    background: #1a1f2e;
-    border: 1px solid #2d3748;
-    border-radius: 12px;
-    max-width: 700px;
-    width: 95%;
-    max-height: 90vh;
-    overflow-y: auto;
-    box-shadow: 0 20px 60px rgba(0,255,136,0.2);
-}
-.akpp-modal-header {
-    padding: 20px 24px;
-    border-bottom: 1px solid #2d3748;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    background: linear-gradient(135deg, #1a1f2e 0%, #2d3748 100%);
-    border-radius: 12px 12px 0 0;
-}
-.akpp-modal-header h2 { margin: 0; color: #00ff88; border: none; padding: 0; }
-.akpp-modal-close { font-size: 28px; cursor: pointer; color: #a0aec0; padding: 0 8px; transition: color 0.2s; }
-.akpp-modal-close:hover { color: #fff; }
-.akpp-modal-body { padding: 24px; }
-.akpp-modal-body .form-group { margin-bottom: 15px; }
-.akpp-modal-body .form-group label { display: block; color: #a0aec0; font-weight: 500; font-size: 13px; margin-bottom: 5px; }
-.akpp-modal-body .form-group input,
-.akpp-modal-body .form-group select {
-    width: 100%;
-    padding: 10px 14px;
-    background: #0a0f1c;
-    border: 1px solid #2d3748;
-    border-radius: 6px;
-    color: #e2e8f0;
-    font-size: 14px;
-}
-.akpp-modal-body .form-group input:focus,
-.akpp-modal-body .form-group select:focus {
-    border-color: #00ff88;
-    outline: none;
-    box-shadow: 0 0 0 2px rgba(0,255,136,0.2);
-}
-.akpp-modal-body .button-primary {
-    background: linear-gradient(135deg, #00ff88 0%, #00cc6a 100%);
-    color: #1a1f2e;
-    border: none;
-    padding: 10px 24px;
-    border-radius: 6px;
-    font-weight: 600;
-    cursor: pointer;
-}
-.akpp-modal-body .button-primary:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0,255,136,0.4); }
-</style>
