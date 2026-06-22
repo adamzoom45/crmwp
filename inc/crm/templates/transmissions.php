@@ -4,6 +4,7 @@
  */
 if (!defined('ABSPATH')) exit;
 
+// Подключаем класс таблицы
 if (!class_exists('AKPP_Transmissions_Table')) {
     require_once dirname(__FILE__) . '/../tables/class-transmissions-table.php';
 }
@@ -35,11 +36,14 @@ $by_type = $wpdb->get_results("SELECT type, COUNT(*) as cnt FROM {$table_name} G
     <div class="transmissions-stats-grid">
         <div class="transmissions-stat-card">
             <div class="transmissions-stat-value total"><?php echo $total; ?></div>
-            <div class="transmissions-stat-label">Всего АКПП</div>
+            <div class="transmissions-stat-label">ВСЕГО АКПП</div>
         </div>
         <?php foreach ($by_type as $type) : 
-            $label = $type['type'] ?: 'Не указан';
-            $icon = strpos(mb_strtolower($label), 'гидро') !== false ? '🔄' : (strpos(mb_strtolower($label), 'вариатор') !== false ? '⚙️' : (strpos(mb_strtolower($label), 'робот') !== false ? '🤖' : '🔧'));
+            $label = strtoupper($type['type'] ?: 'OTHER');
+            $icon = '🔧';
+            if (stripos($type['type'], 'гидро') !== false || stripos($type['type'], 'at') !== false) $icon = '🔄';
+            elseif (stripos($type['type'], 'вариатор') !== false || stripos($type['type'], 'cvt') !== false) $icon = '⚙️';
+            elseif (stripos($type['type'], 'робот') !== false || stripos($type['type'], 'dct') !== false) $icon = '🤖';
         ?>
         <div class="transmissions-stat-card">
             <div class="transmissions-stat-value"><?php echo $icon . ' ' . $type['cnt']; ?></div>
