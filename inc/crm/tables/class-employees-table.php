@@ -1,13 +1,8 @@
 <?php
 /**
  * Класс для таблицы сотрудников в админке
- * 
- * @package AKPP45_CRM
  */
-
-if (!defined('ABSPATH')) {
-    exit;
-}
+if (!defined('ABSPATH')) exit;
 
 if (!class_exists('WP_List_Table')) {
     require_once ABSPATH . 'wp-admin/includes/class-wp-list-table.php';
@@ -15,22 +10,14 @@ if (!class_exists('WP_List_Table')) {
 
 class AKPP_Employees_Table extends WP_List_Table {
     
-    private $table_name;
-    
     public function __construct() {
         parent::__construct([
             'singular' => 'employee',
-            'plural' => 'employees',
-            'ajax' => false
+            'plural'   => 'employees',
+            'ajax'     => false
         ]);
-        
-        global $wpdb;
-        $this->table_name = $wpdb->prefix . 'akpp_employees';
     }
     
-    /**
-     * Получение данных для таблицы
-     */
     public function prepare_items() {
         global $wpdb;
         
@@ -39,322 +26,285 @@ class AKPP_Employees_Table extends WP_List_Table {
         $offset = ($current_page - 1) * $per_page;
         
         // Фильтры
-        $role_filter = isset($_GET['role_filter']) ? sanitize_text_field($_GET['role_filter']) : 'all';
         $status_filter = isset($_GET['status_filter']) ? sanitize_text_field($_GET['status_filter']) : 'all';
+        $role_filter = isset($_GET['role_filter']) ? sanitize_text_field($_GET['role_filter']) : 'all';
         $search = isset($_GET['s']) ? sanitize_text_field($_GET['s']) : '';
         
         // Построение WHERE
         $where = [];
         $params = [];
         
+        if ($status_filter !== 'all') {
+            $is_active = ($status_filter === 'active') ? 1 : 0;
+            $where[] = "is_active = %d";
+            $params[] = $is_active;
+        }
+        
         if ($role_filter !== 'all') {
             $where[] = "role = %s";
             $params[] = $role_filter;
         }
         
-        if ($status_filter !== 'all') {
-            $is_active = $status_filter === 'active' ? 1 : 0;
-            $where[] = "is_active = %d";
-            $params[] = $is_active;
-        }
-        
         if (!empty($search)) {
-            $where[] = "(name LIKE '%%%s%%' OR email LIKE '%%%s%%' OR phone LIKE '%%%s%%')";
-            $params[] = $search;
-            $params[] = $search;
-            $params[] = $search;
+            $where[] = "(name LIKE %s OR phone LIKE %s OR email LIKE %s OR role LIKE %s)";
+            $like = '%' . $wpdb->esc_like($search) . '%';
+            $params[] = $like;
+            $params[] = $like;
+            $params[] = $like;
+            $params[] = $like;
         }
         
         $where_clause = !empty($where) ? "WHERE " . implode(" AND ", $where) : "";
         
         // Сортировка
-        $orderby = isset($_GET['orderby']) ? sanitize_sql_orderby($_GET['orderby']) : 'name';
-        $order = isset($_GET['order']) && strtoupper($_GET['order']) === 'ASC' ? 'ASC' : 'DESC';
+        $allowed_orderby = ['id', 'name', 'role', 'is_active'];
+        $orderby = isset($_GET['orderby']) && in_array($_GET['orderby'], $allowed_orderby) 
+            ? sanitize_text_field($_GET['orderby']) 
+            : 'name';
+        $order = isset($_GET['order']) && strtoupper($_GET['order']) === 'ASC' ? 'ASC' : 'ASC';
         
-        // Получение общего количества
-        $count_query = "SELECT COUNT(*) FROM {$this->table_name} {$where_clause}";
+        // Общее количество
+        $count_query = "SELECT COUNT(*) FROM {$wpdb->prefix}akpp_employees {$where_clause}";
         if (!empty($params)) {
             $count_query = $wpdb->prepare($count_query, ...$params);
         }
         $total_items = $wpdb->get_var($count_query);
         
         // Получение данных
-        $query = "SELECT * FROM {$this->table_name} {$where_clause} ORDER BY {$orderby} {$order} LIMIT %d OFFSET %d";
-        $params[] = $per_page;
-        $params[] = $offset;
+        $query = "SELECT * FROM {$wpdb->prefix}akpp_employees {$where_clause} ORDER BY {$orderby} {$order} LIMIT %d OFFSET %d";
+        $query_params = array_merge($params, [$per_page, $offset]);
+        $query = $wpdb->prepare($query, ...$query_params);
         
-        $query = $wpdb->prepare($query, ...$params);
-        $this->items = $wpdb->get_results($query);
+        $this->items = $wpdb->get_results($query, ARRAY_A);
         
-        // Настройка пагинации
         $this->set_pagination_args([
             'total_items' => $total_items,
-            'per_page' => $per_page,
+            'per_page'    => $per_page,
             'total_pages' => ceil($total_items / $per_page)
         ]);
+        
+        $this->_column_headers = [
+            $this->get_columns(),
+            [],
+            $this->get_sortable_columns()
+        ];
         
         $this->process_bulk_action();
     }
     
-    /**
-     * Определение колонок
-     */
     public function get_columns() {
         return [
-            'cb' => '<input type="checkbox" />',
-            'id' => 'ID',
-            'name' => 'ФИО',
-            'contact' => 'Контакты',
-            'role' => 'Должность',
-            'percent' => '%',
-            'telegram' => 'Telegram',
-            'status' => 'Статус',
-            'created_at' => 'Дата',
-            'actions' => 'Действия'
+            'cb'        => '<input type="checkbox" />',
+            'id'        => 'ID',
+            'name'      => 'ФИО',
+            'role'      => 'Должность',
+            'phone'     => 'Телефон',
+            'email'     => 'Email',
+            'is_active' => 'Статус',
+            'actions'   => 'Действия',
         ];
     }
     
-    /**
-     * Сортируемые колонки
-     */
     public function get_sortable_columns() {
         return [
-            'id' => ['id', false],
-            'name' => ['name', true],
-            'role' => ['role', false],
-            'percent' => ['percent', false],
-            'created_at' => ['created_at', true]
+            'id'        => ['id', false],
+            'name'      => ['name', true],
+            'role'      => ['role', false],
+            'is_active' => ['is_active', false],
         ];
     }
     
-    /**
-     * Массовые действия
-     */
     public function get_bulk_actions() {
         return [
-            'activate' => 'Активировать',
-            'deactivate' => 'Деактивировать',
-            'delete' => 'Удалить'
+            'activate'   => '✅ Активировать',
+            'deactivate' => '❌ Деактивировать',
+            'delete'     => '🗑️ Удалить',
         ];
     }
     
-    /**
-     * Обработка массовых действий
-     */
     public function process_bulk_action() {
         global $wpdb;
+        $action = $this->current_action();
+        if (!$action) return;
         
-        if (!$this->current_action()) return;
+        check_admin_referer('bulk-' . $this->_args['plural']);
         
-        $employee_ids = isset($_GET['employee']) ? array_map('intval', $_GET['employee']) : [];
+        $ids = isset($_REQUEST['employee']) ? array_map('intval', (array)$_REQUEST['employee']) : [];
+        if (empty($ids)) return;
         
-        if (empty($employee_ids)) return;
+        $ids_placeholder = implode(',', array_fill(0, count($ids), '%d'));
         
-        $ids_placeholder = implode(',', array_fill(0, count($employee_ids), '%d'));
-        
-        switch ($this->current_action()) {
+        switch ($action) {
             case 'activate':
                 $wpdb->query($wpdb->prepare(
-                    "UPDATE {$this->table_name} SET is_active = 1 WHERE id IN ({$ids_placeholder})",
-                    $employee_ids
+                    "UPDATE {$wpdb->prefix}akpp_employees SET is_active = 1 WHERE id IN ({$ids_placeholder})",
+                    ...$ids
                 ));
-                echo '<div class="notice notice-success"><p>Сотрудники активированы</p></div>';
+                echo '<div class="notice notice-success is-dismissible"><p>✅ Активировано: ' . count($ids) . '</p></div>';
                 break;
-                
             case 'deactivate':
                 $wpdb->query($wpdb->prepare(
-                    "UPDATE {$this->table_name} SET is_active = 0 WHERE id IN ({$ids_placeholder})",
-                    $employee_ids
+                    "UPDATE {$wpdb->prefix}akpp_employees SET is_active = 0 WHERE id IN ({$ids_placeholder})",
+                    ...$ids
                 ));
-                echo '<div class="notice notice-success"><p>Сотрудники деактивированы</p></div>';
+                echo '<div class="notice notice-success is-dismissible"><p>❌ Деактивировано: ' . count($ids) . '</p></div>';
                 break;
-                
             case 'delete':
                 $wpdb->query($wpdb->prepare(
-                    "DELETE FROM {$this->table_name} WHERE id IN ({$ids_placeholder})",
-                    $employee_ids
+                    "DELETE FROM {$wpdb->prefix}akpp_employees WHERE id IN ({$ids_placeholder})",
+                    ...$ids
                 ));
-                echo '<div class="notice notice-success"><p>Сотрудники удалены</p></div>';
+                echo '<div class="notice notice-success is-dismissible"><p>🗑️ Удалено: ' . count($ids) . '</p></div>';
                 break;
         }
     }
     
-    /**
-     * Отображение колонки cb (чекбокс)
-     */
     protected function column_cb($item) {
-        return sprintf('<input type="checkbox" name="employee[]" value="%s" />', $item->id);
+        return sprintf('<input type="checkbox" name="employee[]" value="%s" />', esc_attr($item['id']));
     }
     
-    /**
-     * Отображение колонки ID
-     */
     protected function column_id($item) {
-        return $item->id;
+        return '#' . intval($item['id']);
     }
     
-    /**
-     * Отображение колонки имени
-     */
     protected function column_name($item) {
-        return '<strong>' . esc_html($item->name) . '</strong>';
+        $name = $item['name'] ?? '—';
+        $email = $item['email'] ?? '';
+        $output = '<div style="font-weight: 600;">' . esc_html($name) . '</div>';
+        if ($email) {
+            $output .= '<div style="font-size: 13px; color: #718096;">' . esc_html($email) . '</div>';
+        }
+        return $output;
     }
     
-    /**
-     * Отображение колонки контактов
-     */
-    protected function column_contact($item) {
-        $contact = '';
-        
-        if ($item->email) {
-            $contact .= '<div>✉️ ' . esc_html($item->email) . '</div>';
-        }
-        if ($item->phone) {
-            $contact .= '<div>📞 ' . esc_html($item->phone) . '</div>';
-        }
-        
-        return !empty($contact) ? $contact : '—';
-    }
-    
-    /**
-     * Отображение колонки должности
-     */
     protected function column_role($item) {
         $roles = [
-            'admin' => '👑 Администратор',
-            'guide' => '🎯 Гид',
-            'master' => '🔧 Мастер',
-            'senior_master' => '⭐ Старший мастер',
-            'lead_master' => '🏆 Ведущий мастер',
-            'foreman' => '📋 Бригадир',
-            'assistant' => '👨‍🔧 Помощник'
+            'mechanic' => ['label' => '🔧 Механик', 'color' => '#00ff88'],
+            'manager'  => ['label' => '💼 Менеджер', 'color' => '#63b3ed'],
+            'admin'    => ['label' => '⚙️ Админ', 'color' => '#f6ad55'],
+            'director' => ['label' => '👑 Директор', 'color' => '#fc8181'],
         ];
-        
-        $role_label = $roles[$item->role] ?? $item->role;
-        
-        // Бейдж для гида
-        if ($item->role === 'guide') {
-            $role_label = '<span class="role-badge guide">' . $role_label . '</span>';
+        $role = $item['role'] ?? 'mechanic';
+        $info = $roles[$role] ?? ['label' => ucfirst($role), 'color' => '#a0aec0'];
+        return sprintf(
+            '<span style="display:inline-block;padding:4px 12px;border-radius:12px;font-size:12px;font-weight:600;background:%s22;color:%s;">%s</span>',
+            esc_attr($info['color']),
+            esc_attr($info['color']),
+            esc_html($info['label'])
+        );
+    }
+    
+    protected function column_phone($item) {
+        $phone = $item['phone'] ?? '';
+        if (empty($phone)) return '—';
+        return '<a href="tel:' . esc_attr($phone) . '" style="color:#00ff88;">' . esc_html($phone) . '</a>';
+    }
+    
+    protected function column_email($item) {
+        $email = $item['email'] ?? '';
+        if (empty($email)) return '—';
+        return '<a href="mailto:' . esc_attr($email) . '" style="color:#63b3ed;">' . esc_html($email) . '</a>';
+    }
+    
+    protected function column_is_active($item) {
+        $is_active = intval($item['is_active'] ?? 0);
+        if ($is_active) {
+            return '<span style="display:inline-block;padding:4px 12px;border-radius:12px;font-size:12px;font-weight:600;background:#00ff8822;color:#00ff88;">✅ Активен</span>';
         }
-        
-        return $role_label;
+        return '<span style="display:inline-block;padding:4px 12px;border-radius:12px;font-size:12px;font-weight:600;background:#fc818122;color:#fc8181;">❌ Неактивен</span>';
     }
     
-    /**
-     * Отображение колонки процента
-     */
-    protected function column_percent($item) {
-        return '<strong>' . $item->percent . '%</strong>';
-    }
-    
-    /**
-     * Отображение колонки Telegram
-     */
-    protected function column_telegram($item) {
-        if ($item->telegram_username) {
-            return sprintf(
-                '<a href="https://t.me/%s" target="_blank">@%s</a>',
-                esc_attr($item->telegram_username),
-                esc_html($item->telegram_username)
-            );
-        } elseif ($item->telegram_id) {
-            return '📱 ID: ' . esc_html($item->telegram_id);
-        }
-        
-        return '—';
-    }
-    
-    /**
-     * Отображение колонки статуса
-     */
-    protected function column_status($item) {
-        if ($item->is_active) {
-            return '<span class="status-badge status-active">🟢 Активен</span>';
-        } else {
-            return '<span class="status-badge status-inactive">🔴 Неактивен</span>';
-        }
-    }
-    
-    /**
-     * Отображение колонки даты
-     */
-    protected function column_created_at($item) {
-        return date_i18n(get_option('date_format'), strtotime($item->created_at));
-    }
-    
-    /**
-     * Отображение колонки действий
-     */
     protected function column_actions($item) {
-        $actions = sprintf(
-            '<a href="?page=akpp-crm-employees&action=edit&id=%d" class="button button-small">✏️ Ред.</a> ',
-            $item->id
+        $actions = [];
+        
+        // Редактирование
+        $actions[] = sprintf(
+            '<a href="?page=akpp-crm-employees&action=edit&id=%d" class="button button-small" title="Редактировать">✏️</a>',
+            $item['id']
         );
         
-        if ($item->is_active) {
-            $actions .= sprintf(
-                '<button class="button button-small deactivate-employee" data-id="%d">🔴 Деакт.</button> ',
-                $item->id
+        // Активировать/деактивировать
+        $is_active = intval($item['is_active'] ?? 0);
+        if ($is_active) {
+            $toggle_url = wp_nonce_url(
+                add_query_arg(['page' => 'akpp-crm-employees', 'action' => 'deactivate', 'id' => $item['id']]),
+                'toggle_employee_' . $item['id']
+            );
+            $actions[] = sprintf(
+                '<a href="%s" class="button button-small" title="Деактивировать">❌</a>',
+                esc_url($toggle_url)
             );
         } else {
-            $actions .= sprintf(
-                '<button class="button button-small activate-employee" data-id="%d">🟢 Акт.</button> ',
-                $item->id
+            $toggle_url = wp_nonce_url(
+                add_query_arg(['page' => 'akpp-crm-employees', 'action' => 'activate', 'id' => $item['id']]),
+                'toggle_employee_' . $item['id']
+            );
+            $actions[] = sprintf(
+                '<a href="%s" class="button button-small" title="Активировать">✅</a>',
+                esc_url($toggle_url)
             );
         }
         
-        $actions .= sprintf(
-            '<button class="button button-small delete-employee" data-id="%d">🗑️</button>',
-            $item->id
+        // Удаление
+        $delete_url = wp_nonce_url(
+            add_query_arg(['page' => 'akpp-crm-employees', 'action' => 'delete', 'id' => $item['id']]),
+            'delete_employee_' . $item['id']
+        );
+        $actions[] = sprintf(
+            '<a href="%s" class="button button-small" title="Удалить" onclick="return confirm(\'Удалить сотрудника?\')">🗑️</a>',
+            esc_url($delete_url)
         );
         
-        return $actions;
+        return implode(' ', $actions);
     }
     
-    /**
-     * Отображение по умолчанию для неизвестных колонок
-     */
     protected function column_default($item, $column_name) {
-        return isset($item->$column_name) ? esc_html($item->$column_name) : '—';
+        return isset($item[$column_name]) ? esc_html($item[$column_name]) : '—';
     }
     
-    /**
-     * Фильтры над таблицей
-     */
     protected function extra_tablenav($which) {
         if ($which !== 'top') return;
         
-        $role_filter = isset($_GET['role_filter']) ? sanitize_text_field($_GET['role_filter']) : 'all';
         $status_filter = isset($_GET['status_filter']) ? sanitize_text_field($_GET['status_filter']) : 'all';
+        $role_filter = isset($_GET['role_filter']) ? sanitize_text_field($_GET['role_filter']) : 'all';
+        
+        $statuses = [
+            'all'      => 'Все статусы',
+            'active'   => '✅ Активные',
+            'inactive' => '❌ Неактивные',
+        ];
+        
+        $roles = [
+            'all'      => 'Все должности',
+            'mechanic' => '🔧 Механик',
+            'manager'  => '💼 Менеджер',
+            'admin'    => '⚙️ Админ',
+            'director' => '👑 Директор',
+        ];
         ?>
         <div class="alignleft actions">
-            <select name="role_filter">
-                <option value="all" <?php selected($role_filter, 'all'); ?>>Все должности</option>
-                <option value="admin" <?php selected($role_filter, 'admin'); ?>>👑 Администратор</option>
-                <option value="guide" <?php selected($role_filter, 'guide'); ?>>🎯 Гид</option>
-                <option value="master" <?php selected($role_filter, 'master'); ?>>🔧 Мастер</option>
-                <option value="senior_master" <?php selected($role_filter, 'senior_master'); ?>>⭐ Старший мастер</option>
-                <option value="lead_master" <?php selected($role_filter, 'lead_master'); ?>>🏆 Ведущий мастер</option>
-                <option value="foreman" <?php selected($role_filter, 'foreman'); ?>>📋 Бригадир</option>
-                <option value="assistant" <?php selected($role_filter, 'assistant'); ?>>👨‍🔧 Помощник</option>
+            <select name="status_filter">
+                <?php foreach ($statuses as $value => $label) : ?>
+                    <option value="<?php echo esc_attr($value); ?>" <?php selected($status_filter, $value); ?>>
+                        <?php echo esc_html($label); ?>
+                    </option>
+                <?php endforeach; ?>
             </select>
             
-            <select name="status_filter">
-                <option value="all" <?php selected($status_filter, 'all'); ?>>Все сотрудники</option>
-                <option value="active" <?php selected($status_filter, 'active'); ?>>Активные</option>
-                <option value="inactive" <?php selected($status_filter, 'inactive'); ?>>Неактивные</option>
+            <select name="role_filter">
+                <?php foreach ($roles as $value => $label) : ?>
+                    <option value="<?php echo esc_attr($value); ?>" <?php selected($role_filter, $value); ?>>
+                        <?php echo esc_html($label); ?>
+                    </option>
+                <?php endforeach; ?>
             </select>
             
             <input type="submit" name="filter_action" class="button" value="Фильтровать">
-            <a href="?page=akpp-crm-employees&action=add" class="button button-primary">➕ Добавить сотрудника</a>
         </div>
         <?php
     }
     
-    /**
-     * Отображение, если нет данных
-     */
     public function no_items() {
-        echo 'Нет сотрудников для отображения';
+        echo 'Сотрудников не найдено';
     }
 }

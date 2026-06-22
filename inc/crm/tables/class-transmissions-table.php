@@ -1,6 +1,6 @@
 <?php
 /**
- * Класс для таблицы АКПП в админке
+ * Класс для таблицы АКПП (упрощённый, рабочий)
  * 
  * @package AKPP45_CRM
  */
@@ -20,17 +20,14 @@ class AKPP_Transmissions_Table extends WP_List_Table {
     public function __construct() {
         parent::__construct([
             'singular' => 'transmission',
-            'plural' => 'transmissions',
-            'ajax' => false
+            'plural'   => 'transmissions',
+            'ajax'     => false
         ]);
         
         global $wpdb;
         $this->table_name = $wpdb->prefix . 'akpp_transmissions';
     }
     
-    /**
-     * Получение данных для таблицы
-     */
     public function prepare_items() {
         global $wpdb;
         
@@ -38,93 +35,79 @@ class AKPP_Transmissions_Table extends WP_List_Table {
         $current_page = $this->get_pagenum();
         $offset = ($current_page - 1) * $per_page;
         
-        // Фильтры
-        $type_filter = isset($_GET['type_filter']) ? sanitize_text_field($_GET['type_filter']) : 'all';
-        $search = isset($_GET['s']) ? sanitize_text_field($_GET['s']) : '';
+        // Получаем фильтры из GET
+        $type_filter   = isset($_GET['type_filter']) ? sanitize_text_field($_GET['type_filter']) : 'all';
+        $region_filter = isset($_GET['region_filter']) ? sanitize_text_field($_GET['region_filter']) : 'all';
+        $search        = isset($_GET['s']) ? sanitize_text_field($_GET['s']) : '';
         
-        // Построение WHERE
-        $where = [];
-        $params = [];
+        // Строим WHERE
+        $where_sql = '1=1';
+        $where_params = [];
         
         if ($type_filter !== 'all') {
-            $where[] = "type = %s";
-            $params[] = $type_filter;
+            $where_sql .= ' AND type = %s';
+            $where_params[] = $type_filter;
         }
-        
+        if ($region_filter !== 'all') {
+            $where_sql .= ' AND region = %s';
+            $where_params[] = $region_filter;
+        }
         if (!empty($search)) {
-            $where[] = "(code LIKE '%%%s%%' OR make LIKE '%%%s%%' OR model LIKE '%%%s%%')";
-            $params[] = $search;
-            $params[] = $search;
-            $params[] = $search;
+            $where_sql .= ' AND (code LIKE %s OR manufacturer LIKE %s)';
+            $like = '%' . $wpdb->esc_like($search) . '%';
+            $where_params[] = $like;
+            $where_params[] = $like;
         }
         
-        $where_clause = !empty($where) ? "WHERE " . implode(" AND ", $where) : "";
-        
-        // Сортировка
-        $orderby = isset($_GET['orderby']) ? sanitize_sql_orderby($_GET['orderby']) : 'code';
-        $order = isset($_GET['order']) && strtoupper($_GET['order']) === 'ASC' ? 'ASC' : 'DESC';
-        
-        // Получение общего количества
-        $count_query = "SELECT COUNT(*) FROM {$this->table_name} {$where_clause}";
-        if (!empty($params)) {
-            $count_query = $wpdb->prepare($count_query, ...$params);
+        // Подсчёт общего количества – используем prepare с явными параметрами
+        $count_sql = "SELECT COUNT(*) FROM {$this->table_name} WHERE {$where_sql}";
+        if (!empty($where_params)) {
+            $count_sql = $wpdb->prepare($count_sql, ...$where_params);
         }
-        $total_items = $wpdb->get_var($count_query);
+        $total_items = (int) $wpdb->get_var($count_sql);
         
-        // Получение данных
-        $query = "SELECT * FROM {$this->table_name} {$where_clause} ORDER BY {$orderby} {$order} LIMIT %d OFFSET %d";
-        $params[] = $per_page;
-        $params[] = $offset;
+        // Основной запрос – всегда сортируем по code, без сложностей
+        $orderby = 'code';
+        $order = 'ASC';
+        $sql = "SELECT * FROM {$this->table_name} WHERE {$where_sql} ORDER BY {$orderby} {$order} LIMIT %d OFFSET %d";
+        // Собираем параметры: сначала условия, потом лимит и оффсет
+        $params = array_merge($where_params, [$per_page, $offset]);
+        $sql = $wpdb->prepare($sql, ...$params);
         
-        $query = $wpdb->prepare($query, ...$params);
-        $this->items = $wpdb->get_results($query);
+        $this->items = $wpdb->get_results($sql);
         
-        // Настройка пагинации
+        // Если данных нет, но общее количество больше нуля – логируем ошибку
+        if (empty($this->items) && $total_items > 0) {
+            error_log('[AKPP_Transmissions] Данные не получены. SQL: ' . $sql);
+        }
+        
         $this->set_pagination_args([
             'total_items' => $total_items,
-            'per_page' => $per_page,
+            'per_page'    => $per_page,
             'total_pages' => ceil($total_items / $per_page)
         ]);
         
         $this->process_bulk_action();
     }
     
-    /**
-     * Определение колонок
-     */
     public function get_columns() {
         return [
-            'cb' => '<input type="checkbox" />',
-            'id' => 'ID',
-            'code' => 'Код АКПП',
-            'type' => 'Тип',
-            'make' => 'Марка',
-            'model' => 'Модель',
-            'years' => 'Годы',
-            'engine' => 'Двигатель',
-            'difficulty' => 'Сложность',
-            'repair_cost' => 'Стоимость ремонта',
-            'actions' => 'Действия'
+            'cb'           => '<input type="checkbox" />',
+            'id'           => 'ID',
+            'code'         => 'Код АКПП',
+            'type'         => 'Тип',
+            'manufacturer' => 'Производитель',
+            'region'       => 'Регион',
+            'actions'      => 'Действия'
         ];
     }
     
-    /**
-     * Сортируемые колонки
-     */
     public function get_sortable_columns() {
         return [
-            'id' => ['id', false],
             'code' => ['code', true],
-            'type' => ['type', false],
-            'make' => ['make', false],
-            'repair_cost' => ['repair_cost', false],
-            'difficulty' => ['difficulty', false]
         ];
     }
     
-    /**
-     * Массовые действия
-     */
     public function get_bulk_actions() {
         return [
             'delete' => 'Удалить',
@@ -132,229 +115,129 @@ class AKPP_Transmissions_Table extends WP_List_Table {
         ];
     }
     
-    /**
-     * Обработка массовых действий
-     */
     public function process_bulk_action() {
         global $wpdb;
-        
         if (!$this->current_action()) return;
-        
         $trans_ids = isset($_GET['transmission']) ? array_map('intval', $_GET['transmission']) : [];
-        
         if (empty($trans_ids)) return;
-        
         $ids_placeholder = implode(',', array_fill(0, count($trans_ids), '%d'));
         
         switch ($this->current_action()) {
             case 'delete':
                 $wpdb->query($wpdb->prepare(
                     "DELETE FROM {$this->table_name} WHERE id IN ({$ids_placeholder})",
-                    $trans_ids
+                    ...$trans_ids
                 ));
-                echo '<div class="notice notice-success"><p>АКПП удалены</p></div>';
+                echo '<div class="notice notice-success"><p>АКПП удалены.</p></div>';
                 break;
-                
             case 'export':
                 $this->export_to_csv($trans_ids);
                 break;
         }
     }
     
-    /**
-     * Экспорт в CSV
-     */
     private function export_to_csv($ids) {
         global $wpdb;
-        
         $ids_placeholder = implode(',', array_fill(0, count($ids), '%d'));
         $items = $wpdb->get_results($wpdb->prepare(
             "SELECT * FROM {$this->table_name} WHERE id IN ({$ids_placeholder})",
-            $ids
+            ...$ids
         ));
-        
         header('Content-Type: text/csv; charset=utf-8');
         header('Content-Disposition: attachment; filename="transmissions_export_' . date('Y-m-d') . '.csv"');
-        
         $output = fopen('php://output', 'w');
-        fputcsv($output, ['ID', 'Код', 'Тип', 'Марка', 'Модель', 'Годы', 'Двигатель', 'Сложность', 'Стоимость ремонта']);
-        
+        fputcsv($output, ['ID', 'Код', 'Тип', 'Производитель', 'Регион']);
         foreach ($items as $item) {
             fputcsv($output, [
                 $item->id,
                 $item->code,
                 $item->type,
-                $item->make,
-                $item->model,
-                $item->years,
-                $item->engine,
-                $item->difficulty,
-                $item->repair_cost
+                $item->manufacturer,
+                $item->region
             ]);
         }
-        
         fclose($output);
         exit;
     }
     
-    /**
-     * Отображение колонки cb (чекбокс)
-     */
     protected function column_cb($item) {
         return sprintf('<input type="checkbox" name="transmission[]" value="%s" />', $item->id);
     }
     
-    /**
-     * Отображение колонки ID
-     */
     protected function column_id($item) {
         return $item->id;
     }
     
-    /**
-     * Отображение колонки кода АКПП
-     */
     protected function column_code($item) {
-        return sprintf(
-            '<strong><code>%s</code></strong>',
-            esc_html($item->code)
-        );
+        return sprintf('<strong><code>%s</code></strong>', esc_html($item->code));
     }
     
-    /**
-     * Отображение колонки типа
-     */
     protected function column_type($item) {
-        $types = [
-            '4AT' => '4AT',
-            '5AT' => '5AT',
-            '6AT' => '6AT',
-            '8AT' => '8AT',
-            '9AT' => '9AT',
-            '10AT' => '10AT',
-            'CVT' => 'CVT',
-            'DCT' => 'DCT'
+        $types = ['AT' => 'AT', 'CVT' => 'CVT', 'DCT' => 'DCT', 'AMT' => 'AMT', 'MT' => 'MT'];
+        $label = $types[$item->type] ?? $item->type;
+        return '<span class="type-badge">' . esc_html($label) . '</span>';
+    }
+    
+    protected function column_manufacturer($item) {
+        return esc_html($item->manufacturer ?: '—');
+    }
+    
+    protected function column_region($item) {
+        $regions = [
+            'japan'   => '🇯🇵 Япония',
+            'korea'   => '🇰🇷 Корея',
+            'china'   => '🇨🇳 Китай',
+            'europe'  => '🇪🇺 Европа',
+            'america' => '🇺🇸 Америка'
         ];
-        
-        $type_label = $types[$item->type] ?? $item->type;
-        
-        return sprintf(
-            '<span class="type-badge type-%s">%s</span>',
-            strtolower($item->type),
-            esc_html($type_label)
-        );
+        $label = isset($regions[$item->region]) ? $regions[$item->region] : esc_html($item->region);
+        return $label;
     }
     
-    /**
-     * Отображение колонки марки
-     */
-    protected function column_make($item) {
-        return esc_html($item->make);
-    }
-    
-    /**
-     * Отображение колонки модели
-     */
-    protected function column_model($item) {
-        return esc_html($item->model);
-    }
-    
-    /**
-     * Отображение колонки годов
-     */
-    protected function column_years($item) {
-        return esc_html($item->years);
-    }
-    
-    /**
-     * Отображение колонки двигателя
-     */
-    protected function column_engine($item) {
-        return esc_html($item->engine);
-    }
-    
-    /**
-     * Отображение колонки сложности
-     */
-    protected function column_difficulty($item) {
-        $stars = '';
-        for ($i = 1; $i <= 5; $i++) {
-            if ($i <= $item->difficulty) {
-                $stars .= '⭐';
-            } else {
-                $stars .= '☆';
-            }
-        }
-        return $stars;
-    }
-    
-    /**
-     * Отображение колонки стоимости ремонта
-     */
-    protected function column_repair_cost($item) {
-        return number_format($item->repair_cost, 0, ',', ' ') . ' ₽';
-    }
-    
-    /**
-     * Отображение колонки действий
-     */
     protected function column_actions($item) {
         $actions = sprintf(
             '<a href="?page=akpp-crm-transmissions&action=edit&id=%d" class="button button-small">✏️ Ред.</a> ',
             $item->id
         );
-        
-        $actions .= sprintf(
-            '<button class="button button-small view-transmission" data-id="%d" data-code="%s">👁️</button> ',
-            $item->id,
-            esc_attr($item->code)
-        );
-        
         $actions .= sprintf(
             '<button class="button button-small delete-transmission" data-id="%d">🗑️</button>',
             $item->id
         );
-        
         return $actions;
     }
     
-    /**
-     * Отображение по умолчанию для неизвестных колонок
-     */
     protected function column_default($item, $column_name) {
         return isset($item->$column_name) ? esc_html($item->$column_name) : '—';
     }
     
-    /**
-     * Фильтры над таблицей
-     */
     protected function extra_tablenav($which) {
         if ($which !== 'top') return;
-        
-        $type_filter = isset($_GET['type_filter']) ? sanitize_text_field($_GET['type_filter']) : 'all';
+        $type_filter   = isset($_GET['type_filter']) ? sanitize_text_field($_GET['type_filter']) : 'all';
+        $region_filter = isset($_GET['region_filter']) ? sanitize_text_field($_GET['region_filter']) : 'all';
         ?>
         <div class="alignleft actions">
             <select name="type_filter">
                 <option value="all" <?php selected($type_filter, 'all'); ?>>Все типы</option>
-                <option value="4AT" <?php selected($type_filter, '4AT'); ?>>4AT</option>
-                <option value="5AT" <?php selected($type_filter, '5AT'); ?>>5AT</option>
-                <option value="6AT" <?php selected($type_filter, '6AT'); ?>>6AT</option>
-                <option value="8AT" <?php selected($type_filter, '8AT'); ?>>8AT</option>
-                <option value="9AT" <?php selected($type_filter, '9AT'); ?>>9AT</option>
-                <option value="10AT" <?php selected($type_filter, '10AT'); ?>>10AT</option>
+                <option value="AT" <?php selected($type_filter, 'AT'); ?>>AT</option>
                 <option value="CVT" <?php selected($type_filter, 'CVT'); ?>>CVT</option>
                 <option value="DCT" <?php selected($type_filter, 'DCT'); ?>>DCT</option>
+                <option value="AMT" <?php selected($type_filter, 'AMT'); ?>>AMT</option>
+                <option value="MT" <?php selected($type_filter, 'MT'); ?>>MT</option>
             </select>
-            
+            <select name="region_filter">
+                <option value="all" <?php selected($region_filter, 'all'); ?>>Все регионы</option>
+                <option value="japan" <?php selected($region_filter, 'japan'); ?>>Япония</option>
+                <option value="korea" <?php selected($region_filter, 'korea'); ?>>Корея</option>
+                <option value="china" <?php selected($region_filter, 'china'); ?>>Китай</option>
+                <option value="europe" <?php selected($region_filter, 'europe'); ?>>Европа</option>
+                <option value="america" <?php selected($region_filter, 'america'); ?>>Америка</option>
+            </select>
             <input type="submit" name="filter_action" class="button" value="Фильтровать">
             <a href="?page=akpp-crm-transmissions&action=add" class="button button-primary">➕ Добавить АКПП</a>
         </div>
         <?php
     }
     
-    /**
-     * Отображение, если нет данных
-     */
     public function no_items() {
         echo 'Нет АКПП для отображения';
     }

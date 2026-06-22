@@ -1,10 +1,9 @@
 <?php
 /**
  * Класс для таблицы элементов парсера в админке
- * 
+ *
  * @package AKPP45_CRM
  */
-
 if (!defined('ABSPATH')) {
     exit;
 }
@@ -20,8 +19,8 @@ class AKPP_Parser_Table extends WP_List_Table {
     public function __construct() {
         parent::__construct([
             'singular' => 'parser_item',
-            'plural' => 'parser_items',
-            'ajax' => false
+            'plural'   => 'parser_items',
+            'ajax'     => false
         ]);
         
         global $wpdb;
@@ -58,9 +57,9 @@ class AKPP_Parser_Table extends WP_List_Table {
         }
         
         if (!empty($search)) {
-            $where[] = "(title LIKE '%%%s%%' OR url LIKE '%%%s%%')";
-            $params[] = $search;
-            $params[] = $search;
+            $where[] = "(title LIKE %s OR url LIKE %s)";
+            $params[] = '%' . $wpdb->esc_like($search) . '%';
+            $params[] = '%' . $wpdb->esc_like($search) . '%';
         }
         
         $where_clause = !empty($where) ? "WHERE " . implode(" AND ", $where) : "";
@@ -80,20 +79,20 @@ class AKPP_Parser_Table extends WP_List_Table {
         $query = "SELECT * FROM {$this->table_name} {$where_clause} ORDER BY {$orderby} {$order} LIMIT %d OFFSET %d";
         $params[] = $per_page;
         $params[] = $offset;
-        
         $query = $wpdb->prepare($query, ...$params);
+        
         $this->items = $wpdb->get_results($query);
         
-        // Декодируем JSON поля
+        // ✅ ИСПРАВЛЕНО: Проверяем на null перед json_decode
         foreach ($this->items as $item) {
-            $item->images = json_decode($item->images, true);
-            $item->ai_analysis = json_decode($item->ai_analysis, true);
+            $item->images = !empty($item->images) ? json_decode($item->images, true) : [];
+            $item->ai_analysis = !empty($item->ai_analysis) ? json_decode($item->ai_analysis, true) : null;
         }
         
         // Настройка пагинации
         $this->set_pagination_args([
             'total_items' => $total_items,
-            'per_page' => $per_page,
+            'per_page'    => $per_page,
             'total_pages' => ceil($total_items / $per_page)
         ]);
         
@@ -105,14 +104,15 @@ class AKPP_Parser_Table extends WP_List_Table {
      */
     public function get_columns() {
         return [
-            'cb' => '<input type="checkbox" />',
-            'id' => 'ID',
-            'title' => 'Заголовок',
-            'content_type' => 'Тип',
-            'status' => 'Статус',
+            'cb'            => '<input type="checkbox" />',
+            'id'            => 'ID',
+            'title'         => 'Заголовок',
+            'content_type'  => 'Тип',
+            'status'        => 'Статус',
+            'ai_status'     => 'AI анализ',   // НОВАЯ КОЛОНКА
             'ai_confidence' => 'Уверенность AI',
-            'created_at' => 'Дата',
-            'actions' => 'Действия'
+            'created_at'    => 'Дата',
+            'actions'       => 'Действия'
         ];
     }
     
@@ -121,10 +121,10 @@ class AKPP_Parser_Table extends WP_List_Table {
      */
     public function get_sortable_columns() {
         return [
-            'id' => ['id', false],
-            'title' => ['title', false],
+            'id'           => ['id', false],
+            'title'        => ['title', false],
             'content_type' => ['content_type', false],
-            'created_at' => ['created_at', true]
+            'created_at'   => ['created_at', true]
         ];
     }
     
@@ -134,8 +134,8 @@ class AKPP_Parser_Table extends WP_List_Table {
     public function get_bulk_actions() {
         return [
             'approve' => 'Одобрить',
-            'reject' => 'Отклонить',
-            'delete' => 'Удалить'
+            'reject'  => 'Отклонить',
+            'delete'  => 'Удалить'
         ];
     }
     
@@ -148,7 +148,6 @@ class AKPP_Parser_Table extends WP_List_Table {
         if (!$this->current_action()) return;
         
         $item_ids = isset($_GET['parser_item']) ? array_map('intval', $_GET['parser_item']) : [];
-        
         if (empty($item_ids)) return;
         
         $ids_placeholder = implode(',', array_fill(0, count($item_ids), '%d'));
@@ -192,8 +191,7 @@ class AKPP_Parser_Table extends WP_List_Table {
         
         if (!$item) return;
         
-        $ai_analysis = json_decode($item->ai_analysis, true);
-        
+        $ai_analysis = !empty($item->ai_analysis) ? json_decode($item->ai_analysis, true) : null;
         if (!$ai_analysis) return;
         
         // Сохраняем в соответствующую таблицу
@@ -224,17 +222,17 @@ class AKPP_Parser_Table extends WP_List_Table {
         $wpdb->insert(
             $table,
             [
-                'code' => $data['code'] ?? '',
-                'type' => $data['type'] ?? '',
-                'make' => $data['make'] ?? '',
-                'model' => $data['model'] ?? '',
-                'years' => $data['years'] ?? '',
-                'common_problems' => is_array($data['problems'] ?? null) ? json_encode($data['problems']) : '',
-                'symptoms' => is_array($data['symptoms'] ?? null) ? json_encode($data['symptoms']) : '',
-                'repair_cost' => $data['repair_cost'] ?? 0,
-                'difficulty' => $data['difficulty'] ?? 3,
-                'source_url' => $item->url,
-                'created_at' => current_time('mysql')
+                'code'                 => $data['code'] ?? '',
+                'type'                 => $data['type'] ?? '',
+                'make'                 => $data['make'] ?? '',
+                'model'                => $data['model'] ?? '',
+                'years'                => $data['years'] ?? '',
+                'common_problems'      => is_array($data['problems'] ?? null) ? json_encode($data['problems']) : '',
+                'symptoms'             => is_array($data['symptoms'] ?? null) ? json_encode($data['symptoms']) : '',
+                'repair_cost'          => $data['repair_cost'] ?? 0,
+                'difficulty'           => $data['difficulty'] ?? 3,
+                'source_url'           => $item->url,
+                'created_at'           => current_time('mysql')
             ],
             ['%s', '%s', '%s', '%s', '%s', '%s', '%s', '%d', '%d', '%s', '%s']
         );
@@ -250,14 +248,14 @@ class AKPP_Parser_Table extends WP_List_Table {
         $wpdb->insert(
             $table,
             [
-                'name' => $data['part_type'] ?? $item->title,
-                'sku' => $data['part_number'] ?? '',
-                'category' => $data['part_type'] ?? 'Запчасть АКПП',
-                'description' => $item->content,
-                'price' => $data['avg_price'] ?? 0,
+                'name'                 => $data['part_type'] ?? $item->title,
+                'sku'                  => $data['part_number'] ?? '',
+                'category'             => $data['part_type'] ?? 'Запчасть АКПП',
+                'description'          => $item->content,
+                'price'                => $data['avg_price'] ?? 0,
                 'compatible_transmissions' => is_array($data['transmissions'] ?? null) ? json_encode($data['transmissions']) : '',
-                'source_url' => $item->url,
-                'created_at' => current_time('mysql')
+                'source_url'           => $item->url,
+                'created_at'           => current_time('mysql')
             ],
             ['%s', '%s', '%s', '%s', '%d', '%s', '%s', '%s']
         );
@@ -273,15 +271,15 @@ class AKPP_Parser_Table extends WP_List_Table {
         $wpdb->insert(
             $table,
             [
-                'name' => $data['oil_type'] ?? $item->title,
-                'type' => $data['oil_type'] ?? 'ATF',
-                'viscosity' => $data['viscosity'] ?? '',
-                'specifications' => is_array($data['specifications'] ?? null) ? json_encode($data['specifications']) : '',
+                'name'                 => $data['oil_type'] ?? $item->title,
+                'type'                 => $data['oil_type'] ?? 'ATF',
+                'viscosity'            => $data['viscosity'] ?? '',
+                'specifications'       => is_array($data['specifications'] ?? null) ? json_encode($data['specifications']) : '',
                 'compatible_transmissions' => is_array($data['transmissions'] ?? null) ? json_encode($data['transmissions']) : '',
-                'fill_volume' => $data['fill_volume'] ?? 0,
-                'price_per_liter' => $data['price_per_liter'] ?? 0,
-                'source_url' => $item->url,
-                'created_at' => current_time('mysql')
+                'fill_volume'          => $data['fill_volume'] ?? 0,
+                'price_per_liter'      => $data['price_per_liter'] ?? 0,
+                'source_url'           => $item->url,
+                'created_at'           => current_time('mysql')
             ],
             ['%s', '%s', '%s', '%s', '%s', '%d', '%d', '%s', '%s']
         );
@@ -322,9 +320,9 @@ class AKPP_Parser_Table extends WP_List_Table {
     protected function column_content_type($item) {
         $types = [
             'transmission' => '🔧 АКПП',
-            'part' => '🔩 Запчасть',
-            'oil' => '🛢️ Масло',
-            'general' => '📄 Общее'
+            'part'         => '🔩 Запчасть',
+            'oil'          => '🛢️ Масло',
+            'general'      => '📄 Общее'
         ];
         
         $type_name = $types[$item->content_type] ?? $item->content_type;
@@ -336,11 +334,11 @@ class AKPP_Parser_Table extends WP_List_Table {
      */
     protected function column_status($item) {
         $statuses = [
-            'pending' => '⏳ Ожидает',
-            'parsed' => '📄 Распаршено',
+            'pending'      => '⏳ Ожидает',
+            'parsed'       => '📄 Распаршено',
             'ai_processed' => '🤖 AI обработан',
-            'approved' => '✅ Одобрено',
-            'rejected' => '❌ Отклонено'
+            'approved'     => '✅ Одобрено',
+            'rejected'     => '❌ Отклонено'
         ];
         
         $status_name = $statuses[$item->status] ?? $item->status;
@@ -348,11 +346,24 @@ class AKPP_Parser_Table extends WP_List_Table {
     }
     
     /**
+     * НОВАЯ КОЛОНКА: AI статус
+     */
+    protected function column_ai_status($item) {
+        if (!empty($item->ai_analysis)) {
+            $analysis = json_decode($item->ai_analysis, true);
+            if ($analysis && !empty($analysis['vehicles'])) {
+                return '🚗 ' . count($analysis['vehicles']) . ' авто';
+            }
+            return '✅ Есть';
+        }
+        return '—';
+    }
+    
+    /**
      * Отображение колонки уверенности AI
      */
     protected function column_ai_confidence($item) {
         $confidence = $item->ai_analysis['confidence'] ?? 0;
-        
         if ($confidence === 0) return '—';
         
         $color = $confidence >= 80 ? '#28a745' : ($confidence >= 60 ? '#ffc107' : '#dc3545');
@@ -393,6 +404,14 @@ class AKPP_Parser_Table extends WP_List_Table {
         if ($item->status !== 'rejected' && $item->status !== 'approved') {
             $actions .= sprintf(
                 '<button class="button button-small reject-item" data-id="%d">❌ Отклонить</button> ',
+                $item->id
+            );
+        }
+        
+        // Кнопка AI анализа (если ещё не обработан)
+        if ($item->status !== 'ai_processed' && $item->status !== 'approved') {
+            $actions .= sprintf(
+                '<button class="button button-small btn-ai-analyze" data-id="%d">🤖 AI</button> ',
                 $item->id
             );
         }
