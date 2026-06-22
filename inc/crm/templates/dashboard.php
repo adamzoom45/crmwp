@@ -295,6 +295,62 @@ $source_labels = [
             <a href="?page=akpp-crm-parts" style="background: #2d3748; color: #fff; padding: 16px; border-radius: 8px; text-decoration: none; font-weight: 600; text-align: center; border: 1px solid #4a5568;">📦 Склад</a>
         </div>
     </div>
+
+    <!-- ============================================================================
+         ПОСЛЕДНИЕ ДОБАВЛЕННЫЕ ИЗ ПАРСИНГА (ДОПОЛНЕНИЕ)
+         ============================================================================ -->
+    <div class="akpp-card" style="background: #1a1f2e; border: 1px solid #2d3748; border-radius: 12px; padding: 24px; margin-top: 30px;">
+        <h2 style="color: #00ff88; margin: 0 0 20px 0; font-size: 18px; border-bottom: 1px solid #2d3748; padding-bottom: 12px;">
+            🤖 Последние добавленные из парсинга
+        </h2>
+
+        <?php
+        $vehicles_table = $wpdb->prefix . 'akpp_vehicles';
+        $transmissions_table = $wpdb->prefix . 'akpp_transmissions';
+
+        $recent_vehicles = $wpdb->get_results(
+            "SELECT * FROM {$vehicles_table} WHERE created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY) ORDER BY created_at DESC LIMIT 5",
+            ARRAY_A
+        );
+
+        $recent_transmissions = $wpdb->get_results(
+            "SELECT * FROM {$transmissions_table} WHERE created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY) ORDER BY created_at DESC LIMIT 5",
+            ARRAY_A
+        );
+        ?>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+            <div>
+                <h3 style="color: #e2e8f0; font-size: 14px; margin-bottom: 12px;">🚗 Новые автомобили</h3>
+                <?php if (empty($recent_vehicles)) : ?>
+                    <p style="color: #718096; font-size: 13px;">Нет новых автомобилей за последние 7 дней</p>
+                <?php else : ?>
+                    <?php foreach ($recent_vehicles as $v) : ?>
+                        <div style="padding: 8px 0; border-bottom: 1px solid #2d3748; font-size: 13px; color: #a0aec0;">
+                            <?php echo esc_html($v['make'] . ' ' . $v['model'] . ($v['year'] ? ' (' . $v['year'] . ')' : '')); ?>
+                        </div>
+                    <?php endforeach; ?>
+                <?php endif; ?>
+            </div>
+            <div>
+                <h3 style="color: #e2e8f0; font-size: 14px; margin-bottom: 12px;">⚙️ Новые АКПП</h3>
+                <?php if (empty($recent_transmissions)) : ?>
+                    <p style="color: #718096; font-size: 13px;">Нет новых АКПП за последние 7 дней</p>
+                <?php else : ?>
+                    <?php foreach ($recent_transmissions as $t) : ?>
+                        <div style="padding: 8px 0; border-bottom: 1px solid #2d3748; font-size: 13px; color: #a0aec0;">
+                            <?php echo esc_html($t['code'] . ($t['type'] ? ' (' . $t['type'] . ')' : '')); ?>
+                        </div>
+                    <?php endforeach; ?>
+                <?php endif; ?>
+            </div>
+        </div>
+        <div style="margin-top: 16px; text-align: right;">
+            <a href="?page=akpp-crm-parser" style="color: #00ff88; text-decoration: none; font-weight: 600; font-size: 14px;">
+                Перейти к парсеру →
+            </a>
+        </div>
+    </div>
 </div>
 
 <style>
