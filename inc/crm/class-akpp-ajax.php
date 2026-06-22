@@ -861,16 +861,21 @@ public function ajax_save_deal() {
         }
         
         try {
-            global $wpdb;
-            $table = $wpdb->prefix . 'akpp_parser_items';
-            $wpdb->insert($table, [
-                'url' => $url,
-                'title' => 'Обработка...',
-                'status' => 'parsing',
-                'created_at' => current_time('mysql')
-            ]);
+            // ✅ ПОДКЛЮЧАЕМ ПАРСЕР
+            require_once dirname(__FILE__) . '/class-akpp-parser.php';
             
-            wp_send_json_success(['id' => $wpdb->insert_id, 'message' => 'Парсинг запущен']);
+            // ✅ ВЫЗЫВАЕМ ПАРСИНГ
+            $parser = AKPP_Parser::get_instance();
+            $result = $parser->parse($url);
+            
+            if ($result && isset($result['id'])) {
+                wp_send_json_success([
+                    'id' => $result['id'],
+                    'message' => '✅ Распаршено: ' . mb_substr($result['title'] ?? 'Без заголовка', 0, 80)
+                ]);
+            } else {
+                wp_send_json_error(['message' => '❌ Не удалось распарсить URL']);
+            }
         } catch (Exception $e) {
             wp_send_json_error(['message' => 'Ошибка: ' . $e->getMessage()], 500);
         }
@@ -961,20 +966,19 @@ public function ajax_save_deal() {
         if (!$this->check_permissions()) return;
         
         try {
+            require_once dirname(__FILE__) . '/class-akpp-parser.php';
+            $parser = AKPP_Parser::get_instance();
+            
             $urls = array_filter(array_map('esc_url_raw', (array)($_POST['urls'] ?? [])));
             $parsed = 0;
-            global $wpdb;
+            
             foreach ($urls as $url) {
                 if (empty($url)) continue;
-                $wpdb->insert($wpdb->prefix . 'akpp_parser_items', [
-                    'url' => $url,
-                    'title' => 'Обработка...',
-                    'status' => 'parsing',
-                    'created_at' => current_time('mysql')
-                ]);
-                $parsed++;
+                $result = $parser->parse($url);
+                if ($result) $parsed++;
             }
-            wp_send_json_success(['message' => "Обработано URL: $parsed"]);
+            
+            wp_send_json_success(['message' => "✅ Распаршено URL: $parsed"]);
         } catch (Exception $e) {
             wp_send_json_error(['message' => 'Ошибка: ' . $e->getMessage()], 500);
         }
@@ -1012,22 +1016,43 @@ public function ajax_save_deal() {
         if (!$this->check_permissions()) return;
         
         $item_id = intval($_POST['item_id'] ?? 0);
+        
         try {
+            require_once dirname(__FILE__) . '/class-akpp-parser.php';
+            $parser = AKPP_Parser::get_instance();
+            
             global $wpdb;
             $item = $wpdb->get_row($wpdb->prepare(
-                "SELECT * FROM {$wpdb->prefix}akpp_parser_items WHERE id = %d", $item_id
+                "SELECT * FROM {$wpdb->prefix}akpp_parser_items WHERE id = %d", 
+                $item_id
             ), ARRAY_A);
+            
             if (!$item) {
                 wp_send_json_error(['message' => 'Элемент не найден'], 404);
                 return;
             }
-            $analysis = ['condition' => 'Хорошее', 'price_estimate' => 15000, 'recommendation' => 'Рекомендуется к покупке'];
-            $wpdb->update($wpdb->prefix . 'akpp_parser_items', [
-                'ai_analysis' => json_encode($analysis),
-                'status' => 'analyzed',
-                'updated_at' => current_time('mysql')
-            ], ['id' => $item_id]);
-            wp_send_json_success($analysis);
+            
+            // ✅ ВЫЗЫВАЕМ AI АНАЛИЗ
+            $analysis = $parser->analyze_with_qwen($item['content']);
+            
+            if ($analysis) {
+                // Сохраняем извлеченные сущности
+                $saved = $parser->save_extracted_entities($analysis);
+                
+                $wpdb->update($wpdb->prefix . 'akpp_parser_items', [
+                    'ai_analysis' => json_encode($analysis, JSON_UNESCAPED_UNICODE),
+                    'status' => 'ai_processed',
+                    'updated_at' => current_time('mysql')
+                ], ['id' => $item_id]);
+                
+                wp_send_json_success([
+                    'message' => '✅ AI анализ завершён',
+                    'saved' => $saved,
+                    'analysis' => $analysis
+                ]);
+            } else {
+                wp_send_json_error(['message' => '❌ AI не ответил. Проверьте API ключ.']);
+            }
         } catch (Exception $e) {
             wp_send_json_error(['message' => 'Ошибка: ' . $e->getMessage()], 500);
         }
