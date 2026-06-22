@@ -1546,3 +1546,76 @@ textarea::placeholder {
         grid-template-columns: repeat(2, 1fr);
     }
 }
+/* ============================================================================
+   АКПП - База АКПП
+   ============================================================================ */
+.transmissions-page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+.transmissions-stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 15px;
+    margin-bottom: 25px;
+}
+
+.transmissions-stat-card {
+    background: #1a1f2e;
+    border: 1px solid #2d3748;
+    border-radius: 12px;
+    padding: 20px;
+    text-align: center;
+}
+
+.transmissions-stat-value {
+    font-size: 32px;
+    font-weight: 700;
+    color: #00ff88;
+    margin-bottom: 8px;
+}
+
+.transmissions-stat-label {
+    color: #a0aec0;
+    font-size: 13px;
+    text-transform: uppercase;
+}
+
+.transmissions-table-wrapper {
+    background: #1a1f2e;
+    border: 1px solid #2d3748;
+    border-radius: 12px;
+    padding: 20px;
+}
+
+.transmission-form-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 15px;
+    margin-bottom: 15px;
+}
+
+.transmission-form-grid .form-group label,
+.transmission-form-grid .form-group input,
+.transmission-form-grid .form-group select,
+.transmission-form-grid .form-group textarea {
+    width: 100%;
+}
+
+.transmission-form-grid input,
+.transmission-form-grid select,
+.transmission-form-grid textarea {
+    padding: 10px;
+    background: #0a0f1c;
+    border: 1px solid #2d3748;
+    border-radius: 6px;
+    color: #fff;
+}
+
+.transmission-form-actions {
+    text-align: right;
+    margin-top: 20px;
+}
