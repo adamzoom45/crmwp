@@ -1,20 +1,14 @@
 <?php
 /**
- * Класс для таблицы запчастей в админке
- * 
- * @package AKPP45_CRM
+ * Таблица склада в админке
  */
-
-if (!defined('ABSPATH')) {
-    exit;
-}
+if (!defined('ABSPATH')) exit;
 
 if (!class_exists('WP_List_Table')) {
     require_once ABSPATH . 'wp-admin/includes/class-wp-list-table.php';
 }
 
 class AKPP_Parts_Table extends WP_List_Table {
-    
     private $table_name;
     
     public function __construct() {
@@ -23,27 +17,19 @@ class AKPP_Parts_Table extends WP_List_Table {
             'plural' => 'parts',
             'ajax' => false
         ]);
-        
         global $wpdb;
         $this->table_name = $wpdb->prefix . 'akpp_parts';
     }
     
-    /**
-     * Получение данных для таблицы
-     */
     public function prepare_items() {
         global $wpdb;
-        
         $per_page = 20;
         $current_page = $this->get_pagenum();
         $offset = ($current_page - 1) * $per_page;
         
-        // Фильтры
         $category_filter = isset($_GET['category_filter']) ? sanitize_text_field($_GET['category_filter']) : 'all';
-        $stock_filter = isset($_GET['stock_filter']) ? sanitize_text_field($_GET['stock_filter']) : 'all';
         $search = isset($_GET['s']) ? sanitize_text_field($_GET['s']) : '';
         
-        // Построение WHERE
         $where = [];
         $params = [];
         
@@ -52,324 +38,185 @@ class AKPP_Parts_Table extends WP_List_Table {
             $params[] = $category_filter;
         }
         
-        if ($stock_filter === 'in_stock') {
-            $where[] = "quantity > 0";
-        } elseif ($stock_filter === 'out_of_stock') {
-            $where[] = "quantity <= 0";
-        }
-        
         if (!empty($search)) {
-            $where[] = "(name LIKE '%%%s%%' OR sku LIKE '%%%s%%')";
-            $params[] = $search;
-            $params[] = $search;
+            $where[] = "(name LIKE %s OR sku LIKE %s OR description LIKE %s)";
+            $like = '%' . $wpdb->esc_like($search) . '%';
+            $params[] = $like;
+            $params[] = $like;
+            $params[] = $like;
         }
         
         $where_clause = !empty($where) ? "WHERE " . implode(" AND ", $where) : "";
         
-        // Сортировка
-        $orderby = isset($_GET['orderby']) ? sanitize_sql_orderby($_GET['orderby']) : 'name';
+        $orderby = isset($_GET['orderby']) ? sanitize_sql_orderby($_GET['orderby']) : 'created_at';
         $order = isset($_GET['order']) && strtoupper($_GET['order']) === 'ASC' ? 'ASC' : 'DESC';
         
-        // Получение общего количества
         $count_query = "SELECT COUNT(*) FROM {$this->table_name} {$where_clause}";
         if (!empty($params)) {
             $count_query = $wpdb->prepare($count_query, ...$params);
         }
         $total_items = $wpdb->get_var($count_query);
         
-        // Получение данных
         $query = "SELECT * FROM {$this->table_name} {$where_clause} ORDER BY {$orderby} {$order} LIMIT %d OFFSET %d";
         $params[] = $per_page;
         $params[] = $offset;
-        
         $query = $wpdb->prepare($query, ...$params);
+        
         $this->items = $wpdb->get_results($query);
         
-        // Настройка пагинации
         $this->set_pagination_args([
             'total_items' => $total_items,
             'per_page' => $per_page,
             'total_pages' => ceil($total_items / $per_page)
         ]);
         
+        $this->_column_headers = [
+            $this->get_columns(),
+            [],
+            $this->get_sortable_columns()
+        ];
+        
         $this->process_bulk_action();
     }
     
-    /**
-     * Определение колонок
-     */
     public function get_columns() {
         return [
             'cb' => '<input type="checkbox" />',
             'id' => 'ID',
-            'sku' => 'Артикул',
             'name' => 'Наименование',
+            'sku' => 'Артикул',
             'category' => 'Категория',
             'quantity' => 'Остаток',
+            'purchase_price' => 'Закуп',
+            'markup' => 'Наценка',
             'price' => 'Цена',
-            'created_at' => 'Дата',
             'actions' => 'Действия'
         ];
     }
     
-    /**
-     * Сортируемые колонки
-     */
     public function get_sortable_columns() {
         return [
             'id' => ['id', false],
-            'sku' => ['sku', false],
-            'name' => ['name', true],
-            'quantity' => ['quantity', false],
-            'price' => ['price', false],
-            'created_at' => ['created_at', true]
+            'name' => ['name', false],
+            'category' => ['category', false],
+            'quantity' => ['quantity', true],
+            'price' => ['price', true],
+            'purchase_price' => ['purchase_price', true]
         ];
     }
     
-    /**
-     * Массовые действия
-     */
     public function get_bulk_actions() {
-        return [
-            'delete' => 'Удалить',
-            'export' => 'Экспорт в CSV'
-        ];
+        return ['delete' => '🗑️ Удалить'];
     }
     
-    /**
-     * Обработка массовых действий
-     */
     public function process_bulk_action() {
         global $wpdb;
-        
         if (!$this->current_action()) return;
         
-        $part_ids = isset($_GET['part']) ? array_map('intval', $_GET['part']) : [];
+        $ids = isset($_REQUEST['part']) ? array_map('intval', (array)$_REQUEST['part']) : [];
+        if (empty($ids)) return;
         
-        if (empty($part_ids)) return;
-        
-        switch ($this->current_action()) {
-            case 'delete':
-                $ids_placeholder = implode(',', array_fill(0, count($part_ids), '%d'));
-                $wpdb->query($wpdb->prepare(
-                    "DELETE FROM {$this->table_name} WHERE id IN ({$ids_placeholder})",
-                    $part_ids
-                ));
-                echo '<div class="notice notice-success"><p>Запчасти удалены</p></div>';
-                break;
-                
-            case 'export':
-                $this->export_to_csv($part_ids);
-                break;
+        if ($this->current_action() === 'delete') {
+            $ids_placeholder = implode(',', array_fill(0, count($ids), '%d'));
+            $wpdb->query($wpdb->prepare(
+                "DELETE FROM {$this->table_name} WHERE id IN ({$ids_placeholder})",
+                $ids
+            ));
+            echo '<div class="notice notice-success"><p>Удалено: ' . count($ids) . '</p></div>';
         }
     }
     
-    /**
-     * Экспорт в CSV
-     */
-    private function export_to_csv($ids) {
-        global $wpdb;
-        
-        $ids_placeholder = implode(',', array_fill(0, count($ids), '%d'));
-        $parts = $wpdb->get_results($wpdb->prepare(
-            "SELECT * FROM {$this->table_name} WHERE id IN ({$ids_placeholder})",
-            $ids
-        ));
-        
-        header('Content-Type: text/csv; charset=utf-8');
-        header('Content-Disposition: attachment; filename="parts_export_' . date('Y-m-d') . '.csv"');
-        
-        $output = fopen('php://output', 'w');
-        fputcsv($output, ['ID', 'Артикул', 'Наименование', 'Категория', 'Количество', 'Цена', 'Дата создания']);
-        
-        foreach ($parts as $part) {
-            fputcsv($output, [
-                $part->id,
-                $part->sku,
-                $part->name,
-                $part->category,
-                $part->quantity,
-                $part->price,
-                $part->created_at
-            ]);
-        }
-        
-        fclose($output);
-        exit;
-    }
-    
-    /**
-     * Отображение колонки cb (чекбокс)
-     */
     protected function column_cb($item) {
         return sprintf('<input type="checkbox" name="part[]" value="%s" />', $item->id);
     }
     
-    /**
-     * Отображение колонки ID
-     */
     protected function column_id($item) {
-        return $item->id;
+        return intval($item->id);
     }
     
-    /**
-     * Отображение колонки SKU
-     */
-    protected function column_sku($item) {
-        return !empty($item->sku) ? esc_html($item->sku) : '—';
-    }
-    
-    /**
-     * Отображение колонки наименования
-     */
     protected function column_name($item) {
         $name = esc_html($item->name);
-        
-        if ($item->description) {
-            $name .= '<br><small style="color:#999;">' . esc_html(substr($item->description, 0, 50)) . '</small>';
-        }
-        
-        return $name;
+        $desc = !empty($item->description) ? '<br><small style="color:#718096;">' . esc_html(mb_substr($item->description, 0, 60)) . '...</small>' : '';
+        return "<strong>{$name}</strong>{$desc}";
     }
     
-    /**
-     * Отображение колонки категории
-     */
+    protected function column_sku($item) {
+        return '<code style="background:#2d3748;padding:2px 6px;border-radius:4px;">' . esc_html($item->sku ?: '—') . '</code>';
+    }
+    
     protected function column_category($item) {
-        $categories = [
-            'АКПП в сборе' => '🔧 АКПП в сборе',
-            'Фрикционы' => '⚙️ Фрикционы',
-            'Стальные диски' => '💿 Стальные диски',
-            'Сальники' => '🔘 Сальники',
-            'Прокладки' => '📄 Прокладки',
-            'Соленоиды' => '⚡ Соленоиды',
-            'Гидроблоки' => '💧 Гидроблоки',
-            'Масляные насосы' => '🛢️ Масляные насосы',
-            'Подшипники' => '🔩 Подшипники',
-            'Планетарные ряды' => '⚙️ Планетарные ряды',
-            'Ремкомплекты' => '📦 Ремкомплекты',
-            'Масла ATF' => '🛢️ Масла ATF',
-            'Фильтры' => '🔍 Фильтры',
-            'Датчики' => '📊 Датчики',
-            'Прочее' => '📦 Прочее'
+        $icons = [
+            'parts' => '🔧 Запчасти',
+            'oils' => '🛢️ Масло',
+            'filters' => '🔰 Фильтры',
+            'consumables' => '📎 Расходники',
+            'tools' => '🔨 Инструмент'
         ];
-        
-        $category = $categories[$item->category] ?? $item->category;
-        return $category;
+        $cat = $item->category ?: 'parts';
+        return '<span class="category-badge">' . ($icons[$cat] ?? $cat) . '</span>';
     }
     
-    /**
-     * Отображение колонки остатка
-     */
     protected function column_quantity($item) {
-        $quantity = intval($item->quantity);
-        
-        if ($quantity <= 0) {
-            return '<span style="color: #dc3545;">0 (Нет в наличии)</span>';
-        } elseif ($quantity < 5) {
-            return '<span style="color: #ffc107;">' . $quantity . ' (Мало)</span>';
-        } else {
-            return '<span style="color: #28a745;">' . $quantity . '</span>';
-        }
+        $qty = intval($item->quantity);
+        $unit = $item->unit ?: 'шт';
+        $color = $qty === 0 ? '#fc8181' : ($qty < 5 ? '#f6ad55' : '#00ff88');
+        return "<strong style=\"color:{$color};\">{$qty}</strong> {$unit}";
     }
     
-    /**
-     * Отображение колонки цены
-     */
+    protected function column_purchase_price($item) {
+        $price = floatval($item->purchase_price);
+        return $price > 0 ? number_format($price, 0, ',', ' ') . ' ₽' : '—';
+    }
+    
+    protected function column_markup($item) {
+        $markup = floatval($item->markup_percent);
+        $color = $markup > 50 ? '#00ff88' : ($markup > 20 ? '#f6ad55' : '#fc8181');
+        return "<strong style=\"color:{$color};\">{$markup}%</strong>";
+    }
+    
     protected function column_price($item) {
-        return number_format($item->price, 0, ',', ' ') . ' ₽';
+        $price = floatval($item->price);
+        return "<strong style=\"color:#00ff88;font-size:15px;\">" . number_format($price, 0, ',', ' ') . " ₽</strong>";
     }
     
-    /**
-     * Отображение колонки даты
-     */
-    protected function column_created_at($item) {
-        return date_i18n(get_option('date_format'), strtotime($item->created_at));
-    }
-    
-    /**
-     * Отображение колонки действий
-     */
     protected function column_actions($item) {
-        $actions = sprintf(
-            '<a href="?page=akpp-crm-parts&action=edit&id=%d" class="button button-small">✏️ Ред.</a> ',
-            $item->id
-        );
-        
-        $actions .= sprintf(
-            '<button class="button button-small adjust-stock" data-id="%d" data-name="%s">📦 Склад</button> ',
+        return sprintf(
+            '<button class="button button-small btn-edit-part" data-id="%d" data-name="%s" data-sku="%s" data-category="%s" data-description="%s" data-quantity="%d" data-unit="%s" data-purchase-price="%.2f" data-markup="%.2f" data-price="%.2f" data-supplier="%s" data-location="%s" style="background:#00ff88;border-color:#00ff88;color:#1a1f2e;">✏️</button> <button class="button button-small btn-delete-part" data-id="%d" style="background:#fc8181;border-color:#fc8181;color:#fff;">🗑️</button>',
             $item->id,
-            esc_attr($item->name)
-        );
-        
-        $actions .= sprintf(
-            '<button class="button button-small delete-part" data-id="%d">🗑️</button>',
+            esc_attr($item->name),
+            esc_attr($item->sku),
+            esc_attr($item->category),
+            esc_attr($item->description),
+            intval($item->quantity),
+            esc_attr($item->unit),
+            floatval($item->purchase_price),
+            floatval($item->markup_percent),
+            floatval($item->price),
+            esc_attr($item->supplier),
+            esc_attr($item->location),
             $item->id
         );
-        
-        return $actions;
     }
     
-    /**
-     * Отображение по умолчанию для неизвестных колонок
-     */
-    protected function column_default($item, $column_name) {
-        return isset($item->$column_name) ? esc_html($item->$column_name) : '—';
-    }
-    
-    /**
-     * Фильтры над таблицей
-     */
     protected function extra_tablenav($which) {
         if ($which !== 'top') return;
-        
         $category_filter = isset($_GET['category_filter']) ? sanitize_text_field($_GET['category_filter']) : 'all';
-        $stock_filter = isset($_GET['stock_filter']) ? sanitize_text_field($_GET['stock_filter']) : 'all';
-        
-        $categories = [
-            'all' => 'Все категории',
-            'АКПП в сборе' => '🔧 АКПП в сборе',
-            'Фрикционы' => '⚙️ Фрикционы',
-            'Стальные диски' => '💿 Стальные диски',
-            'Сальники' => '🔘 Сальники',
-            'Прокладки' => '📄 Прокладки',
-            'Соленоиды' => '⚡ Соленоиды',
-            'Гидроблоки' => '💧 Гидроблоки',
-            'Масляные насосы' => '🛢️ Масляные насосы',
-            'Подшипники' => '🔩 Подшипники',
-            'Планетарные ряды' => '⚙️ Планетарные ряды',
-            'Ремкомплекты' => '📦 Ремкомплекты',
-            'Масла ATF' => '🛢️ Масла ATF',
-            'Фильтры' => '🔍 Фильтры',
-            'Датчики' => '📊 Датчики',
-            'Прочее' => '📦 Прочее'
-        ];
         ?>
         <div class="alignleft actions">
             <select name="category_filter">
-                <?php foreach ($categories as $value => $label): ?>
-                    <option value="<?php echo esc_attr($value); ?>" <?php selected($category_filter, $value); ?>>
-                        <?php echo esc_html($label); ?>
-                    </option>
-                <?php endforeach; ?>
+                <option value="all" <?php selected($category_filter, 'all'); ?>>Все категории</option>
+                <option value="parts" <?php selected($category_filter, 'parts'); ?>>🔧 Запчасти</option>
+                <option value="oils" <?php selected($category_filter, 'oils'); ?>>🛢️ Масла</option>
+                <option value="filters" <?php selected($category_filter, 'filters'); ?>>🔰 Фильтры</option>
+                <option value="consumables" <?php selected($category_filter, 'consumables'); ?>>📎 Расходники</option>
+                <option value="tools" <?php selected($category_filter, 'tools'); ?>>🔨 Инструмент</option>
             </select>
-            
-            <select name="stock_filter">
-                <option value="all" <?php selected($stock_filter, 'all'); ?>>Все запчасти</option>
-                <option value="in_stock" <?php selected($stock_filter, 'in_stock'); ?>>В наличии</option>
-                <option value="out_of_stock" <?php selected($stock_filter, 'out_of_stock'); ?>>Нет в наличии</option>
-            </select>
-            
             <input type="submit" name="filter_action" class="button" value="Фильтровать">
-            <a href="?page=akpp-crm-parts&action=add" class="button button-primary">➕ Добавить запчасть</a>
         </div>
         <?php
     }
     
-    /**
-     * Отображение, если нет данных
-     */
     public function no_items() {
-        echo 'Нет запчастей для отображения';
+        echo 'Склад пуст. Добавьте первую позицию.';
     }
 }
