@@ -1,0 +1,197 @@
+/* ============================================================================
+   МАГАЗИН АКПП45
+   ============================================================================ */
+
+.shop-page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+.shop-stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 15px;
+    margin-bottom: 25px;
+}
+
+.shop-stat-card {
+    background: #1a1f2e;
+    border: 1px solid #2d3748;
+    border-radius: 12px;
+    padding: 20px;
+    text-align: center;
+}
+
+.shop-stat-value {
+    font-size: 32px;
+    font-weight: 700;
+    color: #00ff88;
+    margin-bottom: 8px;
+}
+
+.shop-stat-label {
+    color: #a0aec0;
+    font-size: 13px;
+    text-transform: uppercase;
+}
+
+.shop-filters {
+    display: flex;
+    gap: 15px;
+    margin-bottom: 20px;
+    align-items: center;
+}
+
+.shop-filters select,
+.shop-filters input {
+    padding: 10px;
+    background: #1a1f2e;
+    border: 1px solid #2d3748;
+    border-radius: 6px;
+    color: #fff;
+}
+
+.shop-table-wrapper {
+    background: #1a1f2e;
+    border: 1px solid #2d3748;
+    border-radius: 12px;
+    padding: 20px;
+}
+
+.condition-badge {
+    display: inline-block;
+    padding: 4px 12px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.condition-new {
+    background: #00ff8822;
+    color: #00ff88;
+}
+
+.condition-used {
+    background: #f6ad5522;
+    color: #f6ad55;
+}
+
+.stock-badge {
+    display: inline-block;
+    padding: 4px 12px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.in-stock {
+    background: #00ff8822;
+    color: #00ff88;
+}
+
+.low-stock {
+    background: #f6ad5522;
+    color: #f6ad55;
+}
+
+.out-of-stock {
+    background: #fc818122;
+    color: #fc8181;
+}
+
+.featured-badge {
+    color: #ffd700;
+    margin-left: 5px;
+}
+
+.product-form-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 15px;
+    margin-bottom: 15px;
+}
+
+.product-form-actions {
+    text-align: right;
+    margin-top: 20px;
+}
+
+/* Фронтенд */
+.akpp-shop-products-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 20px;
+    padding: 20px 0;
+}
+
+.product-card {
+    background: #1a1f2e;
+    border: 1px solid #2d3748;
+    border-radius: 12px;
+    padding: 20px;
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.product-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 10px 30px rgba(0, 255, 136, 0.1);
+}
+
+.product-badge {
+    display: inline-block;
+    padding: 4px 12px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 600;
+    margin-bottom: 10px;
+}
+
+.product-sku {
+    color: #718096;
+    font-size: 13px;
+    margin: 10px 0;
+}
+
+.product-price {
+    margin: 15px 0;
+}
+
+.old-price {
+    color: #718096;
+    text-decoration: line-through;
+    margin-right: 10px;
+}
+
+.current-price {
+    color: #00ff88;
+    font-size: 24px;
+    font-weight: 700;
+}
+
+.btn-add-to-cart {
+    width: 100%;
+    padding: 12px;
+    background: #00ff88;
+    color: #0a0f1c;
+    border: none;
+    border-radius: 6px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.btn-add-to-cart:hover {
+    background: #00cc6a;
+}
+
+@media (max-width: 768px) {
+    .product-form-grid {
+        grid-template-columns: 1fr;
+    }
+    
+    .shop-filters {
+        flex-direction: column;
+    }
+}

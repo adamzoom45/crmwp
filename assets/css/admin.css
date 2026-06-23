@@ -1619,3 +1619,416 @@ textarea::placeholder {
     text-align: right;
     margin-top: 20px;
 }
+/* ============================================================================
+   СКЛАД - Parts
+   ============================================================================ */
+.parts-page-header, .oils-page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+.parts-stats-grid, .oils-stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 15px;
+    margin-bottom: 25px;
+}
+
+.parts-stat-card, .oils-stat-card {
+    background: #1a1f2e;
+    border: 1px solid #2d3748;
+    border-radius: 12px;
+    padding: 20px;
+    text-align: center;
+}
+
+.parts-stat-value, .oils-stat-value {
+    font-size: 28px;
+    font-weight: 700;
+    color: #00ff88;
+    margin-bottom: 8px;
+}
+
+.parts-stat-label, .oils-stat-label {
+    color: #a0aec0;
+    font-size: 12px;
+    text-transform: uppercase;
+}
+
+.parts-categories {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 15px;
+    margin-bottom: 25px;
+}
+
+.parts-category-card {
+    background: #1a1f2e;
+    border: 1px solid #2d3748;
+    border-radius: 12px;
+    padding: 20px;
+    text-align: center;
+    transition: transform 0.2s;
+}
+
+.parts-category-card:hover {
+    transform: translateY(-2px);
+    border-color: #00ff88;
+}
+
+.category-icon {
+    font-size: 36px;
+    margin-bottom: 10px;
+}
+
+.category-name {
+    color: #fff;
+    font-weight: 600;
+    margin-bottom: 5px;
+}
+
+.category-count {
+    color: #718096;
+    font-size: 13px;
+}
+
+.parts-table-wrapper, .oils-table-wrapper {
+    background: #1a1f2e;
+    border: 1px solid #2d3748;
+    border-radius: 12px;
+    padding: 20px;
+}
+
+.part-form-grid, .part-form-grid-3 {
+    display: grid;
+    gap: 15px;
+    margin-bottom: 15px;
+}
+
+.part-form-grid { grid-template-columns: 1fr 1fr; }
+.part-form-grid-3 { grid-template-columns: 1fr 1fr 1fr; }
+
+.part-form-actions {
+    text-align: right;
+    margin-top: 20px;
+}
+
+.category-badge {
+    display: inline-block;
+    padding: 4px 12px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 600;
+    background: #2d3748;
+    color: #e2e8f0;
+}
+
+@media (max-width: 768px) {
+    .part-form-grid, .part-form-grid-3 {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* ============================================================================
+   ФОРМА НОВОЙ СДЕЛКИ
+   ============================================================================ */
+
+.akpp-form .form-section {
+    background: #1a1f2e;
+    border: 1px solid #2d3748;
+    border-left: 4px solid #00ff88;
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 20px;
+}
+
+.akpp-form .form-section h2 {
+    color: #00ff88;
+    margin-top: 0;
+    margin-bottom: 20px;
+    font-size: 18px;
+    font-weight: 600;
+}
+
+.akpp-form .form-grid-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 15px;
+    margin-bottom: 15px;
+}
+
+.akpp-form .form-grid-3 {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 15px;
+    margin-bottom: 15px;
+}
+
+.akpp-form .form-group {
+    margin-bottom: 15px;
+}
+
+.akpp-form .form-group label {
+    display: block;
+    margin-bottom: 8px;
+    color: #e2e8f0;
+    font-weight: 600;
+    font-size: 14px;
+}
+
+.akpp-form .form-group input,
+.akpp-form .form-group select,
+.akpp-form .form-group textarea {
+    width: 100%;
+    padding: 10px 12px;
+    background: #2d3748;
+    border: 1px solid #4a5568;
+    border-radius: 6px;
+    color: #fff;
+    font-size: 14px;
+    box-sizing: border-box;
+}
+
+.akpp-form .form-group input:focus,
+.akpp-form .form-group select:focus,
+.akpp-form .form-group textarea:focus {
+    outline: none;
+    border-color: #00ff88;
+    box-shadow: 0 0 0 2px rgba(0, 255, 136, 0.2);
+}
+
+.akpp-form .form-group input[readonly] {
+    background: #1a3a2e;
+    color: #00ff88;
+    font-weight: 700;
+}
+
+.akpp-form .vin-input-group,
+.akpp-form .parts-search-group {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+
+.akpp-form .vin-input-group input,
+.akpp-form .parts-search-group input {
+    flex: 1;
+}
+
+.akpp-form .button {
+    background: #00ff88;
+    color: #1a1f2e;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 6px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.akpp-form .button:hover {
+    background: #00cc6a;
+    transform: translateY(-1px);
+}
+
+.akpp-form .button-secondary {
+    background: #4a5568;
+    color: #fff;
+}
+
+.akpp-form .button-secondary:hover {
+    background: #2d3748;
+}
+
+.akpp-form .button-hero {
+    padding: 15px 30px;
+    font-size: 16px;
+}
+
+.akpp-form .form-actions {
+    display: flex;
+    gap: 15px;
+    justify-content: flex-end;
+    margin-top: 30px;
+    padding-top: 20px;
+    border-top: 1px solid #2d3748;
+}
+
+/* Таблица запчастей */
+.akpp-form #parts-table {
+    width: 100%;
+    background: #0a0f1c;
+    border: 1px solid #2d3748;
+    border-radius: 6px;
+    margin-top: 15px;
+}
+
+.akpp-form #parts-table th,
+.akpp-form #parts-table td {
+    padding: 12px;
+    text-align: left;
+    border-bottom: 1px solid #2d3748;
+    color: #e2e8f0;
+}
+
+.akpp-form #parts-table th {
+    background: #1a1f2e;
+    font-weight: 600;
+    color: #00ff88;
+}
+
+.akpp-form #parts-table tfoot td {
+    font-weight: 700;
+    color: #00ff88;
+}
+
+.akpp-form .part-qty {
+    width: 60px !important;
+    text-align: center;
+}
+
+/* Поиск авто */
+.akpp-form .search-dropdown {
+    position: absolute;
+    background: #1a1f2e;
+    border: 1px solid #2d3748;
+    border-radius: 6px;
+    max-height: 300px;
+    overflow-y: auto;
+    z-index: 1000;
+    width: 100%;
+    display: none;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.akpp-form .search-dropdown.active {
+    display: block;
+}
+
+.akpp-form .search-item {
+    padding: 10px 15px;
+    cursor: pointer;
+    border-bottom: 1px solid #2d3748;
+    color: #e2e8f0;
+}
+
+.akpp-form .search-item:hover {
+    background: #2d3748;
+}
+
+.akpp-form .search-item small {
+    color: #718096;
+    display: block;
+    margin-top: 4px;
+}
+
+.akpp-form .search-item .price {
+    color: #00ff88;
+    font-weight: 600;
+}
+
+/* Договор-оферта */
+.agreement-section {
+    background: linear-gradient(135deg, #1a3a2e 0%, #1a1f2e 100%) !important;
+}
+
+.agreement-info {
+    background: rgba(0, 255, 136, 0.1);
+    padding: 15px;
+    border-radius: 8px;
+    margin-bottom: 15px;
+}
+
+.avito-link {
+    color: #00ff88 !important;
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.avito-link:hover {
+    text-decoration: underline;
+}
+
+.agreement-checkbox-block {
+    background: #0a0f1c;
+    padding: 20px;
+    border-radius: 8px;
+    border: 1px solid #2d3748;
+}
+
+.agreement-label {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    cursor: pointer;
+    color: #e2e8f0;
+    font-size: 14px;
+    line-height: 1.5;
+}
+
+.agreement-label input[type="checkbox"] {
+    width: 20px;
+    height: 20px;
+    margin-top: 2px;
+    cursor: pointer;
+    accent-color: #00ff88;
+}
+
+.agreement-text a {
+    color: #00ff88;
+    text-decoration: none;
+}
+
+.agreement-text a:hover {
+    text-decoration: underline;
+}
+
+.agreement-full-text {
+    background: #0a0f1c;
+    padding: 25px;
+    border-radius: 8px;
+    color: #e2e8f0;
+    line-height: 1.6;
+    max-height: 500px;
+    overflow-y: auto;
+}
+
+.agreement-full-text h2 {
+    color: #00ff88;
+    text-align: center;
+    border-bottom: 2px solid #00ff88;
+    padding-bottom: 10px;
+}
+
+.agreement-full-text h3 {
+    color: #00ff88;
+    margin-top: 20px;
+}
+
+.agreement-full-text ol,
+.agreement-full-text ul {
+    padding-left: 25px;
+}
+
+.agreement-full-text li {
+    margin-bottom: 8px;
+}
+
+/* Адаптивность */
+@media (max-width: 768px) {
+    .akpp-form .form-grid-2,
+    .akpp-form .form-grid-3 {
+        grid-template-columns: 1fr;
+    }
+    
+    .akpp-form .form-actions {
+        flex-direction: column;
+    }
+    
+    .akpp-form .vin-input-group,
+    .akpp-form .parts-search-group {
+        flex-direction: column;
+    }
+}
