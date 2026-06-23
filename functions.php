@@ -712,3 +712,85 @@ function akpp_add_cron_schedules($schedules) {
     return $schedules;
 }
 add_filter('cron_schedules', 'akpp_add_cron_schedules');
+
+// =============================================================================
+// 12. РЕГИСТРАЦИЯ СТРАНИЦЫ КАТЕГОРИЙ СКЛАДА
+// =============================================================================
+function akpp_register_part_categories_page() {
+    add_submenu_page(
+        'akpp-crm-dashboard',
+        'Категории склада',
+        '📂 Категории',
+        'manage_options',
+        'akpp-crm-part-categories',
+        'akpp_render_part_categories_page'
+    );
+}
+add_action('admin_menu', 'akpp_register_part_categories_page', 20);
+
+function akpp_render_part_categories_page() {
+    $file = AKPP_CRM_DIR . '/templates/part-categories.php';
+    if (file_exists($file)) {
+        require_once $file;
+    } else {
+        echo '<div class="notice notice-error"><p>❌ Файл part-categories.php не найден</p></div>';
+    }
+}
+// =============================================================================
+// 12. ИНТЕРНЕТ-МАГАЗИН
+// =============================================================================
+$shop_file = AKPP_CRM_DIR . '/class-akpp-shop.php';
+if (file_exists($shop_file)) {
+    require_once $shop_file;
+}
+
+// Регистрация страницы магазина в админке
+//add_action('admin_menu', function() {
+//    add_submenu_page(
+//        'akpp-crm-dashboard',
+//        'Магазин',
+//        ' Магазин',
+//        'manage_options',
+//        'akpp-crm-shop',
+//        function() {
+//            if (class_exists('AKPP_Shop')) {
+//                require_once AKPP_CRM_DIR . '/templates/shop-admin.php';
+//            } else {
+//                echo '<div class="notice notice-error"><p>❌ Класс магазина не найден</p></div>';
+//            }
+//        }
+//    );
+//}, 20);//
+// Подключение стилей и скриптов магазина
+function akpp45_enqueue_shop_assets() {
+    if (is_admin()) {
+        wp_enqueue_style(
+            'akpp45-shop-admin',
+            AKPP_THEME_URI . '/assets/css/shop.css',
+            [],
+            '1.0.0'
+        );
+    } else {
+        wp_enqueue_style(
+            'akpp45-shop-frontend',
+            AKPP_THEME_URI . '/assets/css/shop.css',
+            [],
+            '1.0.0'
+        );
+        
+        wp_enqueue_script(
+            'akpp45-shop-js',
+            AKPP_THEME_URI . '/assets/js/shop.js',
+            ['jquery'],
+            '1.0.0',
+            true
+        );
+        
+        wp_localize_script('akpp45-shop-js', 'akpp_ajax', [
+            'ajax_url' => admin_url('admin-ajax.php'),
+            'nonce' => wp_create_nonce('akpp_shop_nonce'),
+        ]);
+    }
+}
+add_action('wp_enqueue_scripts', 'akpp45_enqueue_shop_assets');
+add_action('admin_enqueue_scripts', 'akpp45_enqueue_shop_assets');
