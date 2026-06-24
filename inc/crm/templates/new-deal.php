@@ -8,6 +8,11 @@ $employees = $wpdb->get_results("SELECT id, name FROM {$wpdb->prefix}akpp_employ
 $vehicles = $wpdb->get_results("SELECT id, make, model, year, vin, engine FROM {$wpdb->prefix}akpp_vehicles ORDER BY make, model LIMIT 500");
 $parts = $wpdb->get_results("SELECT id, name, sku, category, price, markup_percent, quantity FROM {$wpdb->prefix}akpp_parts WHERE price > 0 ORDER BY name LIMIT 500");
 $transmissions = $wpdb->get_results("SELECT id, code, make, model FROM {$wpdb->prefix}akpp_transmissions ORDER BY code LIMIT 200");
+
+// Подключаем текст оферты
+if (!function_exists('akpp_get_agreement_text')) {
+    require_once dirname(__FILE__) . '/agreement-text.php';
+}
 ?>
 
 <div class="wrap akpp-crm-wrap">
@@ -39,7 +44,7 @@ $transmissions = $wpdb->get_results("SELECT id, code, make, model FROM {$wpdb->p
         <div class="form-section">
             <h2>🚗 Автомобиль</h2>
             
-            <div class="form-group">
+            <div class="form-group" style="position:relative;">
                 <label>Поиск авто из БД (или введите VIN)</label>
                 <input type="text" id="vehicle-search" placeholder="Начните вводить марку или модель..." autocomplete="off">
                 <div id="vehicle-search-results" class="search-dropdown"></div>
@@ -135,7 +140,7 @@ $transmissions = $wpdb->get_results("SELECT id, code, make, model FROM {$wpdb->p
         <div class="form-section">
             <h2>📦 Запчасти</h2>
             
-            <div class="form-group">
+            <div class="form-group" style="position:relative;">
                 <label>Поиск запчасти из БД</label>
                 <input type="text" id="part-search" placeholder="Начните вводить название или артикул..." autocomplete="off">
                 <div id="part-search-results" class="search-dropdown"></div>
@@ -212,6 +217,51 @@ $transmissions = $wpdb->get_results("SELECT id, code, make, model FROM {$wpdb->p
             </div>
         </div>
 
+        <!-- ДОГОВОР-ОФЕРТА -->
+        <div class="form-section agreement-section" style="background:linear-gradient(135deg,#1a3a2e 0%,#1a1f2e 100%);border-left:4px solid #00ff88;padding:20px;border-radius:8px;margin-bottom:20px;">
+            <h2 style="color:#00ff88;margin-top:0;">📜 Договор-оферта</h2>
+            
+            <div style="background:rgba(0,255,136,0.1);padding:15px;border-radius:8px;margin-bottom:15px;">
+                <p style="margin:0;color:#e2e8f0;">
+                    <strong>Объявление на Авито:</strong> 
+                    <a href="https://www.avito.ru/kurgan/predlozheniya_uslug/remont_akpp_7991698408" 
+                       target="_blank" 
+                       style="color:#00ff88;font-weight:600;text-decoration:none;">
+                        🔗 remont_akpp_7991698408
+                    </a>
+                </p>
+            </div>
+            
+            <div style="margin-bottom:15px;">
+                <button type="button" id="toggle-agreement" class="button" style="background:#2d3748;color:#fff;border:1px solid #4a5568;">
+                    📖 Показать текст договора-оферты
+                </button>
+                <button type="button" id="print-agreement" class="button" style="background:#2d3748;color:#fff;border:1px solid #4a5568;margin-left:10px;">
+                    🖨️ Распечатать договор
+                </button>
+            </div>
+            
+            <div id="agreement-full-text" style="display:none;margin-bottom:20px;">
+                <?php echo akpp_get_agreement_text('1.0'); ?>
+            </div>
+            
+            <div style="background:#0a0f1c;padding:20px;border-radius:8px;border:1px solid #2d3748;">
+                <label style="display:flex;align-items:flex-start;gap:12px;cursor:pointer;color:#e2e8f0;font-size:14px;line-height:1.5;">
+                    <input type="checkbox" name="agreement_accepted" id="agreement-accepted" value="1" required 
+                           style="width:20px;height:20px;margin-top:2px;cursor:pointer;accent-color:#00ff88;">
+                    <span>
+                        <strong style="color:#00ff88;">Клиент ознакомлен с условиями договора-оферты</strong> и 
+                        <a href="#" id="show-agreement-inline" style="color:#00ff88;text-decoration:none;">согласен с условиями</a> 
+                        оказания услуг, включая ограничения гарантийных обязательств, отсутствие гарантии на б/у запчасти 
+                        и обработку персональных данных в соответствии с ФЗ № 152-ФЗ
+                    </span>
+                </label>
+                <div id="agreement-warning" style="display:none;margin-top:10px;padding:10px;background:#fc818122;border:1px solid #fc8181;border-radius:6px;color:#fc8181;font-size:13px;">
+                    ⚠️ Для сохранения сделки необходимо подтверждение согласия клиента с условиями договора-оферты
+                </div>
+            </div>
+        </div>
+
         <div class="form-actions">
             <button type="button" class="button button-secondary" onclick="history.back()">Отмена</button>
             <button type="submit" class="button button-primary button-hero">💾 Сохранить сделку</button>
@@ -242,6 +292,43 @@ $transmissions = $wpdb->get_results("SELECT id, code, make, model FROM {$wpdb->p
 .search-item .price { color: #00ff88; font-weight: 600; }
 .vin-input-group { display: flex; gap: 10px; }
 .vin-input-group input { flex: 1; }
+.form-section {
+    background: #1a1f2e;
+    padding: 20px;
+    margin-bottom: 20px;
+    border-radius: 8px;
+    border-left: 4px solid #00ff88;
+}
+.form-grid-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 15px;
+}
+.form-grid-3 {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 15px;
+}
+.form-group {
+    margin-bottom: 15px;
+}
+.form-group label {
+    display: block;
+    margin-bottom: 5px;
+    color: #00ff88;
+    font-weight: 600;
+}
+.form-group input,
+.form-group select,
+.form-group textarea {
+    width: 100%;
+    padding: 10px;
+    background: #2d3748;
+    border: 1px solid #4a5568;
+    border-radius: 4px;
+    color: #fff;
+    box-sizing: border-box;
+}
 </style>
 
 <script>
@@ -275,7 +362,7 @@ jQuery(document).ready(function($) {
         
         var html = '';
         matches.forEach(function(v) {
-            html += '<div class="search-item" data-id="' + v.id + '" data-make="' + v.make + '" data-model="' + v.model + '" data-year="' + v.year + '" data-engine="' + v.engine + '" data-vin="' + (v.vin || '') + '">';
+            html += '<div class="search-item" data-id="' + v.id + '" data-make="' + (v.make || '') + '" data-model="' + (v.model || '') + '" data-year="' + (v.year || '') + '" data-engine="' + (v.engine || '') + '" data-vin="' + (v.vin || '') + '">';
             html += '<strong>' + v.make + ' ' + v.model + '</strong>';
             html += '<small>' + (v.year || '') + ' | ' + (v.engine || '—') + (v.vin ? ' | VIN: ' + v.vin : '') + '</small>';
             html += '</div>';
@@ -284,10 +371,8 @@ jQuery(document).ready(function($) {
         $results.html(html).addClass('active');
     });
     
-    // Выбор авто из списка
     $(document).on('click', '.search-item[data-id]', function() {
-        var id = $(this).data('id');
-        $('#vehicle-id').val(id);
+        $('#vehicle-id').val($(this).data('id'));
         $('#car-make').val($(this).data('make'));
         $('#car-model').val($(this).data('model'));
         $('#car-year').val($(this).data('year'));
@@ -297,7 +382,6 @@ jQuery(document).ready(function($) {
         $('#vehicle-search').val('');
     });
     
-    // Сброс vehicle_id при ручном вводе
     $('#car-make, #car-model, #car-year').on('input', function() {
         $('#vehicle-id').val(0);
     });
@@ -326,7 +410,6 @@ jQuery(document).ready(function($) {
         
         var html = '';
         matches.forEach(function(p) {
-            // Цена с наценкой из БД
             var markup = parseFloat(p.markup_percent) || 0;
             var priceWithMarkup = parseFloat(p.price) * (1 + markup / 100);
             
@@ -340,17 +423,15 @@ jQuery(document).ready(function($) {
         $results.html(html).addClass('active');
     });
     
-    // Добавление запчасти в сделку
     $(document).on('click', '#part-search-results .search-item[data-id]', function() {
         var part = {
             id: $(this).data('id'),
             name: $(this).data('name'),
             sku: $(this).data('sku'),
-            price: parseFloat($(this).data('price')), // уже с наценкой!
+            price: parseFloat($(this).data('price')),
             qty: 1
         };
         
-        // Проверка дубля
         var exists = partsList.find(function(p) { return p.id === part.id; });
         if (exists) {
             exists.qty++;
@@ -390,21 +471,18 @@ jQuery(document).ready(function($) {
         calculateTotal();
     }
     
-    // Изменение количества
     $(document).on('change', '.part-qty', function() {
         var index = $(this).data('index');
         partsList[index].qty = parseInt($(this).val()) || 1;
         renderParts();
     });
     
-    // Удаление запчасти
     $(document).on('click', '.btn-remove-part', function() {
         var index = $(this).data('index');
         partsList.splice(index, 1);
         renderParts();
     });
     
-    // Закрытие дропдаунов при клике вне
     $(document).on('click', function(e) {
         if (!$(e.target).closest('#vehicle-search, #vehicle-search-results').length) {
             $('#vehicle-search-results').removeClass('active');
@@ -501,98 +579,140 @@ jQuery(document).ready(function($) {
         });
     });
     
-  <!-- ДОГОВОР-ОФЕРТА -->
-<div class="form-section agreement-section" style="background:linear-gradient(135deg,#1a3a2e 0%,#1a1f2e 100%);border-left:4px solid #00ff88;padding:20px;border-radius:8px;margin-bottom:20px;">
-    <h2 style="color:#00ff88;margin-top:0;">📜 Договор-оферта</h2>
+    // ========================================================================
+    // ДОГОВОР-ОФЕРТА
+    // ========================================================================
+    $('#toggle-agreement').on('click', function() {
+        $('#agreement-full-text').slideToggle();
+        var text = $('#agreement-full-text').is(':visible') 
+            ? '📖 Скрыть текст договора-оферты' 
+            : '📖 Показать текст договора-оферты';
+        $(this).text(text);
+    });
     
-    <div style="background:rgba(0,255,136,0.1);padding:15px;border-radius:8px;margin-bottom:15px;">
-        <p style="margin:0;color:#e2e8f0;">
-            <strong>Объявление на Авито:</strong> 
-            <a href="https://www.avito.ru/kurgan/predlozheniya_uslug/remont_akpp_7991698408" 
-               target="_blank" 
-               style="color:#00ff88;font-weight:600;text-decoration:none;">
-                🔗 remont_akpp_7991698408
-            </a>
-        </p>
-    </div>
+    $('#show-agreement-inline').on('click', function(e) {
+        e.preventDefault();
+        $('#agreement-full-text').slideDown();
+        $('#toggle-agreement').text('📖 Скрыть текст договора-оферты');
+        $('html, body').animate({
+            scrollTop: $('#agreement-full-text').offset().top - 100
+        }, 500);
+    });
     
-    <div style="margin-bottom:15px;">
-        <button type="button" id="toggle-agreement" class="button" style="background:#2d3748;color:#fff;border:1px solid #4a5568;">
-            📖 Показать текст договора-оферты
-        </button>
-        <button type="button" id="print-agreement" class="button" style="background:#2d3748;color:#fff;border:1px solid #4a5568;margin-left:10px;">
-            🖨️ Распечатать договор
-        </button>
-    </div>
+    $('#print-agreement').on('click', function() {
+        var clientName = $('#client-name').val() || '[ФИО клиента]';
+        var clientPhone = $('#client-phone').val() || '[Телефон]';
+        var carInfo = ($('#car-make').val() || '') + ' ' + ($('#car-model').val() || '');
+        var totalAmount = $('#total-amount').val() || '0';
+        var today = new Date().toLocaleDateString('ru-RU');
+        
+        var printContent = '<html><head><title>Договор-оферта от ' + today + '</title>' +
+            '<style>body{font-family:Times New Roman,serif;font-size:12pt;line-height:1.5;padding:20px;}' +
+            'h1{text-align:center;font-size:14pt;}' +
+            '.header{text-align:right;margin-bottom:20px;}' +
+            '.signature{margin-top:40px;display:flex;justify-content:space-between;}' +
+            '.signature div{width:45%;}' +
+            '.client-info{background:#f0f0f0;padding:10px;margin:10px 0;}</style></head><body>' +
+            '<div class="header"><p>Заказ-наряд №[ID] от ' + today + '</p></div>' +
+            '<h1>ДОГОВОР-ОФЕРТА НА РЕМОНТ АКПП</h1>' +
+            '<div class="client-info"><strong>Заказчик:</strong> ' + clientName + '<br>' +
+            '<strong>Телефон:</strong> ' + clientPhone + '<br>' +
+            '<strong>Автомобиль:</strong> ' + carInfo + '<br>' +
+            '<strong>Сумма работ:</strong> ' + totalAmount + ' ₽</div>' +
+            '<p>Заказчик подтверждает согласие с условиями договора-оферты, размещённой на сайте Исполнителя ' +
+            'и на Авито (объявление № 7991698408).</p>' +
+            '<div class="signature"><div><p>_____________________ / ' + clientName + ' /</p><p>Заказчик</p></div>' +
+            '<div><p>_____________________ / Представитель /</p><p>Исполнитель</p></div></div>' +
+            '</body></html>';
+        
+        var printWindow = window.open('', '_blank');
+        printWindow.document.write(printContent);
+        printWindow.document.close();
+        printWindow.focus();
+        setTimeout(function() { printWindow.print(); }, 500);
+    });
     
-    <div id="agreement-full-text" style="display:none;margin-bottom:20px;">
-        <?php 
-        if (!function_exists('akpp_get_agreement_text')) {
-            require_once dirname(__FILE__) . '/agreement-text.php';
-        }
-        echo akpp_get_agreement_text('1.0');
-        ?>
-    </div>
-    
-    <div style="background:#0a0f1c;padding:20px;border-radius:8px;border:1px solid #2d3748;">
-        <label style="display:flex;align-items:flex-start;gap:12px;cursor:pointer;color:#e2e8f0;font-size:14px;line-height:1.5;">
-            <input type="checkbox" name="agreement_accepted" id="agreement-accepted" value="1" required 
-                   style="width:20px;height:20px;margin-top:2px;cursor:pointer;accent-color:#00ff88;">
-            <span>
-                <strong style="color:#00ff88;">Клиент ознакомлен с условиями договора-оферты</strong> и 
-                <a href="#" id="show-agreement-inline" style="color:#00ff88;text-decoration:none;">согласен с условиями</a> 
-                оказания услуг, включая ограничения гарантийных обязательств, отсутствие гарантии на б/у запчасти 
-                и обработку персональных данных в соответствии с ФЗ № 152-ФЗ
-            </span>
-        </label>
-        <div id="agreement-warning" style="display:none;margin-top:10px;padding:10px;background:#fc818122;border:1px solid #fc8181;border-radius:6px;color:#fc8181;font-size:13px;">
-            ⚠️ Для сохранения сделки необходимо подтверждение согласия клиента с условиями договора-оферты
-        </div>
-    </div>
-</div>
-  
     // ========================================================================
     // ОТПРАВКА ФОРМЫ
     // ========================================================================
     $('#akpp-deal-form').on('submit', function(e) {
         e.preventDefault();
         
-        var formData = $(this).serializeArray();
-        formData.push({name: 'action', value: 'akpp_save_deal'});
-        
-        // Добавляем запчасти
-        partsList.forEach(function(part) {
-            formData.push({
-                name: 'parts[]',
-                value: JSON.stringify({
-                    id: part.id,
-                    name: part.name,
-                    sku: part.sku,
-                    price: part.price,
-                    quantity: part.qty,
-                    category: 'parts'
-                })
-            });
-        });
+        if (!$('#agreement-accepted').is(':checked')) {
+            $('#agreement-warning').show();
+            $('html, body').animate({
+                scrollTop: $('.agreement-section').offset().top - 100
+            }, 500);
+            return false;
+        }
+        $('#agreement-warning').hide();
         
         var btn = $(this).find('button[type="submit"]');
         btn.prop('disabled', true).text('⏳ Сохранение...');
         
+        // Сначала сохраняем согласие с офертой
+        var agreementData = {
+            action: 'akpp_save_agreement',
+            client_name: $('#client-name').val(),
+            client_phone: $('#client-phone').val(),
+            source: 'crm_deal',
+            nonce: '<?php echo wp_create_nonce("akpp45_nonce"); ?>'
+        };
+        
         $.ajax({
             url: ajaxurl,
             type: 'POST',
-            data: formData,
+            data: agreementData,
             dataType: 'json',
             success: function(res) {
-                if (res.success) {
-                    showNotice('✅ ' + res.data.message, 'success');
-                    setTimeout(function() {
-                        window.location.href = '<?php echo admin_url("admin.php?page=akpp-crm-deals"); ?>';
-                    }, 1500);
-                } else {
-                    showNotice(res.data.message || '❌ Ошибка', 'error');
+                if (!res.success) {
+                    showNotice(res.data.message || '❌ Ошибка сохранения согласия', 'error');
                     btn.prop('disabled', false).text('💾 Сохранить сделку');
+                    return;
                 }
+                
+                // Теперь сохраняем сделку
+                var formData = $('#akpp-deal-form').serializeArray();
+                formData.push({name: 'action', value: 'akpp_save_deal'});
+                formData.push({name: 'agreement_id', value: res.data.agreement_id});
+                formData.push({name: 'agreement_accepted', value: '1'});
+                
+                // Добавляем запчасти
+                partsList.forEach(function(part) {
+                    formData.push({
+                        name: 'parts[]',
+                        value: JSON.stringify({
+                            id: part.id,
+                            name: part.name,
+                            sku: part.sku,
+                            price: part.price,
+                            quantity: part.qty,
+                            category: 'parts'
+                        })
+                    });
+                });
+                
+                $.ajax({
+                    url: ajaxurl,
+                    type: 'POST',
+                    data: formData,
+                    dataType: 'json',
+                    success: function(res2) {
+                        if (res2.success) {
+                            showNotice('✅ ' + res2.data.message, 'success');
+                            setTimeout(function() {
+                                window.location.href = '<?php echo admin_url("admin.php?page=akpp-crm-deals"); ?>';
+                            }, 1500);
+                        } else {
+                            showNotice(res2.data.message || '❌ Ошибка', 'error');
+                            btn.prop('disabled', false).text('💾 Сохранить сделку');
+                        }
+                    },
+                    error: function() {
+                        showNotice('❌ Ошибка соединения', 'error');
+                        btn.prop('disabled', false).text('💾 Сохранить сделку');
+                    }
+                });
             },
             error: function() {
                 showNotice('❌ Ошибка соединения', 'error');
@@ -610,162 +730,3 @@ jQuery(document).ready(function($) {
     }
 });
 </script>
-<style>
-.form-section {
-    background: #1a1f2e;
-    padding: 20px;
-    margin-bottom: 20px;
-    border-radius: 8px;
-    border-left: 4px solid #00ff88;
-}
-.form-grid-2 {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 15px;
-}
-.form-grid-3 {
-    display: grid;
-    grid-template-columns: 1fr 1fr 1fr;
-    gap: 15px;
-}
-.form-group {
-    margin-bottom: 15px;
-}
-.form-group label {
-    display: block;
-    margin-bottom: 5px;
-    color: #00ff88;
-    font-weight: 600;
-}
-.form-group input,
-.form-group select,
-.form-group textarea {
-    width: 100%;
-    padding: 10px;
-    background: #2d3748;
-    border: 1px solid #4a5568;
-    border-radius: 4px;
-    color: #fff;
-}
-// ========================================================================
-// ДОГОВОР-ОФЕРТА
-// ========================================================================
-
-// Показать/скрыть текст договора
-$('#toggle-agreement').on('click', function() {
-    $('#agreement-full-text').slideToggle();
-    var text = $('#agreement-full-text').is(':visible') 
-        ? '📖 Скрыть текст договора-оферты' 
-        : '📖 Показать текст договора-оферты';
-    $(this).text(text);
-});
-
-// Показать договор по клику на ссылку в чекбоксе
-$('#show-agreement-inline').on('click', function(e) {
-    e.preventDefault();
-    $('#agreement-full-text').slideDown();
-    $('#toggle-agreement').text('📖 Скрыть текст договора-оферты');
-    $('html, body').animate({
-        scrollTop: $('#agreement-full-text').offset().top - 100
-    }, 500);
-});
-
-// Распечатать договор
-$('#print-agreement').on('click', function() {
-    var clientName = $('#client-name').val() || '[ФИО клиента]';
-    var clientPhone = $('#client-phone').val() || '[Телефон]';
-    var carInfo = ($('#car-make').val() || '') + ' ' + ($('#car-model').val() || '');
-    var totalAmount = $('#total-amount').val() || '0';
-    var today = new Date().toLocaleDateString('ru-RU');
-    
-    var printContent = '<html><head><title>Договор-оферта от ' + today + '</title>' +
-        '<style>body{font-family:Times New Roman,serif;font-size:12pt;line-height:1.5;padding:20px;}' +
-        'h1{text-align:center;font-size:14pt;}' +
-        '.header{text-align:right;margin-bottom:20px;}' +
-        '.signature{margin-top:40px;display:flex;justify-content:space-between;}' +
-        '.signature div{width:45%;}' +
-        '.client-info{background:#f0f0f0;padding:10px;margin:10px 0;}</style></head><body>' +
-        '<div class="header"><p>Заказ-наряд №[ID] от ' + today + '</p></div>' +
-        '<h1>ДОГОВОР-ОФЕРТА НА РЕМОНТ АКПП</h1>' +
-        '<div class="client-info"><strong>Заказчик:</strong> ' + clientName + '<br>' +
-        '<strong>Телефон:</strong> ' + clientPhone + '<br>' +
-        '<strong>Автомобиль:</strong> ' + carInfo + '<br>' +
-        '<strong>Сумма работ:</strong> ' + totalAmount + ' ₽</div>' +
-        '<p>Заказчик подтверждает согласие с условиями договора-оферты, размещённой на сайте Исполнителя ' +
-        'и на Авито (объявление № 7991698408).</p>' +
-        '<div class="signature"><div><p>_____________________ / ' + clientName + ' /</p><p>Заказчик</p></div>' +
-        '<div><p>_____________________ / Представитель /</p><p>Исполнитель</p></div></div>' +
-        '</body></html>';
-    
-    var printWindow = window.open('', '_blank');
-    printWindow.document.write(printContent);
-    printWindow.document.close();
-    printWindow.focus();
-    setTimeout(function() { printWindow.print(); }, 500);
-});
-
-// Валидация согласия при отправке формы
-var originalSubmit = $('#akpp-deal-form').off('submit').on('submit', function(e) {
-    e.preventDefault();
-    
-    if (!$('#agreement-accepted').is(':checked')) {
-        $('#agreement-warning').show();
-        $('html, body').animate({
-            scrollTop: $('.agreement-section').offset().top - 100
-        }, 500);
-        return false;
-    }
-    $('#agreement-warning').hide();
-    
-    // Сначала сохраняем согласие с офертой
-    var agreementData = {
-        action: 'akpp_save_agreement',
-        client_name: $('#client-name').val(),
-        client_phone: $('#client-phone').val(),
-        client_email: $('input[name="client_email"]').val() || '',
-        source: 'crm_deal',
-        nonce: '<?php echo wp_create_nonce("akpp45_nonce"); ?>'
-    };
-    
-    $.ajax({
-        url: ajaxurl,
-        type: 'POST',
-        data: agreementData,
-        dataType: 'json',
-        success: function(res) {
-            if (res.success) {
-                // Теперь сохраняем сделку
-                var formData = $('#akpp-deal-form').serializeArray();
-                formData.push({name: 'action', value: 'akpp_save_deal'});
-                formData.push({name: 'agreement_id', value: res.data.agreement_id});
-                formData.push({name: 'agreement_accepted', value: '1'});
-                
-                var btn = $('#akpp-deal-form').find('button[type="submit"]');
-                btn.prop('disabled', true).text('⏳ Сохранение...');
-                
-                $.ajax({
-                    url: ajaxurl,
-                    type: 'POST',
-                    data: formData,
-                    dataType: 'json',
-                    success: function(res2) {
-                        if (res2.success) {
-                            showNotice('✅ ' + res2.data.message, 'success');
-                            setTimeout(function() {
-                                window.location.href = '<?php echo admin_url("admin.php?page=akpp-crm-deals"); ?>';
-                            }, 1500);
-                        } else {
-                            showNotice(res2.data.message || '❌ Ошибка', 'error');
-                            btn.prop('disabled', false).text('💾 Сохранить сделку');
-                        }
-                    }
-                });
-            } else {
-                showNotice(res.data.message || '❌ Ошибка сохранения согласия', 'error');
-            }
-        }
-    });
-    
-    return false;
-});  
-</style>

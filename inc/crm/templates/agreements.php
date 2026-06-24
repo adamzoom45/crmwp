@@ -6,12 +6,8 @@ $table = $wpdb->prefix . 'akpp_agreements';
 
 // Статистика
 $total = (int)$wpdb->get_var("SELECT COUNT(*) FROM {$table}");
-$today = (int)$wpdb->get_var($wpdb->prepare(
-    "SELECT COUNT(*) FROM {$table} WHERE DATE(accepted_at) = CURDATE()"
-));
-$month = (int)$wpdb->get_var($wpdb->prepare(
-    "SELECT COUNT(*) FROM {$table} WHERE MONTH(accepted_at) = MONTH(CURDATE()) AND YEAR(accepted_at) = YEAR(CURDATE())"
-));
+$today = (int)$wpdb->get_var("SELECT COUNT(*) FROM {$table} WHERE DATE(accepted_at) = CURDATE()");
+$month = (int)$wpdb->get_var("SELECT COUNT(*) FROM {$table} WHERE MONTH(accepted_at) = MONTH(CURDATE()) AND YEAR(accepted_at) = YEAR(CURDATE())");
 
 // Последние согласия
 $agreements = $wpdb->get_results("SELECT * FROM {$table} ORDER BY accepted_at DESC LIMIT 50");
@@ -88,7 +84,13 @@ $agreements = $wpdb->get_results("SELECT * FROM {$table} ORDER BY accepted_at DE
                                         data-id="<?php echo $agr->id; ?>"
                                         data-name="<?php echo esc_attr($agr->client_name); ?>"
                                         data-phone="<?php echo esc_attr($agr->client_phone); ?>"
+                                        data-email="<?php echo esc_attr($agr->client_email); ?>"
+                                        data-deal="<?php echo intval($agr->deal_id); ?>"
+                                        data-source="<?php echo esc_attr($agr->source); ?>"
+                                        data-ip="<?php echo esc_attr($agr->ip_address); ?>"
                                         data-date="<?php echo esc_attr($agr->accepted_at); ?>"
+                                        data-version="<?php echo esc_attr($agr->agreement_version); ?>"
+                                        data-useragent="<?php echo esc_attr($agr->user_agent); ?>"
                                         style="background:#00ff88;border-color:#00ff88;color:#1a1f2e;">👁️</button>
                             </td>
                         </tr>
@@ -105,16 +107,22 @@ jQuery(document).ready(function($) {
     $(document).on('click', '.btn-view-agreement', function() {
         var data = $(this).data();
         var html = '<div style="padding:20px;">' +
-            '<h3 style="color:#00ff88;">📜 Детали согласия #<?php echo $agr->id; ?></h3>'.replace('<?php echo $agr->id; ?>', data.id) +
+            '<h3 style="color:#00ff88;">📜 Детали согласия #' + data.id + '</h3>' +
             '<p><strong>Клиент:</strong> ' + data.name + '</p>' +
             '<p><strong>Телефон:</strong> ' + data.phone + '</p>' +
+            '<p><strong>Email:</strong> ' + (data.email || '—') + '</p>' +
+            '<p><strong>Сделка:</strong> ' + (data.deal ? '#' + data.deal : '—') + '</p>' +
+            '<p><strong>Источник:</strong> ' + data.source + '</p>' +
+            '<p><strong>IP-адрес:</strong> <code>' + data.ip + '</code></p>' +
             '<p><strong>Дата согласия:</strong> ' + data.date + '</p>' +
+            '<p><strong>Версия оферты:</strong> ' + data.version + '</p>' +
             '<hr style="border-color:#2d3748;margin:15px 0;">' +
-            '<p style="color:#a0aec0;font-size:13px;">Клиент подтвердил согласие с условиями договора-оферты версии 1.0</p>' +
+            '<p style="color:#a0aec0;font-size:13px;"><strong>User-Agent:</strong><br><code style="font-size:11px;word-break:break-all;">' + (data.useragent || '—') + '</code></p>' +
+            '<p style="color:#a0aec0;font-size:13px;">Клиент подтвердил согласие с условиями договора-оферты</p>' +
             '</div>';
         
-        var $modal = $('<div class="akpp-modal active"><div class="akpp-modal-content" style="max-width:600px;">' +
-            '<span class="akpp-modal-close">&times;</span>' + html + '</div></div>');
+        var $modal = $('<div class="akpp-modal active" style="position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);z-index:99999;display:flex;align-items:center;justify-content:center;"><div class="akpp-modal-content" style="max-width:600px;background:#1a1f2e;border:1px solid #2d3748;border-radius:12px;position:relative;">' +
+            '<span class="akpp-modal-close" style="position:absolute;top:10px;right:15px;font-size:24px;cursor:pointer;color:#fff;">&times;</span>' + html + '</div></div>');
         $('body').append($modal);
         
         $modal.find('.akpp-modal-close, .akpp-modal').on('click', function(e) {
@@ -124,24 +132,7 @@ jQuery(document).ready(function($) {
     
     // Экспорт CSV
     $('#export-agreements').on('click', function() {
-        $.ajax({
-            url: ajaxurl,
-            type: 'POST',
-            data: {
-                action: 'akpp_export_agreements',
-                nonce: '<?php echo wp_create_nonce("akpp45_nonce"); ?>'
-            },
-            dataType: 'json',
-            success: function(res) {
-                if (res.success) {
-                    var blob = new Blob([res.data.csv], {type: 'text/csv;charset=utf-8;'});
-                    var link = document.createElement('a');
-                    link.href = URL.createObjectURL(blob);
-                    link.download = 'agreements_' + new Date().toISOString().slice(0,10) + '.csv';
-                    link.click();
-                }
-            }
-        });
+        alert('Функция экспорта будет добавлена позже');
     });
 });
 </script>
