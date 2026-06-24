@@ -18,7 +18,7 @@ if (!defined('AKPP_CRM_URL')) {
     define('AKPP_CRM_URL', get_template_directory_uri() . '/inc/crm/');
 }
 if (!defined('AKPP_CRM_VERSION')) {
-    define('AKPP_CRM_VERSION', '4.5.0');
+    define('AKPP_CRM_VERSION', '5.1.0');
 }
 
 class AKPP_CRM {
@@ -94,7 +94,7 @@ class AKPP_CRM {
         }
         
         $current_version = get_option('akpp_crm_db_version', '0');
-        $target_version  = '4.5';
+        $target_version  = '5.1';
         
         if (version_compare($current_version, $target_version, '<')) {
             $lock_key = 'akpp_crm_db_installing';

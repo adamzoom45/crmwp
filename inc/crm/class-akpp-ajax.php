@@ -1,4 +1,12 @@
 <?php
+/**
+ * АКПП45 CRM - AJAX обработчики
+ * Все AJAX методы для работы CRM системы
+ *
+ * @package AKPP_CRM
+ * @version 5.2.0
+ */
+
 if (!defined('ABSPATH')) exit;
 
 class AKPP_AJAX {
@@ -12,14 +20,85 @@ class AKPP_AJAX {
     }
 
     private function __construct() {
+        $this->register_hooks();
+    }
+
+    /**
+     * Регистрация всех AJAX хуков
+     */
+    private function register_hooks() {
+        // ====================================================================
+        // ЛИЧНЫЙ КАБИНЕТ КЛИЕНТА
+        // ====================================================================
+        
+        // Авторизация (доступно всем)
+        add_action('wp_ajax_akpp_client_login', [$this, 'ajax_client_login']);
+        add_action('wp_ajax_nopriv_akpp_client_login', [$this, 'ajax_client_login']);
+        
+        add_action('wp_ajax_akpp_client_register', [$this, 'ajax_client_register']);
+        add_action('wp_ajax_nopriv_akpp_client_register', [$this, 'ajax_client_register']);
+        
+        add_action('wp_ajax_akpp_client_logout', [$this, 'ajax_client_logout']);
+        add_action('wp_ajax_nopriv_akpp_client_logout', [$this, 'ajax_client_logout']);
+        
+        add_action('wp_ajax_akpp_client_forgot_password', [$this, 'ajax_client_forgot_password']);
+        add_action('wp_ajax_nopriv_akpp_client_forgot_password', [$this, 'ajax_client_forgot_password']);
+        
+        // Профиль (только авторизованные)
+        add_action('wp_ajax_akpp_client_update_profile', [$this, 'ajax_client_update_profile']);
+        add_action('wp_ajax_akpp_client_get_profile', [$this, 'ajax_client_get_profile']);
+        
+        // Сделки клиента
+        add_action('wp_ajax_akpp_client_get_deals', [$this, 'ajax_client_get_deals']);
+        add_action('wp_ajax_akpp_client_get_deal', [$this, 'ajax_client_get_deal']);
+        
+        // Корзина (доступно всем)
+        add_action('wp_ajax_akpp_cart_add', [$this, 'ajax_cart_add']);
+        add_action('wp_ajax_nopriv_akpp_cart_add', [$this, 'ajax_cart_add']);
+        
+        add_action('wp_ajax_akpp_cart_remove', [$this, 'ajax_cart_remove']);
+        add_action('wp_ajax_nopriv_akpp_cart_remove', [$this, 'ajax_cart_remove']);
+        
+        add_action('wp_ajax_akpp_cart_update', [$this, 'ajax_cart_update']);
+        add_action('wp_ajax_nopriv_akpp_cart_update', [$this, 'ajax_cart_update']);
+        
+        add_action('wp_ajax_akpp_cart_get', [$this, 'ajax_cart_get']);
+        add_action('wp_ajax_nopriv_akpp_cart_get', [$this, 'ajax_cart_get']);
+        
+        add_action('wp_ajax_akpp_cart_clear', [$this, 'ajax_cart_clear']);
+        add_action('wp_ajax_nopriv_akpp_cart_clear', [$this, 'ajax_cart_clear']);
+        
+        // Оформление заказа
+        add_action('wp_ajax_akpp_checkout_create', [$this, 'ajax_checkout_create']);
+        
+        // Заказы клиента
+        add_action('wp_ajax_akpp_client_get_orders', [$this, 'ajax_client_get_orders']);
+        add_action('wp_ajax_akpp_client_get_order', [$this, 'ajax_client_get_order']);
+        
+        // Чат клиента
+        add_action('wp_ajax_akpp_client_chat_send', [$this, 'ajax_client_chat_send']);
+        add_action('wp_ajax_akpp_client_chat_get', [$this, 'ajax_client_chat_get']);
+        add_action('wp_ajax_akpp_client_chat_list', [$this, 'ajax_client_chat_list']);
+        
+        // ====================================================================
+        // АДМИНКА CRM
+        // ====================================================================
+        
+        // Магазин — проверка SKU
+        add_action('wp_ajax_akpp_shop_check_sku', [$this, 'ajax_shop_check_sku']);
+        
+        // Тестовые методы для отладки
+        add_action('wp_ajax_akpp_get_last_deal', [$this, 'ajax_get_last_deal']);
+        add_action('wp_ajax_akpp_get_all_deals', [$this, 'ajax_get_all_deals']);
+        
         // VIN AI декодер
         add_action('wp_ajax_akpp_decode_vin_ai', [$this, 'ajax_decode_vin_ai']);
-      
+        
         // Договор-оферта
-		add_action('wp_ajax_akpp_save_agreement', [$this, 'ajax_save_agreement']);
-		add_action('wp_ajax_akpp_get_agreements', [$this, 'ajax_get_agreements']);
-		add_action('wp_ajax_akpp_get_agreement_text', [$this, 'ajax_get_agreement_text']);
-      
+        add_action('wp_ajax_akpp_save_agreement', [$this, 'ajax_save_agreement']);
+        add_action('wp_ajax_akpp_get_agreements', [$this, 'ajax_get_agreements']);
+        add_action('wp_ajax_akpp_get_agreement_text', [$this, 'ajax_get_agreement_text']);
+        
         // Поиск
         add_action('wp_ajax_akpp_search_parts', [$this, 'ajax_search_parts']);
         add_action('wp_ajax_akpp_search_vehicles', [$this, 'ajax_search_vehicles']);
@@ -78,13 +157,16 @@ class AKPP_AJAX {
         add_action('wp_ajax_akpp_delete_category', [$this, 'ajax_delete_category']);
         add_action('wp_ajax_akpp_toggle_category', [$this, 'ajax_toggle_category']);
         
-        // Магазин
+        // Магазин (админка)
         add_action('wp_ajax_akpp_shop_get_products', [$this, 'ajax_shop_get_products']);
         add_action('wp_ajax_akpp_shop_save_product', [$this, 'ajax_shop_save_product']);
         add_action('wp_ajax_akpp_shop_update_order_status', [$this, 'ajax_shop_update_order_status']);
         add_action('wp_ajax_akpp_shop_get_orders', [$this, 'ajax_shop_get_orders']);
     }
 
+    /**
+     * Проверка прав доступа
+     */
     private function check_permissions($capability = 'manage_options') {
         if (!current_user_can($capability)) {
             wp_send_json_error(['message' => 'Недостаточно прав'], 403);
@@ -93,8 +175,1145 @@ class AKPP_AJAX {
         return true;
     }
 
+    /**
+     * Проверка что пользователь авторизован как клиент
+     */
+    private function check_client_auth() {
+        if (!is_user_logged_in()) {
+            wp_send_json_error(['message' => 'Требуется авторизация', 'code' => 'not_logged_in'], 401);
+            return false;
+        }
+        return true;
+    }
+
     // ========================================================================
-    // СОХРАНЕНИЕ СУЩНОСТЕЙ
+    // 🔐 АВТОРИЗАЦИЯ КЛИЕНТА
+    // ========================================================================
+
+    /**
+     * Вход в личный кабинет
+     */
+    public function ajax_client_login() {
+        if (!check_ajax_referer('akpp_client_nonce', 'nonce', false)) {
+            wp_send_json_error(['message' => 'Ошибка безопасности'], 403);
+            return;
+        }
+        
+        $login = sanitize_text_field($_POST['login'] ?? '');
+        $password = $_POST['password'] ?? '';
+        $remember = !empty($_POST['remember']);
+        
+        if (empty($login) || empty($password)) {
+            wp_send_json_error(['message' => 'Заполните все поля']);
+            return;
+        }
+        
+        // Определяем что ввёл пользователь (email или username)
+        if (is_email($login)) {
+            $user = get_user_by('email', $login);
+        } else {
+            $user = get_user_by('login', $login);
+        }
+        
+        if (!$user) {
+            wp_send_json_error(['message' => 'Пользователь не найден']);
+            return;
+        }
+        
+        // Проверка роли (клиент или админ)
+        if (!in_array('akpp_client', (array) $user->roles) && !in_array('administrator', (array) $user->roles)) {
+            wp_send_json_error(['message' => 'Доступ запрещён']);
+            return;
+        }
+        
+        $creds = [
+            'user_login' => $user->user_login,
+            'user_password' => $password,
+            'remember' => $remember,
+        ];
+        
+        $signed_in = wp_signon($creds, false);
+        
+        if (is_wp_error($signed_in)) {
+            wp_send_json_error(['message' => 'Неверный пароль']);
+            return;
+        }
+        
+        // Обновляем last_login
+        global $wpdb;
+        $wpdb->query($wpdb->prepare(
+            "UPDATE {$wpdb->prefix}akpp_client_accounts 
+             SET last_login = %s, login_count = login_count + 1 
+             WHERE wp_user_id = %d",
+            current_time('mysql'),
+            $signed_in->ID
+        ));
+        
+        wp_send_json_success([
+            'message' => '✅ Вход выполнен',
+            'redirect' => home_url('/lk/'),
+            'user' => [
+                'id' => $signed_in->ID,
+                'name' => $signed_in->display_name,
+                'email' => $signed_in->user_email,
+            ]
+        ]);
+    }
+
+    /**
+     * Регистрация клиента
+     */
+    public function ajax_client_register() {
+        if (!check_ajax_referer('akpp_client_nonce', 'nonce', false)) {
+            wp_send_json_error(['message' => 'Ошибка безопасности'], 403);
+            return;
+        }
+        
+        $name = sanitize_text_field($_POST['name'] ?? '');
+        $phone = sanitize_text_field($_POST['phone'] ?? '');
+        $email = sanitize_email($_POST['email'] ?? '');
+        
+        if (empty($name) || (empty($phone) && empty($email))) {
+            wp_send_json_error(['message' => 'Заполните имя и телефон/email']);
+            return;
+        }
+        
+        // Проверка существующего пользователя
+        if (!empty($email) && email_exists($email)) {
+            wp_send_json_error([
+                'message' => 'Пользователь с таким email уже существует. <a href="/lk/login/" style="color:#00ff88;">Войти →</a>'
+            ]);
+            return;
+        }
+        
+        // Используем класс AKPP_Client_Account
+        if (!class_exists('AKPP_Client_Account')) {
+            wp_send_json_error(['message' => 'Модуль аккаунтов не загружен']);
+            return;
+        }
+        
+        $user_id = AKPP_Client_Account::get_instance()->get_or_create_account([
+            'name' => $name,
+            'phone' => $phone,
+            'email' => $email,
+        ]);
+        
+        if (!$user_id) {
+            wp_send_json_error(['message' => 'Ошибка регистрации']);
+            return;
+        }
+        
+        wp_send_json_success([
+            'message' => '✅ Аккаунт создан. Проверьте email для получения пароля.',
+            'redirect' => home_url('/lk/login/?registered=1'),
+        ]);
+    }
+
+    /**
+     * Выход из системы
+     */
+    public function ajax_client_logout() {
+        if (!check_ajax_referer('akpp_client_nonce', 'nonce', false)) {
+            wp_send_json_error(['message' => 'Ошибка безопасности'], 403);
+            return;
+        }
+        
+        wp_logout();
+        wp_send_json_success([
+            'message' => 'Вы вышли из системы',
+            'redirect' => home_url('/'),
+        ]);
+    }
+
+    /**
+     * Восстановление пароля
+     */
+    public function ajax_client_forgot_password() {
+        if (!check_ajax_referer('akpp_client_nonce', 'nonce', false)) {
+            wp_send_json_error(['message' => 'Ошибка безопасности'], 403);
+            return;
+        }
+        
+        $email = sanitize_email($_POST['email'] ?? '');
+        
+        if (empty($email)) {
+            wp_send_json_error(['message' => 'Укажите email']);
+            return;
+        }
+        
+        $user = get_user_by('email', $email);
+        
+        if (!$user) {
+            // Не раскрываем существование пользователя
+            wp_send_json_success(['message' => '✅ Если аккаунт существует, письмо отправлено']);
+            return;
+        }
+        
+        // Генерируем новый пароль
+        $new_password = wp_generate_password(12, false);
+        wp_set_password($new_password, $user->ID);
+        
+        // Отправляем
+        $subject = '🔑 Восстановление пароля — АКПП45';
+        $message = "
+        <div style='font-family:Arial,sans-serif;max-width:600px;margin:0 auto;background:#0a0f1c;color:#e2e8f0;padding:30px;border-radius:12px;'>
+            <h1 style='color:#00ff88;text-align:center;'>🔑 Новый пароль</h1>
+            <p>Здравствуйте!</p>
+            <p>Вы запросили восстановление пароля. Ваш новый пароль:</p>
+            <div style='background:#1a1f2e;padding:20px;border-radius:8px;text-align:center;margin:20px 0;'>
+                <code style='font-size:20px;color:#00ff88;background:#2d3748;padding:10px 20px;border-radius:4px;'>{$new_password}</code>
+            </div>
+            <p style='text-align:center;'>
+                <a href='" . home_url('/lk/login/') . "' style='background:#00ff88;color:#1a1f2e;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:700;'>
+                    Войти в кабинет →
+                </a>
+            </p>
+        </div>
+        ";
+        
+        wp_mail($email, $subject, $message, ['Content-Type: text/html; charset=UTF-8']);
+        
+        wp_send_json_success(['message' => '✅ Письмо с новым паролем отправлено на ' . $email]);
+    }
+
+    /**
+     * Обновление профиля
+     */
+    public function ajax_client_update_profile() {
+        if (!$this->check_client_auth()) return;
+        if (!check_ajax_referer('akpp_client_nonce', 'nonce', false)) {
+            wp_send_json_error(['message' => 'Ошибка безопасности'], 403);
+            return;
+        }
+        
+        $user_id = get_current_user_id();
+        $name = sanitize_text_field($_POST['name'] ?? '');
+        $phone = sanitize_text_field($_POST['phone'] ?? '');
+        $new_password = $_POST['new_password'] ?? '';
+        
+        if (!empty($name)) {
+            wp_update_user([
+                'ID' => $user_id,
+                'first_name' => $name,
+                'display_name' => $name,
+            ]);
+        }
+        
+        if (!empty($phone)) {
+            update_user_meta($user_id, 'phone', $phone);
+            global $wpdb;
+            $wpdb->update($wpdb->prefix . 'akpp_client_accounts', 
+                ['phone' => $phone], 
+                ['wp_user_id' => $user_id]
+            );
+        }
+        
+        if (!empty($new_password) && strlen($new_password) >= 6) {
+            wp_set_password($new_password, $user_id);
+            // Повторный вход после смены пароля
+            wp_set_auth_cookie($user_id, true);
+        }
+        
+        wp_send_json_success(['message' => '✅ Профиль обновлён']);
+    }
+
+    /**
+     * Получение профиля
+     */
+    public function ajax_client_get_profile() {
+        if (!$this->check_client_auth()) return;
+        if (!check_ajax_referer('akpp_client_nonce', 'nonce', false)) {
+            wp_send_json_error(['message' => 'Ошибка безопасности'], 403);
+            return;
+        }
+        
+        $user = wp_get_current_user();
+        $phone = get_user_meta($user->ID, 'phone', true);
+        
+        wp_send_json_success([
+            'id' => $user->ID,
+            'name' => $user->first_name ?: $user->display_name,
+            'email' => $user->user_email,
+            'phone' => $phone,
+            'registered' => $user->user_registered,
+        ]);
+    }
+
+    // ========================================================================
+    // 📋 СДЕЛКИ КЛИЕНТА
+    // ========================================================================
+
+    /**
+     * Получение списка сделок клиента
+     */
+    public function ajax_client_get_deals() {
+        if (!$this->check_client_auth()) return;
+        if (!check_ajax_referer('akpp_client_nonce', 'nonce', false)) {
+            wp_send_json_error(['message' => 'Ошибка безопасности'], 403);
+            return;
+        }
+        
+        global $wpdb;
+        $user_id = get_current_user_id();
+        
+        // Находим client_id по user_id
+        $client_id = $wpdb->get_var($wpdb->prepare(
+            "SELECT id FROM {$wpdb->prefix}akpp_site_users WHERE wp_user_id = %d",
+            $user_id
+        ));
+        
+        if (!$client_id) {
+            wp_send_json_success(['deals' => [], 'total' => 0]);
+            return;
+        }
+        
+        $deals = $wpdb->get_results($wpdb->prepare(
+            "SELECT d.*, v.make, v.model, v.year, v.vin
+             FROM {$wpdb->prefix}akpp_deals d
+             LEFT JOIN {$wpdb->prefix}akpp_vehicles v ON d.vehicle_id = v.id
+             WHERE d.client_id = %d
+             ORDER BY d.created_at DESC
+             LIMIT 50",
+            $client_id
+        ), ARRAY_A);
+        
+        wp_send_json_success([
+            'deals' => $deals ?: [],
+            'total' => count($deals),
+        ]);
+    }
+
+    /**
+     * Получение деталей сделки клиента
+     */
+    public function ajax_client_get_deal() {
+        if (!$this->check_client_auth()) return;
+        if (!check_ajax_referer('akpp_client_nonce', 'nonce', false)) {
+            wp_send_json_error(['message' => 'Ошибка безопасности'], 403);
+            return;
+        }
+        
+        global $wpdb;
+        $user_id = get_current_user_id();
+        $deal_id = intval($_POST['deal_id'] ?? 0);
+        
+        if (!$deal_id) {
+            wp_send_json_error(['message' => 'Не указан ID сделки']);
+            return;
+        }
+        
+        // Находим client_id
+        $client_id = $wpdb->get_var($wpdb->prepare(
+            "SELECT id FROM {$wpdb->prefix}akpp_site_users WHERE wp_user_id = %d",
+            $user_id
+        ));
+        
+        // Получаем сделку (только свою!)
+        $deal = $wpdb->get_row($wpdb->prepare(
+            "SELECT d.*, v.make, v.model, v.year, v.vin, v.engine
+             FROM {$wpdb->prefix}akpp_deals d
+             LEFT JOIN {$wpdb->prefix}akpp_vehicles v ON d.vehicle_id = v.id
+             WHERE d.id = %d AND d.client_id = %d",
+            $deal_id, $client_id
+        ), ARRAY_A);
+        
+        if (!$deal) {
+            wp_send_json_error(['message' => 'Сделка не найдена']);
+            return;
+        }
+        
+        // Получаем запчасти сделки
+        $parts = $wpdb->get_results($wpdb->prepare(
+            "SELECT * FROM {$wpdb->prefix}akpp_deal_parts WHERE deal_id = %d",
+            $deal_id
+        ), ARRAY_A);
+        
+        // Получаем сотрудника
+        $employee = null;
+        if (!empty($deal['employee_id'])) {
+            $employee = $wpdb->get_row($wpdb->prepare(
+                "SELECT name, phone FROM {$wpdb->prefix}akpp_employees WHERE id = %d",
+                $deal['employee_id']
+            ), ARRAY_A);
+        }
+        
+        wp_send_json_success([
+            'deal' => $deal,
+            'parts' => $parts ?: [],
+            'employee' => $employee,
+        ]);
+    }
+
+    // ========================================================================
+    // 🛒 КОРЗИНА
+    // ========================================================================
+
+    /**
+     * Получить/создать session_id для корзины (для неавторизованных)
+     */
+    private function get_cart_user_id() {
+        if (is_user_logged_in()) {
+            return get_current_user_id();
+        }
+        
+        // Для неавторизованных используем session_id из cookie
+        if (empty($_COOKIE['akpp_cart_session'])) {
+            $session_id = 'guest_' . wp_generate_password(32, false);
+            setcookie('akpp_cart_session', $session_id, time() + 30 * DAY_IN_SECONDS, COOKIEPATH, COOKIE_DOMAIN);
+            $_COOKIE['akpp_cart_session'] = $session_id;
+        }
+        
+        // Возвращаем хэш session_id как user_id (отрицательное число)
+        return -abs(crc32($_COOKIE['akpp_cart_session']));
+    }
+
+    /**
+     * Добавление в корзину
+     */
+    public function ajax_cart_add() {
+        if (!check_ajax_referer('akpp45_nonce', 'nonce', false)) {
+            wp_send_json_error(['message' => 'Ошибка безопасности'], 403);
+            return;
+        }
+        
+        $user_id = $this->get_cart_user_id();
+        $product_id = intval($_POST['product_id'] ?? 0);
+        $product_type = sanitize_text_field($_POST['product_type'] ?? 'product');
+        $quantity = max(1, intval($_POST['quantity'] ?? 1));
+        
+        if (!$product_id) {
+            wp_send_json_error(['message' => 'Ошибка данных']);
+            return;
+        }
+        
+        global $wpdb;
+        $table = $wpdb->prefix . 'akpp_client_cart';
+        
+        // Проверяем есть ли уже в корзине
+        $existing = $wpdb->get_row($wpdb->prepare(
+            "SELECT id, quantity FROM {$table} WHERE user_id = %d AND product_id = %d AND product_type = %s",
+            $user_id, $product_id, $product_type
+        ));
+        
+        if ($existing) {
+            $wpdb->update($table, 
+                ['quantity' => $existing->quantity + $quantity],
+                ['id' => $existing->id]
+            );
+        } else {
+            $wpdb->insert($table, [
+                'user_id' => $user_id,
+                'product_id' => $product_id,
+                'product_type' => $product_type,
+                'quantity' => $quantity,
+            ]);
+        }
+        
+        wp_send_json_success([
+            'message' => '✅ Добавлено в корзину',
+            'cart_count' => $this->get_cart_count($user_id),
+        ]);
+    }
+
+    /**
+     * Удаление из корзины
+     */
+    public function ajax_cart_remove() {
+        if (!check_ajax_referer('akpp45_nonce', 'nonce', false)) {
+            wp_send_json_error(['message' => 'Ошибка безопасности'], 403);
+            return;
+        }
+        
+        $user_id = $this->get_cart_user_id();
+        $cart_id = intval($_POST['cart_id'] ?? 0);
+        
+        if (!$cart_id) {
+            wp_send_json_error(['message' => 'Ошибка данных']);
+            return;
+        }
+        
+        global $wpdb;
+        $wpdb->delete($wpdb->prefix . 'akpp_client_cart', [
+            'id' => $cart_id,
+            'user_id' => $user_id,
+        ]);
+        
+        wp_send_json_success([
+            'message' => '✅ Удалено из корзины',
+            'cart_count' => $this->get_cart_count($user_id),
+        ]);
+    }
+
+    /**
+     * Обновление количества в корзине
+     */
+    public function ajax_cart_update() {
+        if (!check_ajax_referer('akpp45_nonce', 'nonce', false)) {
+            wp_send_json_error(['message' => 'Ошибка безопасности'], 403);
+            return;
+        }
+        
+        $user_id = $this->get_cart_user_id();
+        $cart_id = intval($_POST['cart_id'] ?? 0);
+        $quantity = max(1, intval($_POST['quantity'] ?? 1));
+        
+        if (!$cart_id) {
+            wp_send_json_error(['message' => 'Ошибка данных']);
+            return;
+        }
+        
+        global $wpdb;
+        $wpdb->update($wpdb->prefix . 'akpp_client_cart',
+            ['quantity' => $quantity],
+            ['id' => $cart_id, 'user_id' => $user_id]
+        );
+        
+        wp_send_json_success([
+            'message' => '✅ Обновлено',
+            'items' => $this->get_cart_items($user_id),
+            'total' => $this->get_cart_total($user_id),
+        ]);
+    }
+
+    /**
+     * Получение содержимого корзины
+     */
+    public function ajax_cart_get() {
+        $user_id = $this->get_cart_user_id();
+        
+        wp_send_json_success([
+            'items' => $this->get_cart_items($user_id),
+            'total' => $this->get_cart_total($user_id),
+            'count' => $this->get_cart_count($user_id),
+        ]);
+    }
+
+    /**
+     * Очистка корзины
+     */
+    public function ajax_cart_clear() {
+        if (!check_ajax_referer('akpp45_nonce', 'nonce', false)) {
+            wp_send_json_error(['message' => 'Ошибка безопасности'], 403);
+            return;
+        }
+        
+        $user_id = $this->get_cart_user_id();
+        
+        global $wpdb;
+        $wpdb->delete($wpdb->prefix . 'akpp_client_cart', ['user_id' => $user_id]);
+        
+        wp_send_json_success(['message' => '✅ Корзина очищена']);
+    }
+
+    /**
+     * Получение товаров корзины
+     */
+    private function get_cart_items($user_id) {
+        global $wpdb;
+        
+        $items = $wpdb->get_results($wpdb->prepare(
+            "SELECT c.id as cart_id, c.*, p.name, p.sku, p.price, p.images, p.condition_type, p.stock
+             FROM {$wpdb->prefix}akpp_client_cart c
+             LEFT JOIN {$wpdb->prefix}akpp_shop_products p ON c.product_id = p.id
+             WHERE c.user_id = %d AND p.id IS NOT NULL",
+            $user_id
+        ), ARRAY_A);
+        
+        return $items ?: [];
+    }
+
+    /**
+     * Общая сумма корзины
+     */
+    private function get_cart_total($user_id) {
+        global $wpdb;
+        
+        return (float) $wpdb->get_var($wpdb->prepare(
+            "SELECT COALESCE(SUM(p.price * c.quantity), 0)
+             FROM {$wpdb->prefix}akpp_client_cart c
+             LEFT JOIN {$wpdb->prefix}akpp_shop_products p ON c.product_id = p.id
+             WHERE c.user_id = %d",
+            $user_id
+        ));
+    }
+
+    /**
+     * Количество товаров в корзине
+     */
+    private function get_cart_count($user_id) {
+        global $wpdb;
+        
+        return (int) $wpdb->get_var($wpdb->prepare(
+            "SELECT COALESCE(SUM(quantity), 0) FROM {$wpdb->prefix}akpp_client_cart WHERE user_id = %d",
+            $user_id
+        ));
+    }
+
+    // ========================================================================
+    // 💳 ОФОРМЛЕНИЕ ЗАКАЗА
+    // ========================================================================
+
+    /**
+     * Создание заказа из корзины
+     */
+    public function ajax_checkout_create() {
+        if (!is_user_logged_in()) {
+            wp_send_json_error(['message' => 'Необходимо войти в аккаунт', 'code' => 'not_logged_in'], 401);
+            return;
+        }
+        
+        if (!check_ajax_referer('akpp45_nonce', 'nonce', false)) {
+            wp_send_json_error(['message' => 'Ошибка безопасности'], 403);
+            return;
+        }
+        
+        $user_id = get_current_user_id();
+        $cart_items = $this->get_cart_items($user_id);
+        
+        if (empty($cart_items)) {
+            wp_send_json_error(['message' => 'Корзина пуста']);
+            return;
+        }
+        
+        $user = wp_get_current_user();
+        
+        // Данные доставки
+        $address = sanitize_textarea_field($_POST['address'] ?? '');
+        $comment = sanitize_textarea_field($_POST['comment'] ?? '');
+        $payment_method = sanitize_text_field($_POST['payment_method'] ?? 'cash');
+        
+        // Расчёт суммы
+        $subtotal = $this->get_cart_total($user_id);
+        
+        global $wpdb;
+        
+        // Создаём заказ
+        $order_number = 'ORD-' . strtoupper(substr(uniqid(), -8));
+        
+        $wpdb->insert($wpdb->prefix . 'akpp_shop_orders', [
+            'order_number' => $order_number,
+            'client_name' => $user->first_name ?: $user->display_name,
+            'client_phone' => get_user_meta($user_id, 'phone', true),
+            'client_email' => $user->user_email,
+            'client_address' => $address,
+            'status' => 'new',
+            'payment_method' => $payment_method,
+            'payment_status' => 'pending',
+            'subtotal' => $subtotal,
+            'total' => $subtotal,
+            'notes' => $comment,
+            'created_at' => current_time('mysql'),
+        ]);
+        
+        $order_id = $wpdb->insert_id;
+        
+        // Добавляем позиции
+        foreach ($cart_items as $item) {
+            $wpdb->insert($wpdb->prefix . 'akpp_shop_order_items', [
+                'order_id' => $order_id,
+                'product_id' => $item['product_id'],
+                'product_name' => $item['name'],
+                'product_sku' => $item['sku'],
+                'quantity' => $item['quantity'],
+                'price' => $item['price'],
+                'total' => $item['price'] * $item['quantity'],
+            ]);
+            
+            // Уменьшаем остаток на складе
+            $wpdb->query($wpdb->prepare(
+                "UPDATE {$wpdb->prefix}akpp_shop_products 
+                 SET stock = GREATEST(0, stock - %d) 
+                 WHERE id = %d",
+                $item['quantity'],
+                $item['product_id']
+            ));
+        }
+        
+        // Очищаем корзину
+        $wpdb->delete($wpdb->prefix . 'akpp_client_cart', ['user_id' => $user_id]);
+        
+        // Уведомление админу
+        $this->notify_admin_new_order($order_id, $order_number, $subtotal);
+        
+        wp_send_json_success([
+            'message' => '✅ Заказ #' . $order_number . ' оформлен!',
+            'order_id' => $order_id,
+            'order_number' => $order_number,
+            'redirect' => home_url('/lk/order/' . $order_id . '/'),
+        ]);
+    }
+
+    /**
+     * Уведомление админу о новом заказе
+     */
+    private function notify_admin_new_order($order_id, $order_number, $total) {
+        $bot_token = get_option('akpp_telegram_bot_token', '');
+        $chat_id = get_option('akpp_telegram_chat_id', '');
+        
+        if (empty($bot_token) || empty($chat_id)) return;
+        
+        $message = "🛒 *НОВЫЙ ЗАКАЗ #{$order_number}*\n\n💰 Сумма: " . number_format($total, 0, ',', ' ') . " ₽";
+        
+        wp_remote_post("https://api.telegram.org/bot{$bot_token}/sendMessage", [
+            'body' => ['chat_id' => $chat_id, 'text' => $message, 'parse_mode' => 'Markdown'],
+            'timeout' => 5
+        ]);
+    }
+
+    // ========================================================================
+    // 📦 ЗАКАЗЫ КЛИЕНТА
+    // ========================================================================
+
+    /**
+     * Список заказов клиента
+     */
+    public function ajax_client_get_orders() {
+        if (!$this->check_client_auth()) return;
+        if (!check_ajax_referer('akpp_client_nonce', 'nonce', false)) {
+            wp_send_json_error(['message' => 'Ошибка безопасности'], 403);
+            return;
+        }
+        
+        global $wpdb;
+        $user = wp_get_current_user();
+        
+        $orders = $wpdb->get_results($wpdb->prepare(
+            "SELECT * FROM {$wpdb->prefix}akpp_shop_orders 
+             WHERE client_email = %s OR client_phone = %s
+             ORDER BY created_at DESC
+             LIMIT 50",
+            $user->user_email,
+            get_user_meta($user->ID, 'phone', true)
+        ), ARRAY_A);
+        
+        wp_send_json_success([
+            'orders' => $orders ?: [],
+            'total' => count($orders),
+        ]);
+    }
+
+    /**
+     * Детали заказа клиента
+     */
+    public function ajax_client_get_order() {
+        if (!$this->check_client_auth()) return;
+        if (!check_ajax_referer('akpp_client_nonce', 'nonce', false)) {
+            wp_send_json_error(['message' => 'Ошибка безопасности'], 403);
+            return;
+        }
+        
+        global $wpdb;
+        $user = wp_get_current_user();
+        $order_id = intval($_POST['order_id'] ?? 0);
+        
+        if (!$order_id) {
+            wp_send_json_error(['message' => 'Не указан ID заказа']);
+            return;
+        }
+        
+        // Получаем заказ (только свой!)
+        $order = $wpdb->get_row($wpdb->prepare(
+            "SELECT * FROM {$wpdb->prefix}akpp_shop_orders 
+             WHERE id = %d AND (client_email = %s OR client_phone = %s)",
+            $order_id,
+            $user->user_email,
+            get_user_meta($user->ID, 'phone', true)
+        ), ARRAY_A);
+        
+        if (!$order) {
+            wp_send_json_error(['message' => 'Заказ не найден']);
+            return;
+        }
+        
+        // Получаем позиции
+        $items = $wpdb->get_results($wpdb->prepare(
+            "SELECT * FROM {$wpdb->prefix}akpp_shop_order_items WHERE order_id = %d",
+            $order_id
+        ), ARRAY_A);
+        
+        wp_send_json_success([
+            'order' => $order,
+            'items' => $items ?: [],
+        ]);
+    }
+
+    // ========================================================================
+    // 💬 ЧАТ КЛИЕНТА
+    // ========================================================================
+
+    /**
+     * Список чатов клиента (по сделкам)
+     */
+    public function ajax_client_chat_list() {
+        if (!$this->check_client_auth()) return;
+        if (!check_ajax_referer('akpp_client_nonce', 'nonce', false)) {
+            wp_send_json_error(['message' => 'Ошибка безопасности'], 403);
+            return;
+        }
+        
+        global $wpdb;
+        $user_id = get_current_user_id();
+        
+        // Находим client_id
+        $client_id = $wpdb->get_var($wpdb->prepare(
+            "SELECT id FROM {$wpdb->prefix}akpp_site_users WHERE wp_user_id = %d",
+            $user_id
+        ));
+        
+        if (!$client_id) {
+            wp_send_json_success(['chats' => []]);
+            return;
+        }
+        
+        // Получаем сделки с сообщениями
+        $chats = $wpdb->get_results($wpdb->prepare(
+            "SELECT d.id as deal_id, d.status, d.total_amount, d.created_at,
+                    v.make, v.model, v.year,
+                    (SELECT COUNT(*) FROM {$wpdb->prefix}akpp_chat_messages 
+                     WHERE dialog_id = d.id AND is_read = 0 AND sender_id != %d) as unread_count,
+                    (SELECT message_text FROM {$wpdb->prefix}akpp_chat_messages 
+                     WHERE dialog_id = d.id ORDER BY created_at DESC LIMIT 1) as last_message,
+                    (SELECT created_at FROM {$wpdb->prefix}akpp_chat_messages 
+                     WHERE dialog_id = d.id ORDER BY created_at DESC LIMIT 1) as last_message_at
+             FROM {$wpdb->prefix}akpp_deals d
+             LEFT JOIN {$wpdb->prefix}akpp_vehicles v ON d.vehicle_id = v.id
+             WHERE d.client_id = %d
+             ORDER BY last_message_at DESC NULLS LAST, d.created_at DESC
+             LIMIT 20",
+            $user_id,
+            $client_id
+        ), ARRAY_A);
+        
+        wp_send_json_success(['chats' => $chats ?: []]);
+    }
+
+    /**
+     * Получение сообщений чата
+     */
+    public function ajax_client_chat_get() {
+        if (!$this->check_client_auth()) return;
+        if (!check_ajax_referer('akpp_client_nonce', 'nonce', false)) {
+            wp_send_json_error(['message' => 'Ошибка безопасности'], 403);
+            return;
+        }
+        
+        global $wpdb;
+        $user_id = get_current_user_id();
+        $deal_id = intval($_POST['deal_id'] ?? 0);
+        
+        if (!$deal_id) {
+            wp_send_json_error(['message' => 'Не указан ID сделки']);
+            return;
+        }
+        
+        // Проверка что сделка принадлежит клиенту
+        $client_id = $wpdb->get_var($wpdb->prepare(
+            "SELECT id FROM {$wpdb->prefix}akpp_site_users WHERE wp_user_id = %d",
+            $user_id
+        ));
+        
+        $deal_client = $wpdb->get_var($wpdb->prepare(
+            "SELECT client_id FROM {$wpdb->prefix}akpp_deals WHERE id = %d",
+            $deal_id
+        ));
+        
+        if ($deal_client != $client_id) {
+            wp_send_json_error(['message' => 'Доступ запрещён'], 403);
+            return;
+        }
+        
+        // Получаем сообщения
+        $messages = $wpdb->get_results($wpdb->prepare(
+            "SELECT * FROM {$wpdb->prefix}akpp_chat_messages 
+             WHERE dialog_id = %d 
+             ORDER BY created_at ASC 
+             LIMIT 100",
+            $deal_id
+        ), ARRAY_A);
+        
+        // Помечаем как прочитанные
+        $wpdb->update($wpdb->prefix . 'akpp_chat_messages',
+            ['is_read' => 1],
+            ['dialog_id' => $deal_id, 'is_read' => 0]
+        );
+        
+        wp_send_json_success(['messages' => $messages ?: []]);
+    }
+
+    /**
+     * Отправка сообщения в чат
+     */
+    public function ajax_client_chat_send() {
+        if (!$this->check_client_auth()) return;
+        if (!check_ajax_referer('akpp_client_nonce', 'nonce', false)) {
+            wp_send_json_error(['message' => 'Ошибка безопасности'], 403);
+            return;
+        }
+        
+        global $wpdb;
+        $user_id = get_current_user_id();
+        $deal_id = intval($_POST['deal_id'] ?? 0);
+        $message_text = sanitize_textarea_field($_POST['message'] ?? '');
+        
+        if (!$deal_id || empty($message_text)) {
+            wp_send_json_error(['message' => 'Заполните все поля']);
+            return;
+        }
+        
+        // Проверка что сделка принадлежит клиенту
+        $client_id = $wpdb->get_var($wpdb->prepare(
+            "SELECT id FROM {$wpdb->prefix}akpp_site_users WHERE wp_user_id = %d",
+            $user_id
+        ));
+        
+        $deal_client = $wpdb->get_var($wpdb->prepare(
+            "SELECT client_id FROM {$wpdb->prefix}akpp_deals WHERE id = %d",
+            $deal_id
+        ));
+        
+        if ($deal_client != $client_id) {
+            wp_send_json_error(['message' => 'Доступ запрещён'], 403);
+            return;
+        }
+        
+        $user = wp_get_current_user();
+        
+        // Сохраняем сообщение
+        $wpdb->insert($wpdb->prefix . 'akpp_chat_messages', [
+            'user_id' => $user_id,
+            'sender_id' => $user_id,
+            'sender_name' => $user->display_name,
+            'message_text' => $message_text,
+            'dialog_id' => $deal_id,
+            'is_read' => 0,
+            'created_at' => current_time('mysql'),
+        ]);
+        
+        $message_id = $wpdb->insert_id;
+        
+        // Уведомление мастеру в Telegram
+        $this->notify_employee_new_message($deal_id, $user->display_name, $message_text);
+        
+        wp_send_json_success([
+            'message' => '✅ Сообщение отправлено',
+            'message_id' => $message_id,
+        ]);
+    }
+
+    /**
+     * Уведомление сотруднику о новом сообщении
+     */
+    private function notify_employee_new_message($deal_id, $client_name, $message_text) {
+        global $wpdb;
+        
+        $deal = $wpdb->get_row($wpdb->prepare(
+            "SELECT employee_id FROM {$wpdb->prefix}akpp_deals WHERE id = %d",
+            $deal_id
+        ));
+        
+        if (!$deal || !$deal->employee_id) return;
+        
+        $employee = $wpdb->get_row($wpdb->prepare(
+            "SELECT telegram_chat_id, name FROM {$wpdb->prefix}akpp_employees WHERE id = %d",
+            $deal->employee_id
+        ));
+        
+        if (!$employee || empty($employee->telegram_chat_id)) return;
+        
+        $bot_token = get_option('akpp_telegram_bot_token', '');
+        if (empty($bot_token)) return;
+        
+        $text = "💬 *Новое сообщение от клиента*\n\n";
+        $text .= "👤 {$client_name}\n";
+        $text .= "📋 Сделка #{$deal_id}\n";
+        $text .= "💬 " . mb_substr($message_text, 0, 200);
+        
+        wp_remote_post("https://api.telegram.org/bot{$bot_token}/sendMessage", [
+            'body' => [
+                'chat_id' => $employee->telegram_chat_id,
+                'text' => $text,
+                'parse_mode' => 'Markdown'
+            ],
+            'timeout' => 5
+        ]);
+    }
+
+    // ========================================================================
+    // 🛒 МАГАЗИН — ПРОВЕРКА SKU
+    // ========================================================================
+
+    public function ajax_shop_check_sku() {
+        if (!check_ajax_referer('akpp45_nonce', 'nonce', false)) {
+            wp_send_json_error(['message' => 'Ошибка безопасности'], 403);
+            return;
+        }
+        
+        $sku = strtoupper(sanitize_text_field($_POST['sku'] ?? ''));
+        $product_id = intval($_POST['product_id'] ?? 0);
+        
+        if (empty($sku)) {
+            wp_send_json_error(['message' => 'SKU пуст']);
+            return;
+        }
+        
+        global $wpdb;
+        $table = $wpdb->prefix . 'akpp_shop_products';
+        
+        if ($product_id > 0) {
+            $exists = $wpdb->get_var($wpdb->prepare(
+                "SELECT id FROM {$table} WHERE sku = %s AND id != %d",
+                $sku, $product_id
+            ));
+        } else {
+            $exists = $wpdb->get_var($wpdb->prepare(
+                "SELECT id FROM {$table} WHERE sku = %s",
+                $sku
+            ));
+        }
+        
+        wp_send_json_success([
+            'available' => !$exists,
+            'sku' => $sku
+        ]);
+    }
+
+    // ========================================================================
+    // ТЕСТОВЫЕ МЕТОДЫ
+    // ========================================================================
+
+    public function ajax_get_last_deal() {
+        if (!check_ajax_referer('akpp45_nonce', 'nonce', false)) {
+            wp_send_json_error(['message' => 'Ошибка безопасности'], 403);
+            return;
+        }
+        if (!$this->check_permissions()) return;
+        
+        global $wpdb;
+        $table = $wpdb->prefix . 'akpp_deals';
+        
+        $deal = $wpdb->get_row("SELECT * FROM {$table} ORDER BY created_at DESC LIMIT 1", ARRAY_A);
+        wp_send_json_success($deal);
+    }
+
+    public function ajax_get_all_deals() {
+        if (!check_ajax_referer('akpp45_nonce', 'nonce', false)) {
+            wp_send_json_error(['message' => 'Ошибка безопасности'], 403);
+            return;
+        }
+        if (!$this->check_permissions()) return;
+        
+        global $wpdb;
+        $table = $wpdb->prefix . 'akpp_deals';
+        
+        $deals = $wpdb->get_results("SELECT * FROM {$table} ORDER BY created_at DESC", ARRAY_A);
+        wp_send_json_success($deals);
+    }
+
+    // ========================================================================
+    // 📜 ДОГОВОР-ОФЕРТА
+    // ========================================================================
+
+    public function ajax_save_agreement() {
+        if (!check_ajax_referer('akpp45_nonce', 'nonce', false)) {
+            wp_send_json_error(['message' => 'Ошибка безопасности'], 403);
+            return;
+        }
+        
+        global $wpdb;
+        $table = $wpdb->prefix . 'akpp_agreements';
+        
+        $client_name = sanitize_text_field($_POST['client_name'] ?? '');
+        $client_phone = sanitize_text_field($_POST['client_phone'] ?? '');
+        $client_email = sanitize_email($_POST['client_email'] ?? '');
+        $deal_id = intval($_POST['deal_id'] ?? 0);
+        $source = sanitize_text_field($_POST['source'] ?? 'crm_deal');
+        
+        if (empty($client_name) || empty($client_phone)) {
+            wp_send_json_error(['message' => 'Укажите ФИО и телефон клиента']);
+            return;
+        }
+        
+        $data = [
+            'deal_id' => $deal_id > 0 ? $deal_id : null,
+            'client_name' => $client_name,
+            'client_phone' => $client_phone,
+            'client_email' => $client_email,
+            'agreement_version' => '1.0',
+            'source' => $source,
+            'ip_address' => sanitize_text_field($_SERVER['REMOTE_ADDR'] ?? ''),
+            'user_agent' => sanitize_text_field($_SERVER['HTTP_USER_AGENT'] ?? ''),
+            'accepted_at' => current_time('mysql'),
+            'created_at' => current_time('mysql'),
+        ];
+        
+        $result = $wpdb->insert($table, $data);
+        
+        if ($result === false) {
+            wp_send_json_error(['message' => 'Ошибка БД: ' . $wpdb->last_error]);
+            return;
+        }
+        
+        $agreement_id = $wpdb->insert_id;
+        
+        if ($deal_id > 0) {
+            $wpdb->update(
+                $wpdb->prefix . 'akpp_deals',
+                ['agreement_accepted' => 1, 'agreement_id' => $agreement_id],
+                ['id' => $deal_id]
+            );
+        }
+        
+        wp_send_json_success([
+            'message' => '✅ Согласие с офертой сохранено',
+            'agreement_id' => $agreement_id,
+        ]);
+    }
+
+    public function ajax_get_agreements() {
+        if (!check_ajax_referer('akpp45_nonce', 'nonce', false)) {
+            wp_send_json_error(['message' => 'Ошибка безопасности'], 403);
+            return;
+        }
+        if (!$this->check_permissions()) return;
+        
+        global $wpdb;
+        $table = $wpdb->prefix . 'akpp_agreements';
+        
+        $page = intval($_POST['page'] ?? 1);
+        $per_page = 50;
+        $offset = ($page - 1) * $per_page;
+        
+        $total = $wpdb->get_var("SELECT COUNT(*) FROM {$table}");
+        $agreements = $wpdb->get_results($wpdb->prepare(
+            "SELECT * FROM {$table} ORDER BY accepted_at DESC LIMIT %d OFFSET %d",
+            $per_page, $offset
+        ));
+        
+        wp_send_json_success([
+            'agreements' => $agreements,
+            'total' => intval($total),
+            'page' => $page,
+            'per_page' => $per_page,
+            'total_pages' => ceil($total / $per_page),
+        ]);
+    }
+
+    public function ajax_get_agreement_text() {
+        if (!check_ajax_referer('akpp45_nonce', 'nonce', false)) {
+            wp_send_json_error(['message' => 'Ошибка безопасности'], 403);
+            return;
+        }
+        
+        if (!function_exists('akpp_get_agreement_text')) {
+            require_once dirname(__FILE__) . '/templates/agreement-text.php';
+        }
+        
+        $html = akpp_get_agreement_text('1.0');
+        wp_send_json_success(['html' => $html]);
+    }
+
+    // ========================================================================
+    // 💾 СОХРАНЕНИЕ СУЩНОСТЕЙ (остальные методы без изменений)
     // ========================================================================
 
     public function ajax_save_employee() {
@@ -400,7 +1619,7 @@ class AKPP_AJAX {
     }
 
     // ========================================================================
-    // УДАЛЕНИЕ СУЩНОСТЕЙ
+    // 🗑️ УДАЛЕНИЕ СУЩНОСТЕЙ
     // ========================================================================
 
     public function ajax_delete_employee() {
@@ -572,7 +1791,7 @@ class AKPP_AJAX {
     }
 
     // ========================================================================
-    // ПОИСК
+    // 🔍 ПОИСК
     // ========================================================================
 
     public function ajax_search_parts() {
@@ -675,7 +1894,7 @@ class AKPP_AJAX {
     }
 
     // ========================================================================
-    // СДЕЛКИ
+    // 💼 СДЕЛКИ (продолжение)
     // ========================================================================
 
     public function ajax_save_deal() {
@@ -691,7 +1910,6 @@ class AKPP_AJAX {
             $deal_id = intval($_POST['deal_id'] ?? $_POST['id'] ?? 0);
             $lead_id = intval($_POST['lead_id'] ?? 0);
             
-            // КЛИЕНТ
             $client_name = sanitize_text_field($_POST['client_name'] ?? '');
             $client_phone = sanitize_text_field($_POST['client_phone'] ?? '');
             
@@ -723,7 +1941,6 @@ class AKPP_AJAX {
                 }
             }
             
-            // Проверка дублей
             if ($deal_id <= 0) {
                 $duplicate_check = $wpdb->get_row($wpdb->prepare(
                     "SELECT id FROM {$wpdb->prefix}akpp_deals 
@@ -743,7 +1960,6 @@ class AKPP_AJAX {
                 }
             }
             
-            // АВТОМОБИЛЬ
             $vin = strtoupper(sanitize_text_field($_POST['vin'] ?? ''));
             $make = sanitize_text_field($_POST['brand'] ?? $_POST['make'] ?? '');
             $model = sanitize_text_field($_POST['model'] ?? '');
@@ -789,7 +2005,6 @@ class AKPP_AJAX {
             
             if ($vehicle_id <= 0) $vehicle_id = null;
             
-            // АКПП
             $transmission_code = sanitize_text_field($_POST['transmission_code'] ?? '');
             $transmission_id = intval($_POST['transmission_id'] ?? 0);
             
@@ -815,7 +2030,6 @@ class AKPP_AJAX {
                 }
             }
             
-            // РАСЧЕТ СТОИМОСТИ
             $calculation_type = sanitize_text_field($_POST['calculation_type'] ?? 'manual');
             
             if ($calculation_type === 'norm') {
@@ -830,7 +2044,6 @@ class AKPP_AJAX {
             
             $employee_percent = floatval($_POST['emp_percent'] ?? $_POST['employee_percent'] ?? 40);
             
-            // ЗАПЧАСТИ (цена УЖЕ с наценкой из БД)
             $parts = $_POST['parts'] ?? [];
             $parts_total = 0;
             $parts_data = [];
@@ -864,13 +2077,11 @@ class AKPP_AJAX {
                 }
             }
             
-            // Итоговая сумма
             $total_amount = floatval($_POST['total_amount'] ?? $_POST['payment_amount'] ?? 0);
             if ($total_amount <= 0) {
                 $total_amount = $work_cost + $parts_total;
             }
             
-            // СОХРАНЕНИЕ СДЕЛКИ
             $employee_id = intval($_POST['employee_id'] ?? 0);
             if ($employee_id <= 0) $employee_id = null;
             
@@ -908,7 +2119,6 @@ class AKPP_AJAX {
                 $result_id = $wpdb->insert_id;
             }
             
-            // Сохраняем запчасти
             foreach ($parts_data as $part) {
                 $wpdb->insert($wpdb->prefix . 'akpp_deal_parts', [
                     'deal_id' => $result_id,
@@ -918,7 +2128,6 @@ class AKPP_AJAX {
                 ]);
             }
             
-            // Конвертация лида
             if ($lead_id > 0) {
                 $lead_exists = $wpdb->get_var($wpdb->prepare(
                     "SELECT id FROM {$wpdb->prefix}akpp_leads WHERE id = %d",
@@ -933,7 +2142,6 @@ class AKPP_AJAX {
                 }
             }
             
-            // Telegram уведомление
             $this->send_deal_notification($result_id, $client_name, $client_phone, $total_amount);
             
             wp_send_json_success([
@@ -950,7 +2158,7 @@ class AKPP_AJAX {
             wp_send_json_error(['message' => 'Ошибка сохранения: ' . $e->getMessage()], 500);
         }
     }
-    
+
     private function send_deal_notification($deal_id, $client_name, $client_phone, $total) {
         $bot_token = get_option('akpp_telegram_bot_token', '');
         $chat_id = get_option('akpp_telegram_chat_id', '');
@@ -973,7 +2181,7 @@ class AKPP_AJAX {
     }
 
     // ========================================================================
-    // VIN AI ДЕКОДЕР
+    // 🤖 VIN AI ДЕКОДЕР
     // ========================================================================
 
     public function ajax_decode_vin_ai() {
@@ -1139,7 +2347,7 @@ class AKPP_AJAX {
     }
 
     // ========================================================================
-    // ПАРСЕР
+    // 🌐 ПАРСЕР
     // ========================================================================
 
     public function ajax_parse_url() {
@@ -1315,7 +2523,7 @@ class AKPP_AJAX {
     }
 
     // ========================================================================
-    // AI АНАЛИЗ
+    // 🤖 AI АНАЛИЗ
     // ========================================================================
 
     public function ajax_run_ai_analysis() {
@@ -1544,7 +2752,7 @@ class AKPP_AJAX {
     }
 
     // ========================================================================
-    // TELEGRAM
+    // 📱 TELEGRAM
     // ========================================================================
 
     public function ajax_save_telegram_settings() {
@@ -1618,7 +2826,7 @@ class AKPP_AJAX {
     }
 
     // ========================================================================
-    // КАТЕГОРИИ СКЛАДА
+    // 📦 КАТЕГОРИИ СКЛАДА
     // ========================================================================
 
     public function ajax_get_categories() {
@@ -1802,7 +3010,7 @@ class AKPP_AJAX {
     }
 
     // ========================================================================
-    // МАГАЗИН
+    // 🛒 МАГАЗИН (АДМИНКА)
     // ========================================================================
 
     public function ajax_shop_get_products() {
@@ -1832,6 +3040,23 @@ class AKPP_AJAX {
             return;
         }
         if (!$this->check_permissions()) return;
+        
+        // Автогенерация SKU если не указан
+        $sku = strtoupper(sanitize_text_field($_POST['sku'] ?? ''));
+        if (empty($sku)) {
+            $timestamp = strtoupper(substr(uniqid(), -6));
+            $random = str_pad(rand(0, 999), 3, '0', STR_PAD_LEFT);
+            $sku = 'AKPP-' . $timestamp . '-' . $random;
+            
+            global $wpdb;
+            $table = $wpdb->prefix . 'akpp_shop_products';
+            while ($wpdb->get_var($wpdb->prepare("SELECT id FROM {$table} WHERE sku = %s", $sku))) {
+                $random = str_pad(rand(0, 999), 3, '0', STR_PAD_LEFT);
+                $sku = 'AKPP-' . $timestamp . '-' . $random;
+            }
+            
+            $_POST['sku'] = $sku;
+        }
         
         if (!class_exists('AKPP_Shop')) {
             wp_send_json_error(['message' => 'Класс магазина не загружен'], 500);
@@ -1871,111 +3096,4 @@ class AKPP_AJAX {
         $orders = $wpdb->get_results("SELECT * FROM {$table} ORDER BY created_at DESC LIMIT 100");
         wp_send_json_success($orders);
     }
-  
-  // ========================================================================
-// ДОГОВОР-ОФЕРТА
-// ========================================================================
-
-public function ajax_save_agreement() {
-    if (!check_ajax_referer('akpp45_nonce', 'nonce', false)) {
-        wp_send_json_error(['message' => 'Ошибка безопасности'], 403);
-        return;
-    }
-    
-    global $wpdb;
-    $table = $wpdb->prefix . 'akpp_agreements';
-    
-    $client_name = sanitize_text_field($_POST['client_name'] ?? '');
-    $client_phone = sanitize_text_field($_POST['client_phone'] ?? '');
-    $client_email = sanitize_email($_POST['client_email'] ?? '');
-    $deal_id = intval($_POST['deal_id'] ?? 0);
-    $source = sanitize_text_field($_POST['source'] ?? 'crm_deal');
-    
-    if (empty($client_name) || empty($client_phone)) {
-        wp_send_json_error(['message' => 'Укажите ФИО и телефон клиента']);
-        return;
-    }
-    
-    $data = [
-        'deal_id' => $deal_id > 0 ? $deal_id : null,
-        'client_name' => $client_name,
-        'client_phone' => $client_phone,
-        'client_email' => $client_email,
-        'agreement_version' => '1.0',
-        'source' => $source,
-        'ip_address' => sanitize_text_field($_SERVER['REMOTE_ADDR'] ?? ''),
-        'user_agent' => sanitize_text_field($_SERVER['HTTP_USER_AGENT'] ?? ''),
-        'accepted_at' => current_time('mysql'),
-        'created_at' => current_time('mysql'),
-    ];
-    
-    $result = $wpdb->insert($table, $data);
-    
-    if ($result === false) {
-        wp_send_json_error(['message' => 'Ошибка БД: ' . $wpdb->last_error]);
-        return;
-    }
-    
-    $agreement_id = $wpdb->insert_id;
-    
-    // Если есть сделка — обновляем её
-    if ($deal_id > 0) {
-        $wpdb->update(
-            $wpdb->prefix . 'akpp_deals',
-            [
-                'agreement_accepted' => 1,
-                'agreement_id' => $agreement_id,
-            ],
-            ['id' => $deal_id]
-        );
-    }
-    
-    wp_send_json_success([
-        'message' => '✅ Согласие с офертой сохранено',
-        'agreement_id' => $agreement_id,
-    ]);
-}
-
-public function ajax_get_agreements() {
-    if (!check_ajax_referer('akpp45_nonce', 'nonce', false)) {
-        wp_send_json_error(['message' => 'Ошибка безопасности'], 403);
-        return;
-    }
-    if (!$this->check_permissions()) return;
-    
-    global $wpdb;
-    $table = $wpdb->prefix . 'akpp_agreements';
-    
-    $page = intval($_POST['page'] ?? 1);
-    $per_page = 50;
-    $offset = ($page - 1) * $per_page;
-    
-    $total = $wpdb->get_var("SELECT COUNT(*) FROM {$table}");
-    $agreements = $wpdb->get_results($wpdb->prepare(
-        "SELECT * FROM {$table} ORDER BY accepted_at DESC LIMIT %d OFFSET %d",
-        $per_page, $offset
-    ));
-    
-    wp_send_json_success([
-        'agreements' => $agreements,
-        'total' => intval($total),
-        'page' => $page,
-        'per_page' => $per_page,
-        'total_pages' => ceil($total / $per_page),
-    ]);
-}
-
-public function ajax_get_agreement_text() {
-    if (!check_ajax_referer('akpp45_nonce', 'nonce', false)) {
-        wp_send_json_error(['message' => 'Ошибка безопасности'], 403);
-        return;
-    }
-    
-    if (!function_exists('akpp_get_agreement_text')) {
-        require_once dirname(__FILE__) . '/templates/agreement-text.php';
-    }
-    
-    $html = akpp_get_agreement_text('1.0');
-    wp_send_json_success(['html' => $html]);
-}
 }
