@@ -25,8 +25,21 @@ $deal_id = $edit_mode ? intval($_GET['id']) : 0;
 $deal_data = null;
 
 if ($edit_mode && $deal_id) {
-    $table_deals = $wpdb->prefix . 'akpp_deals';
-    $deal_data = $wpdb->get_row($wpdb->prepare("SELECT * FROM {$table_deals} WHERE id = %d", $deal_id));
+    $deal_data = $wpdb->get_row($wpdb->prepare(
+        "SELECT d.*, 
+                c.full_name as client_name, c.phone as client_phone, c.email as client_email,
+                v.make, v.model, v.year, v.vin, v.engine,
+                e.name as employee_name, e.percent as employee_percent
+         FROM {$wpdb->prefix}akpp_deals d
+         LEFT JOIN {$wpdb->prefix}akpp_site_users c ON d.client_id = c.id
+         LEFT JOIN {$wpdb->prefix}akpp_vehicles v ON d.vehicle_id = v.id
+         LEFT JOIN {$wpdb->prefix}akpp_employees e ON d.employee_id = e.id
+         WHERE d.id = %d",
+        $deal_id
+    ));
+}
+if (!$deal_data) {
+    echo '<div class="notice notice-error"><p>❌ Сделка #' . $deal_id . ' не найдена</p></div>';
 }
 ?>
 

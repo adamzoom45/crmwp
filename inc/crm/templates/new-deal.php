@@ -3,7 +3,44 @@ if (!defined('ABSPATH')) exit;
 
 global $wpdb;
 
-// Получаем данные
+// ============================================================================
+// РЕЖИМ РЕДАКТИРОВАНИЯ
+// ============================================================================
+$edit_mode = isset($_GET['id']) && intval($_GET['id']) > 0;
+$deal_id = $edit_mode ? intval($_GET['id']) : 0;
+$deal_data = null;
+$deal_parts = [];
+
+if ($edit_mode) {
+    $deal_data = $wpdb->get_row($wpdb->prepare(
+        "SELECT d.*, 
+                c.full_name as client_name, c.phone as client_phone, c.email as client_email,
+                v.make, v.model, v.year, v.vin, v.engine,
+                e.name as employee_name, e.percent as default_percent
+         FROM {$wpdb->prefix}akpp_deals d
+         LEFT JOIN {$wpdb->prefix}akpp_site_users c ON d.client_id = c.id
+         LEFT JOIN {$wpdb->prefix}akpp_vehicles v ON d.vehicle_id = v.id
+         LEFT JOIN {$wpdb->prefix}akpp_employees e ON d.employee_id = e.id
+         WHERE d.id = %d",
+        $deal_id
+    ), ARRAY_A);
+    
+    if (!$deal_data) {
+        echo '<div class="notice notice-error"><p>❌ Сделка #' . $deal_id . ' не найдена</p></div>';
+        $edit_mode = false;
+    } else {
+        // Загружаем запчасти сделки
+        $deal_parts = $wpdb->get_results($wpdb->prepare(
+            "SELECT dp.*, p.name, p.sku, p.category
+             FROM {$wpdb->prefix}akpp_deal_parts dp
+             LEFT JOIN {$wpdb->prefix}akpp_parts p ON dp.part_id = p.id
+             WHERE dp.deal_id = %d",
+            $deal_id
+        ), ARRAY_A);
+    }
+}
+
+// Получаем данные для формы
 $employees = $wpdb->get_results("SELECT id, name FROM {$wpdb->prefix}akpp_employees WHERE is_active = 1 ORDER BY name");
 $vehicles = $wpdb->get_results("SELECT id, make, model, year, vin, engine FROM {$wpdb->prefix}akpp_vehicles ORDER BY make, model LIMIT 500");
 $parts = $wpdb->get_results("SELECT id, name, sku, category, price, markup_percent, quantity FROM {$wpdb->prefix}akpp_parts WHERE price > 0 ORDER BY name LIMIT 500");
@@ -13,17 +50,46 @@ $transmissions = $wpdb->get_results("SELECT id, code, make, model FROM {$wpdb->p
 if (!function_exists('akpp_get_agreement_text')) {
     require_once dirname(__FILE__) . '/agreement-text.php';
 }
+
+// Значения по умолчанию (для режима редактирования)
+$client_name = $deal_data['client_name'] ?? '';
+$client_phone = $deal_data['client_phone'] ?? '';
+$vin = $deal_data['vin'] ?? '';
+$make = $deal_data['make'] ?? '';
+$model = $deal_data['model'] ?? '';
+$year = $deal_data['year'] ?? '';
+$engine = $deal_data['engine'] ?? '';
+$transmission_code = '';
+$vehicle_id = $deal_data['vehicle_id'] ?? 0;
+$calculation_type = 'norm';
+$standard_hours = $deal_data['work_hours'] ?? 1;
+$hourly_rate = 1500;
+$work_cost = $deal_data['work_cost'] ?? 0;
+$emp_percent = $deal_data['employee_percent'] ?? 40;
+$total_amount = $deal_data['total_amount'] ?? 0;
+$employee_id = $deal_data['employee_id'] ?? 0;
+$status = $deal_data['status'] ?? 'new';
+$comment = $deal_data['problem_description'] ?? '';
+$lead_id = intval($_GET['lead_id'] ?? 0);
+
+// Если ручной расчёт
+if ($edit_mode && $work_cost > 0 && $standard_hours > 0) {
+    $calculated = $standard_hours * $hourly_rate;
+    if (abs($work_cost - $calculated) > 1) {
+        $calculation_type = 'manual';
+    }
+}
 ?>
 
 <div class="wrap akpp-crm-wrap">
     <div class="deal-page-header">
-        <h1>➕ Новая сделка</h1>
+        <h1><?php echo $edit_mode ? '✏️ Редактирование сделки #' . $deal_id : '➕ Новая сделка'; ?></h1>
     </div>
 
     <form id="akpp-deal-form" class="akpp-form">
         <?php wp_nonce_field('akpp45_nonce', 'nonce'); ?>
-        <input type="hidden" name="deal_id" id="deal-id">
-        <input type="hidden" name="lead_id" value="<?php echo intval($_GET['lead_id'] ?? 0); ?>">
+        <input type="hidden" name="deal_id" id="deal-id" value="<?php echo $deal_id; ?>">
+        <input type="hidden" name="lead_id" value="<?php echo $lead_id; ?>">
 
         <!-- КЛИЕНТ -->
         <div class="form-section">
@@ -31,11 +97,11 @@ if (!function_exists('akpp_get_agreement_text')) {
             <div class="form-grid-2">
                 <div class="form-group">
                     <label>ФИО *</label>
-                    <input type="text" name="client_name" id="client-name" required>
+                    <input type="text" name="client_name" id="client-name" required value="<?php echo esc_attr($client_name); ?>">
                 </div>
                 <div class="form-group">
                     <label>Телефон *</label>
-                    <input type="tel" name="client_phone" id="client-phone" required placeholder="+7 (___) ___-__-__">
+                    <input type="tel" name="client_phone" id="client-phone" required placeholder="+7 (___) ___-__-__" value="<?php echo esc_attr($client_phone); ?>">
                 </div>
             </div>
         </div>
@@ -53,7 +119,7 @@ if (!function_exists('akpp_get_agreement_text')) {
             <div class="form-group">
                 <label>VIN (не обязательно)</label>
                 <div class="vin-input-group">
-                    <input type="text" name="vin" id="vin-input" maxlength="17" placeholder="Введите VIN для автозаполнения">
+                    <input type="text" name="vin" id="vin-input" maxlength="17" placeholder="Введите VIN для автозаполнения" value="<?php echo esc_attr($vin); ?>">
                     <button type="button" id="btn-decode-vin" class="button">🤖 AI Расшифровать</button>
                 </div>
             </div>
@@ -61,29 +127,29 @@ if (!function_exists('akpp_get_agreement_text')) {
             <div class="form-grid-3">
                 <div class="form-group">
                     <label>Марка *</label>
-                    <input type="text" name="brand" id="car-make" required>
+                    <input type="text" name="brand" id="car-make" required value="<?php echo esc_attr($make); ?>">
                 </div>
                 <div class="form-group">
                     <label>Модель *</label>
-                    <input type="text" name="model" id="car-model" required>
+                    <input type="text" name="model" id="car-model" required value="<?php echo esc_attr($model); ?>">
                 </div>
                 <div class="form-group">
                     <label>Год</label>
-                    <input type="number" name="year" id="car-year" min="1950" max="2030">
+                    <input type="number" name="year" id="car-year" min="1950" max="2030" value="<?php echo esc_attr($year); ?>">
                 </div>
             </div>
 
             <div class="form-grid-2">
                 <div class="form-group">
                     <label>Двигатель</label>
-                    <input type="text" name="engine" id="car-engine" placeholder="2.5L 2AR-FE">
+                    <input type="text" name="engine" id="car-engine" placeholder="2.5L 2AR-FE" value="<?php echo esc_attr($engine); ?>">
                 </div>
                 <div class="form-group">
                     <label>Код АКПП</label>
                     <select name="transmission_code" id="transmission-code">
                         <option value="">-- Не указан --</option>
                         <?php foreach ($transmissions as $trans): ?>
-                            <option value="<?php echo esc_attr($trans->code); ?>">
+                            <option value="<?php echo esc_attr($trans->code); ?>" <?php selected($transmission_code, $trans->code); ?>>
                                 <?php echo esc_html($trans->code . ' (' . $trans->make . ' ' . $trans->model . ')'); ?>
                             </option>
                         <?php endforeach; ?>
@@ -91,7 +157,7 @@ if (!function_exists('akpp_get_agreement_text')) {
                 </div>
             </div>
             
-            <input type="hidden" name="vehicle_id" id="vehicle-id" value="0">
+            <input type="hidden" name="vehicle_id" id="vehicle-id" value="<?php echo intval($vehicle_id); ?>">
         </div>
 
         <!-- РАБОТЫ -->
@@ -101,38 +167,38 @@ if (!function_exists('akpp_get_agreement_text')) {
             <div class="form-group">
                 <label>Тип расчёта</label>
                 <select name="calculation_type" id="calculation-type">
-                    <option value="norm">Норма-часы</option>
-                    <option value="manual">Ручной ввод</option>
+                    <option value="norm" <?php selected($calculation_type, 'norm'); ?>>Норма-часы</option>
+                    <option value="manual" <?php selected($calculation_type, 'manual'); ?>>Ручной ввод</option>
                 </select>
             </div>
 
-            <div id="norm-calc-fields">
+            <div id="norm-calc-fields" <?php echo $calculation_type === 'manual' ? 'style="display:none;"' : ''; ?>>
                 <div class="form-grid-2">
                     <div class="form-group">
                         <label>Норма-часы</label>
-                        <input type="number" name="standard_hours" id="standard-hours" step="0.5" min="0" value="1">
+                        <input type="number" name="standard_hours" id="standard-hours" step="0.5" min="0" value="<?php echo esc_attr($standard_hours); ?>">
                     </div>
                     <div class="form-group">
                         <label>Ставка (₽/час)</label>
-                        <input type="number" name="hourly_rate" id="hourly-rate" min="0" value="1500">
+                        <input type="number" name="hourly_rate" id="hourly-rate" min="0" value="<?php echo esc_attr($hourly_rate); ?>">
                     </div>
                 </div>
                 <div class="form-group">
                     <label>Стоимость работ (авто)</label>
-                    <input type="text" id="work-cost-auto" readonly style="background:#1a3a2e;color:#00ff88;font-weight:700;">
+                    <input type="text" id="work-cost-auto" readonly style="background:#1a3a2e;color:#00ff88;font-weight:700;" value="<?php echo number_format($standard_hours * $hourly_rate, 0, '.', ' '); ?> ₽">
                 </div>
             </div>
 
-            <div id="manual-calc-fields" style="display:none;">
+            <div id="manual-calc-fields" <?php echo $calculation_type !== 'manual' ? 'style="display:none;"' : ''; ?>>
                 <div class="form-group">
                     <label>Стоимость работ (₽)</label>
-                    <input type="number" name="work_cost" id="work-cost-manual" min="0" value="0">
+                    <input type="number" name="work_cost" id="work-cost-manual" min="0" value="<?php echo esc_attr($work_cost); ?>">
                 </div>
             </div>
 
             <div class="form-group">
                 <label>% сотрудника</label>
-                <input type="number" name="emp_percent" id="employee-percent" min="0" max="100" value="40">
+                <input type="number" name="emp_percent" id="employee-percent" min="0" max="100" value="<?php echo esc_attr($emp_percent); ?>">
             </div>
         </div>
 
@@ -174,7 +240,7 @@ if (!function_exists('akpp_get_agreement_text')) {
             <div class="form-grid-2">
                 <div class="form-group">
                     <label>Работы</label>
-                    <input type="text" id="total-work" readonly style="background:#1a3a2e;color:#00ff88;">
+                    <input type="text" id="total-work" readonly style="background:#1a3a2e;color:#00ff88;" value="<?php echo number_format($work_cost, 0, '.', ' '); ?> ₽">
                 </div>
                 <div class="form-group">
                     <label>Запчасти</label>
@@ -184,7 +250,7 @@ if (!function_exists('akpp_get_agreement_text')) {
             <div class="form-group">
                 <label>Общая сумма *</label>
                 <input type="number" name="total_amount" id="total-amount" min="0" required 
-                       style="font-size:24px;font-weight:700;color:#00ff88;">
+                       style="font-size:24px;font-weight:700;color:#00ff88;" value="<?php echo esc_attr($total_amount); ?>">
             </div>
         </div>
 
@@ -197,27 +263,32 @@ if (!function_exists('akpp_get_agreement_text')) {
                     <select name="employee_id">
                         <option value="">-- Не выбран --</option>
                         <?php foreach ($employees as $emp): ?>
-                            <option value="<?php echo $emp->id; ?>"><?php echo esc_html($emp->name); ?></option>
+                            <option value="<?php echo $emp->id; ?>" <?php selected($employee_id, $emp->id); ?>>
+                                <?php echo esc_html($emp->name); ?>
+                            </option>
                         <?php endforeach; ?>
                     </select>
                 </div>
                 <div class="form-group">
                     <label>Статус</label>
                     <select name="status">
-                        <option value="new">Новая</option>
-                        <option value="in_progress">В работе</option>
-                        <option value="completed">Завершена</option>
-                        <option value="cancelled">Отменена</option>
+                        <option value="new" <?php selected($status, 'new'); ?>>🆕 Новая</option>
+                        <option value="diagnostic" <?php selected($status, 'diagnostic'); ?>>🔧 Диагностика</option>
+                        <option value="in_work" <?php selected($status, 'in_work'); ?>>⚙️ В работе</option>
+                        <option value="waiting_parts" <?php selected($status, 'waiting_parts'); ?>>📦 Ожидание запчастей</option>
+                        <option value="completed" <?php selected($status, 'completed'); ?>>✅ Завершена</option>
+                        <option value="cancelled" <?php selected($status, 'cancelled'); ?>>❌ Отменена</option>
                     </select>
                 </div>
             </div>
             <div class="form-group">
                 <label>Описание проблемы</label>
-                <textarea name="comment" rows="4" placeholder="Опишите проблему..."></textarea>
+                <textarea name="comment" rows="4" placeholder="Опишите проблему..."><?php echo esc_textarea($comment); ?></textarea>
             </div>
         </div>
 
-        <!-- ДОГОВОР-ОФЕРТА -->
+        <?php if (!$edit_mode): ?>
+        <!-- ДОГОВОР-ОФЕРТА (только при создании) -->
         <div class="form-section agreement-section" style="background:linear-gradient(135deg,#1a3a2e 0%,#1a1f2e 100%);border-left:4px solid #00ff88;padding:20px;border-radius:8px;margin-bottom:20px;">
             <h2 style="color:#00ff88;margin-top:0;">📜 Договор-оферта</h2>
             
@@ -261,10 +332,11 @@ if (!function_exists('akpp_get_agreement_text')) {
                 </div>
             </div>
         </div>
+        <?php endif; ?>
 
         <div class="form-actions">
             <button type="button" class="button button-secondary" onclick="history.back()">Отмена</button>
-            <button type="submit" class="button button-primary button-hero">💾 Сохранить сделку</button>
+            <button type="submit" class="button button-primary button-hero">💾 <?php echo $edit_mode ? 'Сохранить изменения' : 'Сохранить сделку'; ?></button>
         </div>
     </form>
 </div>
@@ -333,9 +405,31 @@ if (!function_exists('akpp_get_agreement_text')) {
 
 <script>
 jQuery(document).ready(function($) {
-    var partsList = [];
+    var partsList = <?php 
+        // Загружаем запчасти из БД если режим редактирования
+        if (!empty($deal_parts)) {
+            $js_parts = [];
+            foreach ($deal_parts as $dp) {
+                $js_parts[] = [
+                    'id' => intval($dp['part_id']),
+                    'name' => $dp['name'] ?? '',
+                    'sku' => $dp['sku'] ?? '',
+                    'price' => floatval($dp['price_at_deal'] ?? $dp['price'] ?? 0),
+                    'qty' => intval($dp['quantity'] ?? 1)
+                ];
+            }
+            echo json_encode($js_parts);
+        } else {
+            echo '[]';
+        }
+    ?>;
     var vehiclesData = <?php echo json_encode($vehicles); ?>;
     var partsData = <?php echo json_encode($parts); ?>;
+    var editMode = <?php echo $edit_mode ? 'true' : 'false'; ?>;
+    
+    // Инициализация калькулятора при загрузке
+    calculateWorkCost();
+    renderParts();
     
     // ========================================================================
     // ПОИСК АВТО ИЗ БД
@@ -531,8 +625,16 @@ jQuery(document).ready(function($) {
         var total = workCost + partsTotal;
         
         $('#total-work').val(workCost.toLocaleString('ru-RU') + ' ₽');
-        $('#total-amount').val(total);
+        
+        // При редактировании не трогаем total_amount если пользователь уже ввёл своё значение
+        if (!editMode || $('#total-amount').val() == '' || $('#total-amount').data('user-edited') !== true) {
+            $('#total-amount').val(total);
+        }
     }
+    
+    $('#total-amount').on('input', function() {
+        $(this).data('user-edited', true);
+    });
     
     // ========================================================================
     // AI РАСШИФРОВКА VIN
@@ -613,7 +715,7 @@ jQuery(document).ready(function($) {
             '.signature{margin-top:40px;display:flex;justify-content:space-between;}' +
             '.signature div{width:45%;}' +
             '.client-info{background:#f0f0f0;padding:10px;margin:10px 0;}</style></head><body>' +
-            '<div class="header"><p>Заказ-наряд №[ID] от ' + today + '</p></div>' +
+            '<div class="header"><p>Заказ-наряд №' + (<?php echo $deal_id; ?> || '[ID]') + ' от ' + today + '</p></div>' +
             '<h1>ДОГОВОР-ОФЕРТА НА РЕМОНТ АКПП</h1>' +
             '<div class="client-info"><strong>Заказчик:</strong> ' + clientName + '<br>' +
             '<strong>Телефон:</strong> ' + clientPhone + '<br>' +
@@ -638,7 +740,8 @@ jQuery(document).ready(function($) {
     $('#akpp-deal-form').on('submit', function(e) {
         e.preventDefault();
         
-        if (!$('#agreement-accepted').is(':checked')) {
+        // Проверка оферты только при создании
+        if (!editMode && !$('#agreement-accepted').is(':checked')) {
             $('#agreement-warning').show();
             $('html, body').animate({
                 scrollTop: $('.agreement-section').offset().top - 100
@@ -648,77 +751,85 @@ jQuery(document).ready(function($) {
         $('#agreement-warning').hide();
         
         var btn = $(this).find('button[type="submit"]');
+        var originalText = btn.html();
         btn.prop('disabled', true).text('⏳ Сохранение...');
         
-        // Сначала сохраняем согласие с офертой
-        var agreementData = {
-            action: 'akpp_save_agreement',
-            client_name: $('#client-name').val(),
-            client_phone: $('#client-phone').val(),
-            source: 'crm_deal',
-            nonce: '<?php echo wp_create_nonce("akpp45_nonce"); ?>'
+        var saveDeal = function(agreementId) {
+            var formData = $('#akpp-deal-form').serializeArray();
+            formData.push({name: 'action', value: 'akpp_save_deal'});
+            if (agreementId) {
+                formData.push({name: 'agreement_id', value: agreementId});
+                formData.push({name: 'agreement_accepted', value: '1'});
+            }
+            
+            // Добавляем запчасти
+            partsList.forEach(function(part) {
+                formData.push({
+                    name: 'parts[]',
+                    value: JSON.stringify({
+                        id: part.id,
+                        name: part.name,
+                        sku: part.sku,
+                        price: part.price,
+                        quantity: part.qty
+                    })
+                });
+            });
+            
+            $.ajax({
+                url: ajaxurl,
+                type: 'POST',
+                data: formData,
+                dataType: 'json',
+                success: function(res) {
+                    if (res.success) {
+                        showNotice('✅ ' + res.data.message, 'success');
+                        setTimeout(function() {
+                            window.location.href = '<?php echo admin_url("admin.php?page=akpp-crm-deals"); ?>';
+                        }, 1500);
+                    } else {
+                        showNotice(res.data.message || '❌ Ошибка', 'error');
+                        btn.prop('disabled', false).html(originalText);
+                    }
+                },
+                error: function(xhr) {
+                    console.error('AJAX Error:', xhr.responseText);
+                    showNotice('❌ Ошибка соединения', 'error');
+                    btn.prop('disabled', false).html(originalText);
+                }
+            });
         };
         
-        $.ajax({
-            url: ajaxurl,
-            type: 'POST',
-            data: agreementData,
-            dataType: 'json',
-            success: function(res) {
-                if (!res.success) {
-                    showNotice(res.data.message || '❌ Ошибка сохранения согласия', 'error');
-                    btn.prop('disabled', false).text('💾 Сохранить сделку');
-                    return;
-                }
-                
-                // Теперь сохраняем сделку
-                var formData = $('#akpp-deal-form').serializeArray();
-                formData.push({name: 'action', value: 'akpp_save_deal'});
-                formData.push({name: 'agreement_id', value: res.data.agreement_id});
-                formData.push({name: 'agreement_accepted', value: '1'});
-                
-                // Добавляем запчасти
-                partsList.forEach(function(part) {
-                    formData.push({
-                        name: 'parts[]',
-                        value: JSON.stringify({
-                            id: part.id,
-                            name: part.name,
-                            sku: part.sku,
-                            price: part.price,
-                            quantity: part.qty,
-                            category: 'parts'
-                        })
-                    });
-                });
-                
-                $.ajax({
-                    url: ajaxurl,
-                    type: 'POST',
-                    data: formData,
-                    dataType: 'json',
-                    success: function(res2) {
-                        if (res2.success) {
-                            showNotice('✅ ' + res2.data.message, 'success');
-                            setTimeout(function() {
-                                window.location.href = '<?php echo admin_url("admin.php?page=akpp-crm-deals"); ?>';
-                            }, 1500);
-                        } else {
-                            showNotice(res2.data.message || '❌ Ошибка', 'error');
-                            btn.prop('disabled', false).text('💾 Сохранить сделку');
-                        }
-                    },
-                    error: function() {
-                        showNotice('❌ Ошибка соединения', 'error');
-                        btn.prop('disabled', false).text('💾 Сохранить сделку');
+        // При создании — сначала сохраняем согласие
+        if (!editMode) {
+            $.ajax({
+                url: ajaxurl,
+                type: 'POST',
+                data: {
+                    action: 'akpp_save_agreement',
+                    client_name: $('#client-name').val(),
+                    client_phone: $('#client-phone').val(),
+                    source: 'crm_deal',
+                    nonce: '<?php echo wp_create_nonce("akpp45_nonce"); ?>'
+                },
+                dataType: 'json',
+                success: function(res) {
+                    if (res.success) {
+                        saveDeal(res.data.agreement_id);
+                    } else {
+                        showNotice(res.data.message || '❌ Ошибка сохранения согласия', 'error');
+                        btn.prop('disabled', false).html(originalText);
                     }
-                });
-            },
-            error: function() {
-                showNotice('❌ Ошибка соединения', 'error');
-                btn.prop('disabled', false).text('💾 Сохранить сделку');
-            }
-        });
+                },
+                error: function() {
+                    showNotice('❌ Ошибка соединения', 'error');
+                    btn.prop('disabled', false).html(originalText);
+                }
+            });
+        } else {
+            // При редактировании — сразу сохраняем сделку
+            saveDeal(null);
+        }
     });
     
     function showNotice(message, type) {
