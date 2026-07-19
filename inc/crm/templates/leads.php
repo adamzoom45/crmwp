@@ -5,7 +5,7 @@ global $wpdb;
 $table_name = $wpdb->prefix . 'akpp_leads';
 
 // ====================================================================
-// ОБРАБОТКА ДЕЙСТВИЙ (должна быть ДО подключения шаблона)
+// ОБРАБОТКА ДЕЙСТВИЙ
 // ====================================================================
 
 // 1. Удаление лида
@@ -59,7 +59,6 @@ if (isset($_GET['action']) && $_GET['action'] === 'edit' && isset($_GET['id'])) 
     if (!$lead) {
         echo '<div class="notice notice-error is-dismissible"><p>❌ Лид не найден</p></div>';
     } else {
-        // Форма редактирования
         $statuses = [
             'new'        => '🆕 Новый',
             'contacted'  => '📞 Связались',
@@ -145,31 +144,10 @@ if (isset($_GET['action']) && $_GET['action'] === 'edit' && isset($_GET['id'])) 
                     
                     <input type="hidden" name="lead_id" value="<?php echo intval($lead['id']); ?>">
                 </form>
-                
-                <!-- Информация о лиде -->
-                <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #2d3748;">
-                    <h3 style="color: #00ff88; font-size: 14px; margin-bottom: 12px;">📋 Информация</h3>
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; font-size: 13px; color: #a0aec0;">
-                        <div><strong>ID лида:</strong> #<?php echo intval($lead['id']); ?></div>
-                        <div><strong>Источник:</strong> <?php echo esc_html($lead['source'] ?? '—'); ?></div>
-                        <div><strong>Создан:</strong> <?php echo esc_html($lead['created_at'] ?? '—'); ?></div>
-                        <div><strong>Обновлён:</strong> <?php echo esc_html($lead['updated_at'] ?? '—'); ?></div>
-                    </div>
-                    
-                    <?php if (!empty($lead['source']) && $lead['source'] === 'site_booking') : ?>
-                        <div style="margin-top: 15px;">
-                            <a href="?page=akpp-crm-new-deal&lead_id=<?php echo intval($lead['id']); ?>&_wpnonce=<?php echo wp_create_nonce('create_deal_from_lead_' . $lead['id']); ?>"
-                               class="button"
-                               style="background:linear-gradient(135deg,#00ff88 0%,#00cc6a 100%);color:#1a1f2e;border:none;padding:10px 20px;border-radius:8px;font-weight:600;text-decoration:none;display:inline-flex;align-items:center;gap:8px;">
-                                💰 Создать сделку из этого лида
-                            </a>
-                        </div>
-                    <?php endif; ?>
-                </div>
             </div>
         </div>
         <?php
-        return; // Выходим после формы редактирования
+        return;
     }
 }
 
@@ -177,18 +155,15 @@ if (isset($_GET['action']) && $_GET['action'] === 'edit' && isset($_GET['id'])) 
 // ОТОБРАЖЕНИЕ ТАБЛИЦЫ ЛИДОВ
 // ====================================================================
 
-// Подключаем класс таблицы лидов
 if (!class_exists('AKPP_Leads_Table')) {
     require_once dirname(__FILE__) . '/../tables/class-leads-table.php';
 }
 
-// Получаем список активных сотрудников для назначения
 $employees = $wpdb->get_results(
     "SELECT id, name FROM {$wpdb->prefix}akpp_employees WHERE is_active = 1 ORDER BY name ASC",
     ARRAY_A
 );
 
-// Инициализируем таблицу
 $leads_table = new AKPP_Leads_Table();
 $leads_table->prepare_items();
 ?>
@@ -202,16 +177,16 @@ $leads_table->prepare_items();
         </button>
     </div>
 
-    <!-- Уведомления о массовых действиях -->
     <?php if (isset($_GET['updated']) && intval($_GET['updated']) > 0) : ?>
         <div class="notice notice-success is-dismissible" style="border-left-color: var(--akpp-success);">
             <p>Успешно обновлено записей: <strong><?php echo esc_html($_GET['updated']); ?></strong></p>
         </div>
     <?php endif; ?>
 
-    <!-- Таблица лидов с поиском и фильтрами -->
-    <form method="get">
+    <!-- Таблица лидов с массовыми действиями -->
+    <form method="post">
         <input type="hidden" name="page" value="<?php echo esc_attr($_REQUEST['page']); ?>">
+        <?php wp_nonce_field('bulk-leads'); ?>
         <?php
         $leads_table->search_box('Поиск по имени, телефону или сообщению', 'lead_search');
         $leads_table->display();
@@ -290,7 +265,32 @@ $leads_table->prepare_items();
 
 <script>
 jQuery(document).ready(function($) {
-    // Открытие модального окна
+    // ========================================================================
+    // ❗ ВАЖНО: Обработчик submit УЖЕ ЕСТЬ в admin.js!
+    // Здесь НЕ добавляем свой, чтобы не было дублей!
+    // ========================================================================
+    
+    // Callback для успешного сохранения (вызывается из admin.js)
+    window.akppFormSuccess = function(data, $form) {
+        $('#akpp-lead-modal').removeClass('active').fadeOut(200);
+        $form[0].reset();
+        
+        // Уведомление
+        var notice = $('<div style="position:fixed;top:20px;right:20px;background:#00ff88;color:#0a0f1c;padding:16px 24px;border-radius:8px;box-shadow:0 4px 20px rgba(0,0,0,0.3);z-index:99999;font-weight:600;">✅ ' + (data.message || 'Лид создан') + '</div>');
+        $('body').append(notice);
+        setTimeout(function() { 
+            notice.fadeOut(300, function() { $(this).remove(); }); 
+        }, 3000);
+        
+        // Перезагрузка через 1 сек
+        setTimeout(function() {
+            window.location.href = '<?php echo esc_url(admin_url('admin.php?page=akpp-crm-leads')); ?>';
+        }, 1000);
+    };
+    
+    // ========================================================================
+    // ОТКРЫТИЕ/ЗАКРЫТИЕ МОДАЛЬНОГО ОКНА
+    // ========================================================================
     $(document).on('click', '.akpp-open-modal', function(e) {
         e.preventDefault();
         var target = $(this).data('target');
@@ -299,60 +299,41 @@ jQuery(document).ready(function($) {
         }
     });
     
-    // Закрытие по крестику
     $(document).on('click', '.akpp-modal-close', function() {
         $(this).closest('.akpp-modal').removeClass('active').fadeOut(200);
     });
     
-    // Закрытие по клику вне окна
     $(document).on('click', '.akpp-modal', function(e) {
         if ($(e.target).hasClass('akpp-modal')) {
             $(this).removeClass('active').fadeOut(200);
         }
     });
     
-    // Закрытие по Escape
     $(document).on('keydown', function(e) {
         if (e.key === 'Escape') {
             $('.akpp-modal.active').removeClass('active').fadeOut(200);
         }
     });
     
-    // Автоскрытие уведомлений
+    // ========================================================================
+    // АВТОСКРЫТИЕ УВЕДОМЛЕНИЙ
+    // ========================================================================
     setTimeout(function() {
         $('.notice.is-dismissible').fadeOut(500, function() {
             $(this).remove();
         });
     }, 5000);
     
-    // Обработка успешного сохранения
-    window.akppFormSuccess = function(data, $form) {
-        $('#akpp-lead-modal').removeClass('active').fadeOut(200);
-        $form[0].reset();
-        
-        var notice = $('<div style="position:fixed;top:20px;right:20px;background:#00ff88;color:#0a0f1c;padding:16px 24px;border-radius:8px;box-shadow:0 4px 20px rgba(0,0,0,0.3);z-index:99999;font-weight:600;">✅ ' + (data.message || 'Лид создан') + '</div>');
-        $('body').append(notice);
-        
-        setTimeout(function() {
-            notice.fadeOut(300, function() { $(this).remove(); });
-        }, 3000);
-        
-        setTimeout(function() {
-            window.location.href = '<?php echo esc_url(admin_url('admin.php?page=akpp-crm-leads')); ?>';
-        }, 1000);
-    };
-    
-    // Маска для телефона
+    // ========================================================================
+    // МАСКА ДЛЯ ТЕЛЕФОНА
+    // ========================================================================
     $('#lead_phone').on('input', function() {
         var value = $(this).val().replace(/\D/g, '');
-        
         if (value.length > 0) {
             if (value[0] === '7' || value[0] === '8') {
                 value = value.substring(1);
             }
-            
             var formatted = '+7';
-            
             if (value.length > 0) {
                 formatted += ' (' + value.substring(0, 3);
             }
@@ -365,7 +346,6 @@ jQuery(document).ready(function($) {
             if (value.length >= 8) {
                 formatted += '-' + value.substring(8, 10);
             }
-            
             $(this).val(formatted);
         }
     });
@@ -373,7 +353,6 @@ jQuery(document).ready(function($) {
 </script>
 
 <style>
-/* Стили для модального окна */
 .akpp-modal {
     display: none;
     position: fixed;
