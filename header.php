@@ -57,13 +57,13 @@
                 <span class="phone-text desktop-only">+7 (963) 866-99-96</span>
             </a>
             
-            <a href="https://t.me/akppkgn" target="_blank" class="btn-telegram" rel="noopener">
+            <a href="https://t.me/@akppkgn" target="_blank" class="btn-telegram" rel="noopener">
                 <span class="telegram-icon">💬</span>
                 <span class="telegram-text desktop-only">Telegram</span>
             </a>
             
             <?php if (is_user_logged_in()) : ?>
-                <a href="<?php echo esc_url(home_url('/profile')); ?>" class="btn-profile">
+                <a href="<?php echo esc_url(home_url('/lk/')); ?>" class="btn-profile">
                     <span class="profile-icon">👤</span>
                     <span class="profile-text desktop-only">Кабинет</span>
                 </a>

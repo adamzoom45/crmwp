@@ -205,14 +205,7 @@ function akpp45_enqueue_assets() {
     
     // Admin скрипты
     if (is_admin()) {
-        wp_enqueue_script(
-            'akpp45-admin-js',
-            $assets_uri . '/js/admin.js',
-            ['jquery'],
-            AKPP_THEME_VERSION,
-            true
-        );
-        
+     
         wp_localize_script('akpp45-admin-js', 'akpp_ajax', [
             'ajax_url' => admin_url('admin-ajax.php'),
             'nonce'    => wp_create_nonce('akpp45_nonce'),
@@ -659,8 +652,9 @@ function akpp45_admin_notices() {
     
     $critical_files = [
         AKPP_CRM_DIR . '/class-akpp-crm.php',
-        AKPP_CRM_DIR . '/class-akpp-ajax.php',
         AKPP_CRM_DIR . '/class-akpp-install.php',
+        AKPP_CRM_DIR . '/ajax/class-ajax-base.php',  // ✅ Новые модули
+        AKPP_CRM_DIR . '/ajax/class-ajax-loader.php',
     ];
     
     foreach ($critical_files as $file) {
