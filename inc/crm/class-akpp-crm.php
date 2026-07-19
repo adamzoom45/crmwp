@@ -45,6 +45,7 @@ class AKPP_CRM {
         require_once AKPP_CRM_PATH . 'ajax/class-ajax-base.php';
         require_once AKPP_CRM_PATH . 'ajax/class-ajax-loader.php';
         require_once AKPP_CRM_PATH . 'class-akpp-auth.php';
+        require_once AKPP_CRM_PATH . 'class-chat-ajax.php';
         require_once AKPP_CRM_PATH . 'class-akpp-db.php';
         require_once AKPP_CRM_PATH . 'class-akpp-email.php';
         require_once AKPP_CRM_PATH . 'class-akpp-push.php';
@@ -60,6 +61,10 @@ class AKPP_CRM {
         if (file_exists(AKPP_CRM_PATH . 'class-akpp-shop.php')) {
             require_once AKPP_CRM_PATH . 'class-akpp-shop.php';
         }
+        // ✅ НОВОЕ: Личный кабинет
+if (file_exists(AKPP_CRM_PATH . 'class-akpp-account.php')) {
+    require_once AKPP_CRM_PATH . 'class-akpp-account.php';
+}
         
         require_once AKPP_CRM_PATH . 'decoders/class-vin-decoder.php';
         require_once AKPP_CRM_PATH . 'decoders/class-body-decoder.php';
@@ -143,6 +148,11 @@ class AKPP_CRM {
         if (class_exists('AKPP_Shop')) {
             AKPP_Shop::get_instance();
         }
+
+        // ✅ НОВОЕ: Инициализация личного кабинета
+if (class_exists('AKPP_Account')) {
+    AKPP_Account::get_instance();
+}
     }
 
     /**
