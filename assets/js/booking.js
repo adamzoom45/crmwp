@@ -61,42 +61,9 @@
             }
         });
         
-        // Отправка формы записи
-        $('#booking-form').on('submit', function(e) {
-            e.preventDefault();
-            
-            var $form = $(this);
-            var $btn = $form.find('button[type="submit"]');
-            var originalText = $btn.text();
-            
-            $btn.prop('disabled', true).text('Отправка...');
-            
-            var formData = $form.serializeArray();
-            formData.push({name: 'action', value: 'akpp_booking_request'});
-            
-            $.ajax({
-                url: '/wp-admin/admin-ajax.php',
-                type: 'POST',
-                data: formData,
-                dataType: 'json',
-                success: function(response) {
-                    if (response.success) {
-                        showSuccess('Заявка отправлена! Свяжусь в течение часа.');
-                        $form[0].reset();
-                        $('#booking-modal').removeClass('active');
-                        $('body').css('overflow', '');
-                    } else {
-                        showError(response.data.message || 'Ошибка отправки');
-                    }
-                    $btn.prop('disabled', false).text(originalText);
-                },
-                error: function() {
-                    showError('Ошибка соединения');
-                    $btn.prop('disabled', false).text(originalText);
-                }
-            });
-        });
-        
+
+        // (submit перенесён в main.js — убран дубль, akpp-booking-dedup)
+
         // Уведомления
         function showSuccess(message) {
             showNotice(message, 'success');

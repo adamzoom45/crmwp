@@ -3,10 +3,13 @@
  */
 (function($) {
     'use strict';
+    /* shop-api-resolver: shop.js не зависит от гонки имён akpp_ajax; fallback на относительный ajax */
+    var akpp_ajax = window.akpp_shop_ajax || window.akpp_ajax || { ajax_url: '/wp-admin/admin-ajax.php', nonce: '' };
     
     var AKPP_Shop = {
         init: function() {
             this.bindEvents();
+            this.updateCartCount();
         },
         
         bindEvents: function() {
@@ -148,7 +151,7 @@
                 dataType: 'json',
                 success: function(res) {
                     if (res.success) {
-                        $('.cart-count').text(res.data.count);
+                        var __c = res.data.count; $('.cart-count').text(__c).attr('data-empty', __c > 0 ? '0' : '1');
                     }
                 }
             });
