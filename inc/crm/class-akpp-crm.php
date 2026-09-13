@@ -6,6 +6,7 @@
  * @package AKPP_CRM
  * @version 5.1.0
  */
+
 if (!defined('ABSPATH')) {
     exit;
 }
@@ -23,6 +24,7 @@ if (!defined('AKPP_CRM_VERSION')) {
 }
 
 class AKPP_CRM {
+
     private static $instance = null;
 
     public static function get_instance() {
@@ -38,206 +40,282 @@ class AKPP_CRM {
         $this->init_components();
     }
 
+    // ========================================================================
+    // ПОДКЛЮЧЕНИЕ ФАЙЛОВ
+    // ========================================================================
+
     private function includes() {
-        require_once AKPP_CRM_PATH . 'class-akpp-install.php';
-        
         // AJAX модули (декомпозированные)
-        require_once AKPP_CRM_PATH . 'ajax/class-ajax-base.php';
-        require_once AKPP_CRM_PATH . 'ajax/class-ajax-loader.php';
-        require_once AKPP_CRM_PATH . 'class-akpp-auth.php';
-        require_once AKPP_CRM_PATH . 'class-chat-ajax.php';
-        require_once AKPP_CRM_PATH . 'class-akpp-db.php';
-        require_once AKPP_CRM_PATH . 'class-akpp-email.php';
-        require_once AKPP_CRM_PATH . 'class-akpp-push.php';
-        require_once AKPP_CRM_PATH . 'class-avito-api.php';
-        require_once AKPP_CRM_PATH . 'class-avito-webhook.php';
-        require_once AKPP_CRM_PATH . 'class-avito-cron.php';
-        require_once AKPP_CRM_PATH . 'class-chat-ajax.php';
-        require_once AKPP_CRM_PATH . 'class-user-registration.php';
-        require_once AKPP_CRM_PATH . 'class-akpp-telegram.php';
-        require_once AKPP_CRM_PATH . 'class-akpp-parser.php';
-        
-        // ✅ НОВОЕ: Магазин
-        if (file_exists(AKPP_CRM_PATH . 'class-akpp-shop.php')) {
-            require_once AKPP_CRM_PATH . 'class-akpp-shop.php';
-        }
-        // ✅ НОВОЕ: Личный кабинет
-if (file_exists(AKPP_CRM_PATH . 'class-akpp-account.php')) {
-    require_once AKPP_CRM_PATH . 'class-akpp-account.php';
-}
-        
-        require_once AKPP_CRM_PATH . 'decoders/class-vin-decoder.php';
-        require_once AKPP_CRM_PATH . 'decoders/class-body-decoder.php';
-        require_once AKPP_CRM_PATH . 'decoders/class-deal-calculator.php';
-        require_once AKPP_CRM_PATH . 'ai/class-ai-analyzer.php';
-        
-        require_once AKPP_CRM_PATH . 'tables/class-deals-table.php';
-        require_once AKPP_CRM_PATH . 'tables/class-employees-table.php';
-        require_once AKPP_CRM_PATH . 'tables/class-vehicles-table.php';
-        require_once AKPP_CRM_PATH . 'tables/class-transmissions-table.php';
-        require_once AKPP_CRM_PATH . 'tables/class-leads-table.php';
-        require_once AKPP_CRM_PATH . 'tables/class-parts-table.php';
-        require_once AKPP_CRM_PATH . 'tables/class-oils-table.php';
-        require_once AKPP_CRM_PATH . 'tables/class-parser-table.php';
-        require_once AKPP_CRM_PATH . 'tables/class-users-table.php';
-        require_once AKPP_CRM_PATH . 'tables/class-avito-dialogs-table.php';
+        $this->require_file('ajax/class-ajax-base.php');
+        $this->require_file('ajax/class-ajax-loader.php');
+
+        // Ядро
+        $this->require_file('class-akpp-auth.php');
+        $this->require_file('class-akpp-db.php');
+        $this->require_file('class-akpp-email.php');
+        $this->require_file('class-chat-ajax.php');
+        $this->require_file('class-user-registration.php');
+
+        // Интеграции
+        $this->require_file('class-akpp-push.php');
+        $this->require_file('class-akpp-telegram.php');
+        $this->require_file('class-akpp-parser.php');
+        $this->require_file('class-avito-api.php');
+        $this->require_file('class-avito-webhook.php');
+        $this->require_file('class-avito-cron.php');
+
+        // Магазин
+        $this->require_file('class-akpp-shop.php');
+
+        // Личный кабинет
+        $this->require_file('class-akpp-account.php');
+
+        // Декодеры
+        $this->require_file('decoders/class-vin-decoder.php');
+        $this->require_file('decoders/class-body-decoder.php');
+        $this->require_file('decoders/class-deal-calculator.php');
+
+        // AI
+        $this->require_file('ai/class-ai-analyzer.php');
+
+        // Таблицы (WP_List_Table)
+        $this->require_file('tables/class-deals-table.php');
+        $this->require_file('tables/class-employees-table.php');
+        $this->require_file('tables/class-vehicles-table.php');
+        $this->require_file('tables/class-transmissions-table.php');
+        $this->require_file('tables/class-leads-table.php');
+        $this->require_file('tables/class-parts-table.php');
+        $this->require_file('tables/class-oils-table.php');
+        $this->require_file('tables/class-parser-table.php');
+        $this->require_file('tables/class-users-table.php');
+        $this->require_file('tables/class-avito-dialogs-table.php');
     }
+
+    /**
+     * Безопасное подключение файла
+     */
+    private function require_file($relative_path) {
+        $full_path = AKPP_CRM_PATH . $relative_path;
+        if (file_exists($full_path)) {
+            require_once $full_path;
+        } else {
+            error_log('[AKPP CRM] Файл не найден: ' . $full_path);
+        }
+    }
+
+    // ========================================================================
+    // ХУКИ
+    // ========================================================================
 
     private function init_hooks() {
         add_action('admin_menu', [$this, 'register_admin_menus']);
         add_action('admin_enqueue_scripts', [$this, 'enqueue_admin_assets']);
         add_action('wp_enqueue_scripts', [$this, 'enqueue_frontend_assets']);
-        add_action('init', [$this, 'register_shortcodes']);
-        add_action('admin_init', [$this, 'maybe_install_db']);
         add_action('admin_bar_menu', [$this, 'add_shop_link_to_admin_bar'], 100);
+        add_action('init', [$this, 'register_shortcodes']);
     }
 
-    public function maybe_install_db() {
-        if (!current_user_can('manage_options')) {
-            return;
-        }
-        
-        $current_version = get_option('akpp_crm_db_version', '0');
-        $target_version  = '5.1';
-        
-        if (version_compare($current_version, $target_version, '<')) {
-            $lock_key = 'akpp_crm_db_installing';
-            if (get_transient($lock_key)) {
-                return;
-            }
-            
-            set_transient($lock_key, true, 300);
-            
-            try {
-                require_once AKPP_CRM_PATH . 'class-akpp-install.php';
-                $installer = new AKPP_Install();
-                $result = $installer->run();
-                
-                if ($result !== false) {
-                    update_option('akpp_crm_db_version', $target_version);
-                }
-            } catch (Exception $e) {
-                error_log('AKPP CRM DB Install Error: ' . $e->getMessage());
-            } finally {
-                delete_transient($lock_key);
-            }
-        }
-    }
+    // ========================================================================
+    // ИНИЦИАЛИЗАЦИЯ КОМПОНЕНТОВ
+    // ========================================================================
 
     private function init_components() {
-        AKPP_AJAX_Loader::get_instance();
-        new AKPP_Chat_AJAX();
-        new AKPP_User_Registration();
-        
+        // AJAX загрузчик (все модули)
+        if (class_exists('AKPP_AJAX_Loader')) {
+            AKPP_AJAX_Loader::get_instance();
+        }
+
+        // Чат
+        if (class_exists('AKPP_Chat_AJAX')) {
+            new AKPP_Chat_AJAX();
+        }
+
+        // Регистрация пользователей
+        if (class_exists('AKPP_User_Registration')) {
+            new AKPP_User_Registration();
+        }
+
+        // Авито API
         if (class_exists('AKPP_Avito_API')) {
             AKPP_Avito_API::get_instance();
         }
-        
+
+        // Авито Webhook
         if (class_exists('AKPP_Avito_Webhook')) {
             new AKPP_Avito_Webhook();
         }
-        
+
+        // Авито Cron
         if (class_exists('AKPP_Avito_Cron')) {
             new AKPP_Avito_Cron();
         }
-        
+
+        // Telegram
         if (class_exists('AKPP_Telegram')) {
             AKPP_Telegram::get_instance();
         }
-        
+
+        // Push уведомления
+        if (class_exists('AKPP_Push')) {
+            AKPP_Push::get_instance();
+        }
+
+        // Магазин
         if (class_exists('AKPP_Shop')) {
             AKPP_Shop::get_instance();
         }
 
-        // ✅ НОВОЕ: Инициализация личного кабинета
-if (class_exists('AKPP_Account')) {
-    AKPP_Account::get_instance();
-}
+        // Личный кабинет
+        if (class_exists('AKPP_Account')) {
+            AKPP_Account::get_instance();
+        }
+
+        // VIN декодер
+        if (class_exists('AKPP_VIN_Decoder')) {
+            AKPP_VIN_Decoder::get_instance();
+        }
+
+        // Калькулятор сделок
+        if (class_exists('AKPP_Deal_Calculator')) {
+            AKPP_Deal_Calculator::get_instance();
+        }
+
+        // AI анализатор
+        if (class_exists('AKPP_AI_Analyzer')) {
+            AKPP_AI_Analyzer::get_instance();
+        }
     }
 
-    /**
-     * Регистрация меню в админ-панели
-     */
+    // ========================================================================
+    // МЕНЮ АДМИН-ПАНЕЛИ
+    // ========================================================================
+
     public function register_admin_menus() {
-        $capability = 'manage_options';
-        $menu_slug  = 'akpp-crm-dashboard';
-        
-        add_menu_page(
-            'АКПП CRM',
-            '🚗 АКПП CRM',
-            $capability,
-            $menu_slug,
-            [$this, 'render_dashboard_page'],
-            'dashicons-chart-area',
-            30
-        );
-        
-        // Основные разделы
-        add_submenu_page($menu_slug, 'Дашборд', '📊 Дашборд', $capability, $menu_slug, [$this, 'render_dashboard_page']);
-        add_submenu_page($menu_slug, 'Сделки', '📋 Сделки', $capability, 'akpp-crm-deals', [$this, 'render_deals_page']);
-        add_submenu_page($menu_slug, 'Новая сделка', '➕ Новая', $capability, 'akpp-crm-new-deal', [$this, 'render_new_deal_page']);
-        add_submenu_page($menu_slug, 'Сотрудники', '👥 Сотрудники', $capability, 'akpp-crm-employees', [$this, 'render_employees_page']);
-        add_submenu_page($menu_slug, 'Автомобили', ' Авто', $capability, 'akpp-crm-vehicles', [$this, 'render_vehicles_page']);
-        add_submenu_page($menu_slug, 'Каталог АКПП', '⚙️ АКПП', $capability, 'akpp-crm-transmissions', [$this, 'render_transmissions_page']);
-        
-        // Магазин и склад
-        add_submenu_page($menu_slug, 'Склад запчастей', '📦 Склад', $capability, 'akpp-crm-parts', [$this, 'render_parts_page']);
-        add_submenu_page($menu_slug, ' Магазин', '🛒 Магазин', $capability, 'akpp-crm-shop', [$this, 'render_shop_page']);
-        add_submenu_page($menu_slug, 'Масла', '🛢️ Масла', $capability, 'akpp-crm-oils', [$this, 'render_oils_page']);
-        
-        // Аналитика и клиенты
-        add_submenu_page($menu_slug, 'Парсер + AI', '🤖 Парсер', $capability, 'akpp-crm-parser', [$this, 'render_parser_page']);
-        add_submenu_page($menu_slug, 'Лиды', ' Лиды', $capability, 'akpp-crm-leads', [$this, 'render_leads_page']);
-        add_submenu_page($menu_slug, 'Клиенты сайта', '👤 Клиенты', $capability, 'akpp-crm-users', [$this, 'render_users_page']);
-        
-        // Согласия с офертой
-        add_submenu_page($menu_slug, '📜 Согласия с офертой', '📜 Оферты', $capability, 'akpp-crm-agreements', [$this, 'render_agreements_page']);
-        
-        // Интеграции
-        add_submenu_page($menu_slug, 'Диалоги Авито', '💬 Авито', $capability, 'akpp-crm-avito-dialogs', [$this, 'render_avito_dialogs_page']);
-        add_submenu_page($menu_slug, 'Настройки Авито', '⚡ Настройки Авито', $capability, 'akpp-crm-avito-settings', [$this, 'render_avito_settings_page']);
-        add_submenu_page($menu_slug, 'Telegram бот', '📱 Telegram', $capability, 'akpp-crm-telegram', [$this, 'render_telegram_page']);
-        
-        // Ссылка на магазин на сайте
-        add_submenu_page($menu_slug, 'Открыть магазин на сайте', '🔗 Открыть магазин ↗', $capability, 'akpp-crm-shop-link', [$this, 'redirect_to_shop']);
+        // === Дашборд ===
+        add_menu_page('Дашборд', '📊 Дашборд', 'akpp_view_dashboard', 'akpp-crm', [$this, 'render_dashboard_page'], 'dashicons-chart-area', 30);
+        // === Сделки и клиенты ===
+        add_menu_page('Сделки', '📋 Сделки', 'akpp_view_deals', 'akpp-crm-deals', [$this, 'render_deals_page'], 'dashicons-clipboard', 31);
+        add_submenu_page('akpp-crm-deals', 'Сделки', '📋 Сделки', 'akpp_view_deals', 'akpp-crm-deals', [$this, 'render_deals_page']);
+        add_submenu_page('akpp-crm-deals', 'Новая сделка', '➕ Новая', 'akpp_edit_deals', 'akpp-crm-new-deal', [$this, 'render_new_deal_page']);
+        add_submenu_page('akpp-crm-deals', 'Лиды', '📨 Лиды', 'akpp_manage_leads', 'akpp-crm-leads', [$this, 'render_leads_page']);
+        add_submenu_page('akpp-crm-deals', 'Клиенты сайта', '👤 Клиенты', 'akpp_view_clients', 'akpp-crm-users', [$this, 'render_users_page']);
+        add_submenu_page('akpp-crm-deals', 'Согласия с офертой', '📜 Оферты', 'akpp_view_agreements', 'akpp-crm-agreements', [$this, 'render_agreements_page']);
+        // === Бухгалтерия ===
+        add_menu_page('Бухгалтерия', '👥 Бухгалтерия', 'akpp_view_employees', 'akpp-crm-employees', [$this, 'render_employees_page'], 'dashicons-money-alt', 32);
+        add_submenu_page('akpp-crm-employees', 'Сотрудники', '👥 Сотрудники', 'akpp_view_employees', 'akpp-crm-employees', [$this, 'render_employees_page']);
+        add_submenu_page('akpp-crm-employees', 'Табель', '📅 Табель', 'akpp_view_finance', 'akpp-crm-attendance', [$this, 'render_attendance_page']);
+        add_submenu_page('akpp-crm-employees', 'Финансы', '💰 Финансы', 'akpp_view_finance', 'akpp-crm-finance', [$this, 'render_finance_page']);
+        // === Автосервис ===
+        add_menu_page('Автосервис', '🔧 Автосервис', 'akpp_view_vehicles', 'akpp-crm-vehicles', [$this, 'render_vehicles_page'], 'dashicons-car', 33);
+        add_submenu_page('akpp-crm-vehicles', 'Авто', '🚙 Авто', 'akpp_view_vehicles', 'akpp-crm-vehicles', [$this, 'render_vehicles_page']);
+        add_submenu_page('akpp-crm-vehicles', 'Каталог АКПП', '⚙️ Каталог АКПП', 'akpp_view_vehicles', 'akpp-crm-transmissions', [$this, 'render_transmissions_page']);
+        add_submenu_page('akpp-crm-vehicles', 'ДВС', '🔩 ДВС', 'akpp_view_deals', 'akpp-crm-deals-engine', [$this, 'render_service_category_page']);
+        add_submenu_page('akpp-crm-vehicles', 'Услуги', '📋 Услуги', 'akpp_view_deals', 'akpp-crm-services', [$this, 'render_services_page']);
+        add_submenu_page('akpp-crm-vehicles', 'Парсер + AI', '🤖 Парсер + AI', 'akpp_use_parser', 'akpp-crm-parser', [$this, 'render_parser_page']);
+        add_submenu_page('akpp-crm-vehicles', 'Масла', '🛢️ Масла', 'akpp_view_parts', 'akpp-crm-oils', [$this, 'render_oils_page']);
+        add_submenu_page('akpp-crm-vehicles', 'Категории', '📁 Категории', 'akpp_view_parts', 'akpp-crm-categories', [$this, 'render_categories_page']);
+        add_submenu_page('akpp-crm-vehicles', 'Склад запчастей', '📦 Склад запчастей', 'akpp_view_parts', 'akpp-crm-parts', [$this, 'render_parts_page']);
+        // === Магазин ===
+        add_menu_page('Магазин', '🛒 Магазин', 'akpp_view_shop', 'akpp-crm-shop', [$this, 'render_shop_page'], 'dashicons-cart', 34);
+        add_submenu_page('akpp-crm-shop', 'Товары магазина', '🛒 Товары', 'akpp_view_shop', 'akpp-crm-shop', [$this, 'render_shop_page']);
+        add_submenu_page('akpp-crm-shop', 'Категории', '📁 Категории', 'akpp_view_shop', 'akpp-crm-shop-categories', [$this, 'render_categories_page']);
+        add_submenu_page('akpp-crm-shop', 'Масла', '🛢️ Масла', 'akpp_view_parts', 'akpp-crm-shop-oils', [$this, 'render_oils_page']);
+        add_submenu_page('akpp-crm-shop', 'Склад', '📦 Склад', 'akpp_view_parts', 'akpp-crm-shop-parts', [$this, 'render_parts_page']);
+        add_submenu_page('akpp-crm-shop', 'Открыть магазин на сайте', '🔗 Открыть на сайте ↗', 'akpp_view_shop', 'akpp-crm-shop-link', [$this, 'redirect_to_shop']);
+        // === Интеграции ===
+        add_menu_page('Интеграции', '🔌 Интеграции', 'akpp_manage_integrations', 'akpp-crm-avito-dialogs', [$this, 'render_avito_dialogs_page'], 'dashicons-admin-plugins', 35);
+        add_submenu_page('akpp-crm-avito-dialogs', 'Диалоги Авито', '💬 Авито', 'akpp_manage_integrations', 'akpp-crm-avito-dialogs', [$this, 'render_avito_dialogs_page']);
+        add_submenu_page('akpp-crm-avito-dialogs', 'Настройки Авито', '⚡ Настройки Авито', 'akpp_manage_integrations', 'akpp-crm-avito-settings', [$this, 'render_avito_settings_page']);
+        add_submenu_page('akpp-crm-avito-dialogs', 'Telegram бот', '📱 Telegram', 'akpp_manage_integrations', 'akpp-crm-telegram', [$this, 'render_telegram_page']);
     }
 
-    /**
-     * Ссылка на магазин в верхней панели админки
-     */
-    public function add_shop_link_to_admin_bar($wp_admin_bar) {
-        $wp_admin_bar->add_node([
-            'id'    => 'akpp-shop-link',
-            'title' => '🛒 Магазин АКПП45',
-            'href'  => home_url('/shop/'),
-            'meta'  => [
-                'target' => '_blank',
-                'title'  => 'Открыть магазин на сайте в новой вкладке'
-            ]
+    // ========================================================================
+    // СТИЛИ И СКРИПТЫ (АДМИНКА)
+    // ========================================================================
+
+    public function enqueue_admin_assets($hook) {
+        // Загружаем только на страницах CRM
+        if (strpos($hook, 'akpp-crm') === false && strpos($hook, 'toplevel_page_akpp-crm') === false) {
+            return;
+        }
+
+        $theme_uri = get_template_directory_uri();
+
+        // Стили
+        wp_enqueue_style('akpp-admin-style', $theme_uri . '/assets/css/admin.css', [], AKPP_CRM_VERSION);
+        wp_enqueue_style('akpp-modal-style', $theme_uri . '/assets/css/modal.css', [], AKPP_CRM_VERSION);
+
+        if (file_exists(get_template_directory() . '/assets/css/shop.css')) {
+            wp_enqueue_style('akpp-shop-admin-style', $theme_uri . '/assets/css/shop.css', [], AKPP_CRM_VERSION);
+        }
+
+        // Скрипты
+        wp_enqueue_script('jquery');
+        wp_enqueue_script('akpp-admin-js', $theme_uri . '/assets/js/admin.js', ['jquery'], AKPP_CRM_VERSION, true);
+        wp_enqueue_script('akpp-deal-calculator-js', $theme_uri . '/assets/js/deal-calculator.js', ['jquery'], AKPP_CRM_VERSION, true);
+        wp_enqueue_script('akpp-vin-decoder-js', $theme_uri . '/assets/js/vin-decoder.js', ['jquery'], AKPP_CRM_VERSION, true);
+        wp_enqueue_script('akpp-chat-js', $theme_uri . '/assets/js/chat.js', ['jquery'], AKPP_CRM_VERSION, true);
+
+        if (file_exists(get_template_directory() . '/assets/js/shop.js')) {
+            wp_enqueue_script('akpp-shop-admin-js', $theme_uri . '/assets/js/shop.js', ['jquery'], AKPP_CRM_VERSION, true);
+            wp_localize_script('akpp-shop-admin-js', 'akpp_shop_config', [
+                'ajax_url' => admin_url('admin-ajax.php'),
+                'nonce'    => wp_create_nonce('akpp45_nonce'),
+            ]);
+        }
+
+        // Локализация
+        wp_localize_script('akpp-admin-js', 'akpp_ajax', [
+            'ajax_url' => admin_url('admin-ajax.php'),
+            'nonce'    => wp_create_nonce('akpp45_nonce'),
+        ]);
+
+        wp_localize_script('akpp-deal-calculator-js', 'akpp_deal', [
+            'ajax_url' => admin_url('admin-ajax.php'),
+            'nonce'    => wp_create_nonce('akpp45_nonce'),
+        ]);
+
+        wp_localize_script('akpp-vin-decoder-js', 'akpp_vin_decoder_config', [
+            'ajax_url' => admin_url('admin-ajax.php'),
+            'nonce'    => wp_create_nonce('akpp45_nonce'),
+        ]);
+
+        wp_localize_script('akpp-chat-js', 'akpp_chat_config', [
+            'ajax_url' => admin_url('admin-ajax.php'),
+            'nonce'    => wp_create_nonce('akpp_chat_action_nonce'),
+            'strings'  => [
+                'sending' => 'Отправка...',
+                'error'   => 'Ошибка отправки',
+            ],
         ]);
     }
 
-    /**
-     * Редирект на магазин на сайте
-     */
-    public function redirect_to_shop() {
-        wp_redirect(home_url('/shop/'));
-        exit;
-    }
+    // ========================================================================
+    // СТИЛИ И СКРИПТЫ (ФРОНТЕНД)
+    // ========================================================================
 
     public function enqueue_frontend_assets() {
         $theme_uri = get_template_directory_uri();
-        
+
+        // Стили
         wp_enqueue_style('akpp-frontend-style', $theme_uri . '/assets/css/frontend.css', [], AKPP_CRM_VERSION);
         wp_enqueue_style('akpp-modal-style', $theme_uri . '/assets/css/modal.css', [], AKPP_CRM_VERSION);
-        
+
         if (file_exists(get_template_directory() . '/assets/css/shop.css')) {
-            wp_enqueue_style('akpp-shop-style', $theme_uri . '/assets/css/shop.css', [], AKPP_CRM_VERSION);
+            wp_enqueue_style('akpp-shop-frontend', $theme_uri . '/assets/css/shop.css', [], AKPP_CRM_VERSION);
         }
-        
-        wp_enqueue_script('akpp-auth-js', $theme_uri . '/assets/js/auth.js', ['jquery'], AKPP_CRM_VERSION, true);
-        wp_enqueue_script('akpp-chat-frontend-js', $theme_uri . '/assets/js/chat.js', ['jquery'], AKPP_CRM_VERSION, true);
-        
+
+        // Скрипты
+        wp_enqueue_script('jquery');
+
+        if (file_exists(get_template_directory() . '/assets/js/auth.js')) {
+            wp_enqueue_script('akpp-auth-js', $theme_uri . '/assets/js/auth.js', ['jquery'], AKPP_CRM_VERSION, true);
+        }
+
+        if (file_exists(get_template_directory() . '/assets/js/chat.js')) {
+            wp_enqueue_script('akpp-chat-frontend-js', $theme_uri . '/assets/js/chat.js', ['jquery'], AKPP_CRM_VERSION, true);
+        }
+
         if (file_exists(get_template_directory() . '/assets/js/shop.js')) {
             wp_enqueue_script('akpp-shop-js', $theme_uri . '/assets/js/shop.js', ['jquery'], AKPP_CRM_VERSION, true);
             wp_localize_script('akpp-shop-js', 'akpp_shop_config', [
@@ -246,74 +324,31 @@ if (class_exists('AKPP_Account')) {
                 'home_url' => home_url('/'),
             ]);
         }
-        
+
+        // Локализация для чата (фронтенд)
         wp_localize_script('akpp-chat-frontend-js', 'akpp_frontend_chat_config', [
             'ajax_url' => admin_url('admin-ajax.php'),
             'nonce'    => wp_create_nonce('akpp_frontend_chat_action'),
             'strings'  => [
                 'sending' => 'Отправка...',
-                'error'   => 'Ошибка отправки'
-            ]
+                'error'   => 'Ошибка отправки',
+            ],
         ]);
     }
 
-    public function enqueue_admin_assets($hook) {
-        if (strpos($hook, 'akpp-crm') === false && strpos($hook, 'toplevel_page_akpp-crm') === false) {
-            return;
-        }
-        
-        $theme_uri = get_template_directory_uri();
-        
-        wp_enqueue_style('akpp-admin-style', $theme_uri . '/assets/css/admin.css', [], AKPP_CRM_VERSION);
-        
-        if (file_exists(get_template_directory() . '/assets/css/shop.css')) {
-            wp_enqueue_style('akpp-shop-admin-style', $theme_uri . '/assets/css/shop.css', [], AKPP_CRM_VERSION);
-        }
-        
-        wp_enqueue_script('akpp-admin-js', $theme_uri . '/assets/js/admin.js', ['jquery'], AKPP_CRM_VERSION, true);
-        wp_enqueue_script('akpp-deal-calculator-js', $theme_uri . '/assets/js/deal-calculator.js', ['jquery'], AKPP_CRM_VERSION, true);
-        wp_enqueue_script('akpp-vin-decoder-js', $theme_uri . '/assets/js/vin-decoder.js', ['jquery'], AKPP_CRM_VERSION, true);
-        wp_enqueue_script('akpp-chat-js', $theme_uri . '/assets/js/chat.js', ['jquery'], AKPP_CRM_VERSION, true);
-        
-        if (file_exists(get_template_directory() . '/assets/js/shop.js')) {
-            wp_enqueue_script('akpp-shop-admin-js', $theme_uri . '/assets/js/shop.js', ['jquery'], AKPP_CRM_VERSION, true);
-            wp_localize_script('akpp-shop-admin-js', 'akpp_shop_config', [
-                'ajax_url' => admin_url('admin-ajax.php'),
-                'nonce'    => wp_create_nonce('akpp45_nonce'),
-            ]);
-        }
-        
-        wp_localize_script('akpp-admin-js', 'akpp_ajax', [
-            'ajax_url' => admin_url('admin-ajax.php'),
-            'nonce'    => wp_create_nonce('akpp45_nonce')
-        ]);
-        
-        wp_localize_script('akpp-deal-calculator-js', 'akpp_deal', [
-            'ajax_url' => admin_url('admin-ajax.php'),
-            'nonce'    => wp_create_nonce('akpp_save_deal_nonce')
-        ]);
-        
-        wp_localize_script('akpp-vin-decoder-js', 'akpp_vin_decoder_config', [
-            'ajax_url' => admin_url('admin-ajax.php'),
-            'nonce'    => wp_create_nonce('akpp_vin_decode_nonce')
-        ]);
-        
-        wp_localize_script('akpp-chat-js', 'akpp_chat_config', [
-            'ajax_url' => admin_url('admin-ajax.php'),
-            'nonce'    => wp_create_nonce('akpp_chat_action_nonce'),
-            'strings'  => [
-                'sending' => 'Отправка...',
-                'error'   => 'Ошибка отправки'
-            ]
-        ]);
-    }
+    // ========================================================================
+    // ШОРТКОДЫ
+    // ========================================================================
 
     public function register_shortcodes() {
         add_shortcode('akpp_registration_form', [$this, 'shortcode_registration_form']);
         add_shortcode('akpp_client_chat', [$this, 'shortcode_client_chat']);
-        add_shortcode('akpp_shop_catalog', [$this, 'shortcode_shop_catalog']);
-        add_shortcode('akpp_shop_cart', [$this, 'shortcode_shop_cart']);
-        add_shortcode('akpp_shop_checkout', [$this, 'shortcode_shop_checkout']);
+        // akpp-shop-dup: шорткод akpp_shop_catalog регистрирует AKPP_Shop (class-akpp-shop.php)
+        // add_shortcode('akpp_shop_catalog', [$this, 'shortcode_shop_catalog']);
+        // akpp-shop-dup: шорткод akpp_shop_cart регистрирует AKPP_Shop (class-akpp-shop.php)
+        // add_shortcode('akpp_shop_cart', [$this, 'shortcode_shop_cart']);
+        // akpp-shop-dup: шорткод akpp_shop_checkout регистрирует AKPP_Shop (class-akpp-shop.php)
+        // add_shortcode('akpp_shop_checkout', [$this, 'shortcode_shop_checkout']);
     }
 
     public function shortcode_registration_form() {
@@ -352,6 +387,35 @@ if (class_exists('AKPP_Account')) {
         return AKPP_Shop::get_instance()->shortcode_checkout($atts);
     }
 
+    // ========================================================================
+    // РЕНДЕР СТРАНИЦ
+    // ========================================================================
+
+    public function render_service_category_page() {
+        $page = sanitize_text_field($_GET['page'] ?? '');
+        $map = [
+            'akpp-crm-deals-engine'     => ['engine', '🔩 ДВС'],
+            'akpp-crm-deals-suspension' => ['suspension', '🛞 Ходовая и рулевое'],
+            'akpp-crm-deals-body'       => ['body', '🚗 Кузовные'],
+            'akpp-crm-deals-electric'   => ['electric', '⚡ Электрика'],
+            'akpp-crm-deals-interior'   => ['interior', '💺 Салон'],
+        ];
+        $cat = $map[$page] ?? ['akpp', '🚗 Сделки'];
+        include AKPP_CRM_PATH . 'templates/service_category.php';
+    }
+
+    public function render_section_placeholder() {
+        echo '<div class="wrap akpp-crm-wrap"><h1 style="color:#00ff88;border-left:4px solid #00ff88;padding-left:15px;">📁 Раздел</h1><p style="color:#a0aec0;">Раздел в разработке — скоро здесь появится функционал.</p></div>';
+    }
+
+    public function render_categories_page() {
+        include AKPP_CRM_PATH . 'templates/categories.php';
+    }
+
+    public function render_services_page() {
+        include AKPP_CRM_PATH . 'templates/services.php';
+    }
+
     public function render_dashboard_page() {
         include AKPP_CRM_PATH . 'templates/dashboard.php';
     }
@@ -387,16 +451,12 @@ if (class_exists('AKPP_Account')) {
         } else {
             echo '<div class="wrap akpp-crm-wrap">';
             echo '<h1>🛒 Магазин АКПП45</h1>';
-            echo '<div class="notice notice-error"><p> Файл шаблона не найден: <code>' . esc_html($file) . '</code></p></div>';
-            echo '<p>Создайте файл <code>templates/shop-admin.php</code> для отображения страницы магазина.</p>';
-            echo '<hr>';
-            echo '<h2>🔗 Быстрые ссылки:</h2>';
-            echo '<ul>';
-            echo '<li><a href="' . esc_url(home_url('/shop/')) . '" target="_blank">🛒 Открыть магазин на сайте </a></li>';
-            echo '<li><a href="' . esc_url(admin_url('admin.php?page=akpp-crm-parts')) . '"> Перейти к складу</a></li>';
+            echo '<div class="notice notice-warning"><p>⚠️ Файл шаблона не найден: <code>' . esc_html($file) . '</code></p></div>';
+            echo '<h2>🔗 Быстрые ссылки:</h2><ul>';
+            echo '<li><a href="' . esc_url(home_url('/shop/')) . '" target="_blank">🛒 Открыть магазин на сайте</a></li>';
+            echo '<li><a href="' . esc_url(admin_url('admin.php?page=akpp-crm-parts')) . '">📦 Перейти к складу</a></li>';
             echo '<li><a href="' . esc_url(admin_url('admin.php?page=akpp-crm-agreements')) . '">📜 Согласия с офертой</a></li>';
-            echo '</ul>';
-            echo '</div>';
+            echo '</ul></div>';
         }
     }
 
@@ -408,27 +468,41 @@ if (class_exists('AKPP_Account')) {
         include AKPP_CRM_PATH . 'templates/parser.php';
     }
 
-    /**
-     * Страница лидов - просто подключает шаблон
-     * Вся логика обработки действий находится в leads.php
-     */
     public function render_leads_page() {
         include AKPP_CRM_PATH . 'templates/leads.php';
     }
 
     public function render_users_page() {
-        if (!class_exists('AKPP_Users_Table')) return;
+        if (!class_exists('AKPP_Users_Table')) {
+            echo '<div class="wrap"><h1>Клиенты сайта</h1><div class="notice notice-error"><p>Класс AKPP_Users_Table не найден</p></div></div>';
+            return;
+        }
         $table = new AKPP_Users_Table();
-        echo '<div class="wrap"><h1>Клиенты сайта</h1><form method="post">';
+        echo '<div class="wrap"><h1>👤 Клиенты сайта</h1><form method="post">';
         $table->prepare_items();
         $table->display();
         echo '</form></div>';
     }
 
+    public function render_attendance_page() {
+        include AKPP_CRM_PATH . 'templates/attendance.php';
+    }
+
+    public function render_finance_page() {
+        include AKPP_CRM_PATH . 'templates/finance.php';
+    }
+
+    public function render_agreements_page() {
+        include AKPP_CRM_PATH . 'templates/agreements.php';
+    }
+
     public function render_avito_dialogs_page() {
-        if (!class_exists('AKPP_Avito_Dialogs_Table')) return;
+        if (!class_exists('AKPP_Avito_Dialogs_Table')) {
+            echo '<div class="wrap"><h1>Диалоги Авито</h1><div class="notice notice-error"><p>Класс AKPP_Avito_Dialogs_Table не найден</p></div></div>';
+            return;
+        }
         $table = new AKPP_Avito_Dialogs_Table();
-        echo '<div class="wrap"><h1>Диалоги Авито</h1><form method="post">';
+        echo '<div class="wrap"><h1>💬 Диалоги Авито</h1><form method="post">';
         $table->prepare_items();
         $table->display();
         echo '</form></div>';
@@ -442,90 +516,47 @@ if (class_exists('AKPP_Account')) {
         include AKPP_CRM_PATH . 'templates/telegram.php';
     }
 
-    public function render_agreements_page() {
-        $file = AKPP_CRM_PATH . 'templates/agreements.php';
-        if (file_exists($file)) {
-            include $file;
-        } else {
-            global $wpdb;
-            $table = $wpdb->prefix . 'akpp_agreements';
-            
-            $table_exists = $wpdb->get_var("SHOW TABLES LIKE '$table'") === $table;
-            
-            echo '<div class="wrap akpp-crm-wrap">';
-            echo '<h1 style="color: #00ff88; border-left: 4px solid #00ff88; padding-left: 15px;">📜 Согласия с договором-офертой</h1>';
-            
-            if (!$table_exists) {
-                echo '<div class="notice notice-warning"><p>⚠️ Таблица <code>' . esc_html($table) . '</code> не создана. Выполните SQL-скрипт для создания таблицы согласий.</p>';
-                echo '<p><a href="' . esc_url(admin_url('admin.php?page=akpp-crm-shop')) . '" class="button">Перейти к настройкам магазина</a></p></div>';
-                echo '</div>';
-                return;
-            }
-            
-            $total = (int)$wpdb->get_var("SELECT COUNT(*) FROM {$table}");
-            $today = (int)$wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$table} WHERE DATE(accepted_at) = CURDATE()"));
-            $month = (int)$wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$table} WHERE MONTH(accepted_at) = MONTH(CURDATE()) AND YEAR(accepted_at) = YEAR(CURDATE())"));
-            
-            echo '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:15px;margin:20px 0;">';
-            echo '<div style="background:#1a1f2e;border:1px solid #2d3748;border-radius:12px;padding:20px;text-align:center;">';
-            echo '<div style="font-size:32px;font-weight:700;color:#00ff88;">' . $total . '</div>';
-            echo '<div style="color:#a0aec0;font-size:13px;text-transform:uppercase;">Всего согласий</div>';
-            echo '</div>';
-            echo '<div style="background:#1a1f2e;border:1px solid #2d3748;border-radius:12px;padding:20px;text-align:center;">';
-            echo '<div style="font-size:32px;font-weight:700;color:#63b3ed;">' . $today . '</div>';
-            echo '<div style="color:#a0aec0;font-size:13px;text-transform:uppercase;">Сегодня</div>';
-            echo '</div>';
-            echo '<div style="background:#1a1f2e;border:1px solid #2d3748;border-radius:12px;padding:20px;text-align:center;">';
-            echo '<div style="font-size:32px;font-weight:700;color:#f6ad55;">' . $month . '</div>';
-            echo '<div style="color:#a0aec0;font-size:13px;text-transform:uppercase;">За месяц</div>';
-            echo '</div>';
-            echo '</div>';
-            
-            $agreements = $wpdb->get_results("SELECT * FROM {$table} ORDER BY accepted_at DESC LIMIT 100");
-            
-            echo '<div style="background:#1a1f2e;border:1px solid #2d3748;border-radius:12px;padding:20px;">';
-            echo '<table class="wp-list-table widefat fixed striped">';
-            echo '<thead><tr>';
-            echo '<th style="width:50px;">ID</th>';
-            echo '<th>Клиент</th>';
-            echo '<th>Телефон</th>';
-            echo '<th>Сделка</th>';
-            echo '<th>Источник</th>';
-            echo '<th>IP</th>';
-            echo '<th>Дата согласия</th>';
-            echo '</tr></thead><tbody>';
-            
-            if (empty($agreements)) {
-                echo '<tr><td colspan="7" style="text-align:center;padding:40px;color:#718096;">Согласий ещё нет</td></tr>';
-            } else {
-                foreach ($agreements as $agr) {
-                    $sources = ['crm_deal' => 'CRM Сделка', 'site_form' => 'Форма на сайте', 'registration' => 'Регистрация'];
-                    $source_label = $sources[$agr->source] ?? $agr->source;
-                    
-                    echo '<tr>';
-                    echo '<td>' . intval($agr->id) . '</td>';
-                    echo '<td><strong>' . esc_html($agr->client_name) . '</strong></td>';
-                    echo '<td>' . esc_html($agr->client_phone) . '</td>';
-                    echo '<td>';
-                    if ($agr->deal_id) {
-                        echo '<a href="' . esc_url(admin_url('admin.php?page=akpp-crm-deals&view=' . $agr->deal_id)) . '" style="color:#00ff88;">#' . intval($agr->deal_id) . '</a>';
-                    } else {
-                        echo '<span style="color:#718096;">—</span>';
-                    }
-                    echo '</td>';
-                    echo '<td><span style="display:inline-block;padding:4px 12px;border-radius:12px;font-size:12px;font-weight:600;background:#2d3748;color:#e2e8f0;">' . esc_html($source_label) . '</span></td>';
-                    echo '<td><code style="font-size:11px;">' . esc_html($agr->ip_address) . '</code></td>';
-                    echo '<td>' . date_i18n('d.m.Y H:i', strtotime($agr->accepted_at)) . '</td>';
-                    echo '</tr>';
-                }
-            }
-            
-            echo '</tbody></table></div>';
-            echo '</div>';
-        }
+    // ========================================================================
+    // ВСПОМОГАТЕЛЬНЫЕ МЕТОДЫ
+    // ========================================================================
+
+    /**
+     * Ссылка на магазин в верхней панели админки
+     */
+    public function add_shop_link_to_admin_bar($wp_admin_bar) {
+        $wp_admin_bar->add_node([
+            'id'    => 'akpp-shop-link',
+            'title' => '🛒 Магазин АКПП45',
+            'href'  => home_url('/shop/'),
+            'meta'  => [
+                'target' => '_blank',
+                'title'  => 'Открыть магазин на сайте в новой вкладке',
+            ],
+        ]);
+    }
+
+    /**
+     * Редирект на магазин на сайте
+     */
+    public function redirect_to_shop() {
+        // Редирект через JS/мета-тег, т.к. шапка админки уже выведена
+        $url = esc_url(home_url('/shop/'));
+        echo '<script>window.location.href="' . $url . '";</script>';
+        echo '<noscript><meta http-equiv="refresh" content="0;url=' . $url . '"></noscript>';
+        echo '<p>Переход в магазин... <a href="' . $url . '">Нажмите здесь</a></p>';
+        exit;
     }
 }
+
+// ============================================================================
+// ЗАПУСК
+// ============================================================================
 
 function akpp_crm() {
     return AKPP_CRM::get_instance();
 }
+
+function akpp_crm_init() {
+    AKPP_CRM::get_instance();
+}
+add_action('plugins_loaded', 'akpp_crm_init');

@@ -114,6 +114,10 @@ class AKPP_Auth {
         }
         
         $user_id = $wpdb->insert_id;
+        // Автоподпись оферты при регистрации через AKPP_Auth (Этап 📜)
+        if (function_exists('akpp_record_agreement')) {
+            akpp_record_agreement($name, $phone, $email, 'registration_auth', 0);
+        }
         
         // Создание лида
         $wpdb->insert(

@@ -56,7 +56,12 @@ class AKPP_DB {
             $where .= $this->wpdb->prepare(" AND employee_id = %d", $args['employee_id']);
         }
         
-        $query = "SELECT * FROM {$this->prefix}deals {$where} ORDER BY {$args['orderby']} {$args['order']} LIMIT %d OFFSET %d";
+        // СТАЛО (БЕЗОПАСНО):
+        $allowed_orderby = ['created_at', 'id', 'status', 'client_name', 'total_amount', 'updated_at'];
+        $orderby = in_array($args['orderby'], $allowed_orderby, true) ? $args['orderby'] : 'created_at';
+        $order = strtoupper($args['order']) === 'ASC' ? 'ASC' : 'DESC';
+
+        $query = "SELECT * FROM {$this->prefix}deals {$where} ORDER BY {$orderby} {$order} LIMIT %d OFFSET %d";
         $query = $this->wpdb->prepare($query, $args['limit'], $args['offset']);
         
         return $this->wpdb->get_results($query);
