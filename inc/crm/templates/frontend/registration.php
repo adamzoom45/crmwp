@@ -87,6 +87,18 @@ $reg_nonce = wp_create_nonce('akpp_registration_nonce');
             </div>
         </div>
 
+        <div class="akpp-form-row">
+            <div class="akpp-form-group">
+                <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;font-weight:400;font-size:14px;line-height:1.5;">
+                    <input type="checkbox" name="agreement_accepted" id="reg_agreement_accepted" value="1" required style="width:18px;height:18px;margin-top:2px;flex-shrink:0;">
+                    <span>
+                        <?php _e('Я ознакомлен(а) и согласен(а) с условиями договора-оферты на ремонт АКПП и обработкой персональных данных (ФЗ №152-ФЗ)', 'akpp-crm'); ?>
+                        <span class="required">*</span>
+                    </span>
+                </label>
+            </div>
+        </div>
+
         <div class="akpp-form-row akpp-form-actions">
             <button type="submit" class="button button-primary button-large" id="akpp-reg-submit-btn">
                 <span class="btn-text"><?php _e('Зарегистрироваться', 'akpp-crm'); ?></span>
@@ -180,6 +192,12 @@ $reg_nonce = wp_create_nonce('akpp_registration_nonce');
         // 1. Проверка honeypot (если бот его заполнил, молча игнорируем)
         if ($('#website_check').val() !== '') {
             console.warn('Spam detected via honeypot.');
+            return false;
+        }
+
+        // Проверка согласия с офертой
+        if (!$('#reg_agreement_accepted').is(':checked')) {
+            showMessage('error', 'Необходимо согласие с условиями договора-оферты');
             return false;
         }
 
