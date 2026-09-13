@@ -13,6 +13,16 @@ $vehicles_table = $wpdb->prefix . 'akpp_vehicles';
 
 // ============================================================================
 // СТАТИСТИКА
+
+// ============================================================================
+// КЭШ ДАШБОРДА (5 минут) — ускоряет открытие, разгружает БД
+// ============================================================================
+$akpp_dash_cache_key = 'akpp_dashboard_stats';
+$akpp_dash_cached = get_transient($akpp_dash_cache_key);
+if (is_array($akpp_dash_cached)) {
+    extract($akpp_dash_cached, EXTR_SKIP);
+    goto akpp_skip_dashboard_queries;
+}
 // ============================================================================
 
 // Активные сделки
@@ -82,6 +92,19 @@ $recent_leads = $wpdb->get_results(
     "SELECT * FROM {$leads_table} ORDER BY created_at DESC LIMIT 5",
     ARRAY_A
 );
+
+// Сохраняем статистику в кэш на 5 минут
+set_transient($akpp_dash_cache_key, [
+    'active_deals'    => $active_deals,
+    'new_leads_month' => $new_leads_month,
+    'revenue_month'   => $revenue_month,
+    'warehouse_value' => $warehouse_value,
+    'funnel_stats'    => $funnel_stats,
+    'recent_deals'    => $recent_deals,
+    'recent_leads'    => $recent_leads,
+], 300);
+
+akpp_skip_dashboard_queries:
 
 $status_labels = [
     'lead' => ['label' => '🔵 Лид', 'color' => '#63b3ed'],

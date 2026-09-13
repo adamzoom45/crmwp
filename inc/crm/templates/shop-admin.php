@@ -9,7 +9,7 @@ if (!defined('ABSPATH')) exit;
 global $wpdb;
 $products_table = $wpdb->prefix . 'akpp_shop_products';
 $orders_table = $wpdb->prefix . 'akpp_shop_orders';
-$categories_table = $wpdb->prefix . 'akpp_shop_categories';
+$categories_table = $wpdb->prefix . 'akpp_categories';
 
 // Статистика
 $total_products = (int)$wpdb->get_var("SELECT COUNT(*) FROM {$products_table} WHERE is_active = 1");
@@ -51,11 +51,23 @@ if (isset($_POST['shop_action'])) {
             'description' => sanitize_textarea_field($_POST['description'] ?? ''),
             'price' => floatval($_POST['price'] ?? 0),
             'old_price' => floatval($_POST['old_price'] ?? 0),
+              'purchase_price' => floatval($_POST['purchase_price'] ?? 0),
             'stock' => intval($_POST['stock'] ?? 0),
             'is_active' => intval($_POST['is_active'] ?? 1),
             'is_featured' => intval($_POST['is_featured'] ?? 0),
             'updated_at' => current_time('mysql'),
-        ];
+          ];
+          // Фото товара: загрузка в медиабиблиотеку + сохранение URL в images (JSON)
+          $existing_images = ($id > 0) ? (string)($wpdb->get_var($wpdb->prepare("SELECT images FROM {$products_table} WHERE id = %d", $id)) ?: '[]') : '[]';
+          $img_arr = json_decode($existing_images, true); if (!is_array($img_arr)) $img_arr = [];
+          if (!empty($_FILES['product_image']['name'])) {
+              require_once ABSPATH . 'wp-admin/includes/file.php';
+              require_once ABSPATH . 'wp-admin/includes/image.php';
+              require_once ABSPATH . 'wp-admin/includes/media.php';
+              $up = wp_handle_upload($_FILES['product_image'], ['test_form' => false]);
+              if ($up && empty($up['error'])) { $img_arr[] = esc_url_raw($up['url']); }
+          }
+          $data['images'] = json_encode(array_values($img_arr));
         
         if (empty($data['name'])) {
             $message = '❌ Заполните название товара';
@@ -92,7 +104,7 @@ if (isset($_POST['shop_action'])) {
 // Получаем данные
 $products = $wpdb->get_results("SELECT * FROM {$products_table} ORDER BY created_at DESC LIMIT 100");
 $orders = $wpdb->get_results("SELECT * FROM {$orders_table} ORDER BY created_at DESC LIMIT 50");
-$categories = $wpdb->get_results("SELECT * FROM {$categories_table} WHERE is_active = 1 ORDER BY sort_order ASC");
+$categories = $wpdb->get_results("SELECT * FROM {$categories_table} WHERE is_active = 1 AND scope IN ('shop','both') ORDER BY sort_order ASC");
 
 $edit_product = null;
 if (isset($_GET['edit_product'])) {
@@ -146,9 +158,15 @@ if (isset($_GET['view_order'])) {
         <a href="?page=akpp-crm-shop&tab=stats" style="padding: 10px 20px; background: <?php echo $active_tab === 'stats' ? '#00ff88' : '#2d3748'; ?>; color: <?php echo $active_tab === 'stats' ? '#1a1f2e' : '#fff'; ?>; border-radius: 6px; text-decoration: none; font-weight: 600;">
             📊 Статистика
         </a>
+        <a href="?page=akpp-crm-shop&tab=settings" style="padding: 10px 20px; background: <?php echo $active_tab === 'settings' ? '#00ff88' : '#2d3748'; ?>; color: <?php echo $active_tab === 'settings' ? '#1a1f2e' : '#fff'; ?>; border-radius: 6px; text-decoration: none; font-weight: 600;">⚙️ Настройки</a>
     </div>
 
-    <?php if ($active_tab === 'products'): ?>
+    <?php if ($active_tab === 'settings'): /* akpp-shop-settings-tab */ ?>
+    <div style="margin-top:20px;">
+        <?php if (class_exists('AKPP_Shop_Settings')) { AKPP_Shop_Settings::get_instance()->render_page(); } else { echo '<p style="color:#fc8181">❌ Класс настроек магазина не загружен.</p>'; } ?>
+    </div>
+<?php endif; ?>
+<?php if ($active_tab === 'products'): ?>
         <!-- СТАТИСТИКА -->
         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 25px;">
             <div style="background: #1a1f2e; border: 1px solid #2d3748; border-radius: 12px; padding: 20px; text-align: center;">
@@ -255,6 +273,77 @@ if (isset($_GET['view_order'])) {
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
                 <h2 style="color: #00ff88; margin: 0;">📋 Заказ #<?php echo esc_html($view_order->order_number); ?></h2>
                 <a href="?page=akpp-crm-shop&tab=orders" class="button">← Назад к заказам</a>
+
+        <?php /* akpp-adm-order-chat: переписка менеджера с клиентом по заказу */ if (class_exists('AKPP_Shop')): ?>
+        <style>
+        .akpp-adm-chat{ margin:18px 0; padding:18px 20px; background:#111827; border:1px solid rgba(0,255,136,.2); border-radius:12px; }
+        .akpp-adm-chat h3{ color:#00ff88; font-size:14px; margin:0 0 12px; }
+        .akpp-adm-chat-msgs{ max-height:320px; overflow-y:auto; padding:14px; background:#0a0f1c; border:1px solid #2d3748; border-radius:10px; margin-bottom:12px; }
+        .akpp-adm-chat-empty{ color:#a0aec0; text-align:center; margin:14px 0; font-size:13px; }
+        .akpp-adm-msg{ margin-bottom:10px; display:flex; flex-direction:column; }
+        .akpp-adm-msg.manager{ align-items:flex-end; }
+        .akpp-adm-msg.client{ align-items:flex-start; }
+        .akpp-adm-bubble{ max-width:72%; padding:9px 13px; border-radius:12px; font-size:13.5px; line-height:1.5; word-break:break-word; }
+        .akpp-adm-msg.manager .akpp-adm-bubble{ background:#00ff88; color:#08120c; border-bottom-right-radius:4px; }
+        .akpp-adm-msg.client .akpp-adm-bubble{ background:#2d3748; color:#fff; border-bottom-left-radius:4px; }
+        .akpp-adm-who{ font-size:10.5px; color:#a0aec0; margin-bottom:3px; letter-spacing:.3px; }
+        .akpp-adm-time{ font-size:10px; opacity:.6; margin-top:3px; }
+        .akpp-adm-form{ display:flex; gap:10px; }
+        .akpp-adm-form input{ flex:1; padding:10px 14px; background:#0a0f1c; border:1px solid #2d3748; border-radius:9px; color:#fff; font-size:13.5px; }
+        .akpp-adm-form input:focus{ outline:none; border-color:#00ff88; }
+        .akpp-adm-form button{ border:none; cursor:pointer; padding:10px 20px; border-radius:9px; font-weight:700; background:#00ff88; color:#08120c; }
+        .akpp-adm-form button:hover{ background:#00cc6a; }
+        </style>
+        <div class="akpp-adm-chat">
+            <h3>💬 Переписка с клиентом по заказу #<?php echo (int) $view_order->id; ?></h3>
+            <div class="akpp-adm-chat-msgs" id="akpp-adm-chat-msgs"><p class="akpp-adm-chat-empty">Загрузка…</p></div>
+            <form class="akpp-adm-form" id="akpp-adm-chat-form">
+                <input type="text" id="akpp-adm-chat-input" placeholder="Ответ клиенту…" autocomplete="off">
+                <button type="submit">Отправить</button>
+            </form>
+        </div>
+        <script>
+        (function(){
+            var orderId = <?php echo (int) $view_order->id; ?>;
+            var nonce = '<?php echo wp_create_nonce('akpp45_nonce'); ?>';
+            var AJAX = '<?php echo esc_js(admin_url('admin-ajax.php')); ?>';
+            var payStatus = '<?php echo esc_js($view_order->payment_status); ?>';
+            var box = document.getElementById('akpp-adm-chat-msgs');
+            var form = document.getElementById('akpp-adm-chat-form');
+            var input = document.getElementById('akpp-adm-chat-input');
+            var last = -1;
+            function esc(t){ var d=document.createElement('div'); d.textContent=t; return d.innerHTML; }
+            function render(list){
+                if(!list.length){ box.innerHTML='<p class="akpp-adm-chat-empty">Сообщений пока нет.</p>'; return; }
+                box.innerHTML = list.map(function(m){
+                    var who = m.sender_type==='manager' ? 'Вы (менеджер)' : 'Клиент';
+                    var t=(m.created_at||'').replace('T',' ').substring(0,16);
+                    var h='<div class="akpp-adm-msg '+m.sender_type+'"><div class="akpp-adm-who">'+esc(who)+'</div><div class="akpp-adm-bubble">';
+                    if(m.msg_type==='payment_proof') h+='<div style="font-weight:800;margin-bottom:6px">💳 Подтверждение оплаты</div>';
+                    if(m.message) h+=esc(m.message);
+                    if(m.attachment) h+='<a href="'+esc(m.attachment)+'" target="_blank" style="display:block;margin-top:8px"><img src="'+esc(m.attachment)+'" style="max-width:100%;max-height:230px;border-radius:10px;border:1px solid rgba(255,255,255,.15)"></a>';
+                    if(m.tx_hash) h+='<div style="margin-top:8px;font-size:11.5px;word-break:break-all;opacity:.85">🔗 '+esc(m.tx_hash)+'</div>';
+                    if(m.msg_type==='payment_proof' && payStatus!=='paid') h+='<button type="button" class="akpp-adm-confirm" style="margin-top:10px;border:none;cursor:pointer;padding:8px 14px;border-radius:8px;font-weight:800;background:#00ff88;color:#08120c">✅ Подтвердить оплату</button>';
+                    h+='</div><div class="akpp-adm-time">'+esc(t)+'</div></div>';
+                    return h;
+                }).join('');
+                box.scrollTop=box.scrollHeight;
+            }
+            function load(){
+                var fd=new FormData(); fd.append('action','akpp_shop_get_order_messages'); fd.append('order_id',orderId); fd.append('nonce',nonce);
+                fetch(AJAX,{method:'POST',body:fd,credentials:'same-origin'}).then(function(r){return r.json();}).then(function(res){ if(res&&res.success&&res.data.messages.length!==last){ last=res.data.messages.length; render(res.data.messages);} }).catch(function(){});
+            }
+            form.addEventListener('submit',function(e){ e.preventDefault(); var msg=input.value.trim(); if(!msg)return; var fd=new FormData(); fd.append('action','akpp_shop_send_order_message'); fd.append('order_id',orderId); fd.append('message',msg); fd.append('nonce',nonce); input.value=''; fetch(AJAX,{method:'POST',body:fd,credentials:'same-origin'}).then(function(r){return r.json();}).then(function(res){ if(res&&res.success)load(); else input.value=msg; }).catch(function(){input.value=msg;}); });
+            box.addEventListener('click',function(e){
+                var b=e.target.closest('.akpp-adm-confirm'); if(!b) return;
+                if(!confirm('Подтвердить оплату заказа #'+orderId+'?')) return;
+                var fd=new FormData(); fd.append('action','akpp_shop_confirm_payment'); fd.append('order_id',orderId); fd.append('nonce',nonce);
+                fetch(AJAX,{method:'POST',body:fd,credentials:'same-origin'}).then(function(r){return r.json();}).then(function(res){ if(res&&res.success){ payStatus='paid'; last=-1; load(); alert('✅ Оплата подтверждена — статус заказа обновлён'); } else alert(res&&res.message?res.message:'Ошибка'); });
+            });
+            load(); setInterval(load,8000);
+        })();
+        </script>
+        <?php endif; ?>
             </div>
             
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px;">
@@ -322,12 +411,16 @@ if (isset($_GET['view_order'])) {
                     <input type="hidden" name="shop_action" value="update_order_status">
                     <input type="hidden" name="order_id" value="<?php echo $view_order->id; ?>">
                     <select name="status" style="padding: 10px; background: #2d3748; border: 1px solid #4a5568; border-radius: 6px; color: #fff;">
-                        <option value="new" <?php selected($view_order->status, 'new'); ?>>🆕 Новый</option>
-                        <option value="processing" <?php selected($view_order->status, 'processing'); ?>>⚙️ В обработке</option>
-                        <option value="shipped" <?php selected($view_order->status, 'shipped'); ?>>🚚 Отправлен</option>
-                        <option value="completed" <?php selected($view_order->status, 'completed'); ?>>✅ Завершён</option>
-                        <option value="cancelled" <?php selected($view_order->status, 'cancelled'); ?>>❌ Отменён</option>
-                        <option value="refunded" <?php selected($view_order->status, 'refunded'); ?>>↩️ Возврат</option>
+                        <?php
+$__os = AKPP_Shop::order_statuses();
+$__gr = ['Оплата'=>['payment_pending','paid'], 'Сборка'=>['processing','preparing'], 'Выдача / отправка'=>['ready_pickup','ready_ship','shipped'], 'Финал'=>['completed','cancelled','refunded']];
+echo '<option value="new" '.selected($view_order->status,'new',false).'>🆕 Новый</option>';
+foreach ($__gr as $__g => $__codes) {
+    echo '<optgroup label="'.esc_attr($__g).'">';
+    foreach ($__codes as $__c) { if (isset($__os[$__c])) echo '<option value="'.esc_attr($__c).'" '.selected($view_order->status,$__c,false).'>'.esc_html($__os[$__c]['icon'].' '.$__os[$__c]['label']).'</option>'; }
+    echo '</optgroup>';
+}
+?>
                     </select>
                     <button type="submit" class="button button-primary">💾 Сохранить</button>
                 </form>
@@ -365,8 +458,10 @@ if (isset($_GET['view_order'])) {
                         <td><strong style="color: #00ff88;"><?php echo number_format($order->total, 0, ',', ' '); ?> ₽</strong></td>
                         <td>
                             <?php 
-                            $status_labels = ['new' => '🆕 Новый', 'processing' => '⚙️ В обработке', 'shipped' => '🚚 Отправлен', 'completed' => '✅ Завершён', 'cancelled' => '❌ Отменён', 'refunded' => '↩️ Возврат'];
-                            $status_colors = ['new' => '#63b3ed', 'processing' => '#f6ad55', 'shipped' => '#63b3ed', 'completed' => '#00ff88', 'cancelled' => '#fc8181', 'refunded' => '#fc8181'];
+                            $__os = AKPP_Shop::order_statuses();
+                            $status_labels = [];
+                            $status_colors = [];
+                            foreach ($__os as $__k => $__m) { $status_labels[$__k] = $__m['icon'].' '.$__m['label']; $status_colors[$__k] = $__m['color']; }
                             $color = $status_colors[$order->status] ?? '#718096';
                             ?>
                             <span style="display: inline-block; padding: 4px 12px; border-radius: 12px; font-size: 12px; font-weight: 600; background: <?php echo $color; ?>22; color: <?php echo $color; ?>;">
@@ -436,7 +531,7 @@ if (isset($_GET['view_order'])) {
             <button type="button" onclick="document.getElementById('product-form-modal').style.display='none'" style="background: none; border: none; color: #fff; font-size: 24px; cursor: pointer;">&times;</button>
         </div>
         
-        <form method="post" id="shop-product-form">
+        <form method="post" id="shop-product-form" enctype="multipart/form-data">
             <?php wp_nonce_field('akpp45_nonce', 'nonce'); ?>
             <input type="hidden" name="shop_action" value="save_product">
             <?php if ($edit_product): ?>
@@ -513,7 +608,16 @@ if (isset($_GET['view_order'])) {
                 </div>
             </div>
             
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px;">
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+    <div>
+        <label style="display: block; margin-bottom: 5px; color: #e2e8f0; font-weight: 600;">💰 Закупочная цена</label>
+        <input type="number" name="purchase_price" value="<?php echo $edit_product ? floatval($edit_product->purchase_price) : 0; ?>" min="0" step="0.01" style="width: 100%; padding: 10px; background: #2d3748; border: 1px solid #4a5568; border-radius: 6px; color: #ed8936; font-weight: 600;">
+    </div>
+    <div style="display:flex;align-items:center;">
+        <small style="color:#a0aec0;font-size:12px;line-height:1.5;">💡 Себестоимость товара — используется для расчёта реальной прибыли в разделе «Финансы».</small>
+    </div>
+</div>
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px;">
                 <div>
                     <label style="display: flex; align-items: center; gap: 8px; color: #e2e8f0; cursor: pointer;">
                         <input type="checkbox" name="is_active" value="1" <?php echo (!$edit_product || $edit_product->is_active) ? 'checked' : ''; ?> style="width: 18px; height: 18px; accent-color: #00ff88;">
@@ -528,7 +632,17 @@ if (isset($_GET['view_order'])) {
                 </div>
             </div>
             
-            <div style="display: flex; gap: 10px; justify-content: flex-end;">
+            <div style="margin-bottom: 20px;">
+    <label style="display: block; margin-bottom: 5px; color: #e2e8f0; font-weight: 600;">📷 Фото товара</label>
+    <?php $cur_imgs = ($edit_product && !empty($edit_product->images)) ? (json_decode($edit_product->images, true) ?: []) : []; if (!empty($cur_imgs)): ?>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;">
+        <?php foreach ($cur_imgs as $ci): ?><img src="<?php echo esc_url($ci); ?>" style="width:64px;height:64px;object-fit:cover;border-radius:8px;border:1px solid #4a5568;"><?php endforeach; ?>
+    </div>
+    <?php endif; ?>
+    <input type="file" name="product_image" accept="image/*" style="width: 100%; padding: 10px; background: #2d3748; border: 1px solid #4a5568; border-radius: 6px; color: #fff;">
+    <small style="display:block;margin-top:5px;color:#a0aec0;font-size:11px;">Загружается в медиабиблиотеку. Можно добавлять по одному фото за сохранение.</small>
+</div>
+<div style="display: flex; gap: 10px; justify-content: flex-end;">
                 <button type="button" onclick="document.getElementById('product-form-modal').style.display='none'" class="button" style="background: #4a5568; color: #fff;">Отмена</button>
                 <button type="submit" class="button button-primary">💾 Сохранить</button>
             </div>

@@ -128,6 +128,52 @@ if ($action === 'edit' || $action === 'add') :
                     </select>
                 </div>
                 
+                <?php if (current_user_can('manage_options') && $employee_id > 0): ?>
+                <?php
+                $wp_user_id = intval($employee_data['wp_user_id'] ?? 0);
+                $wp_user = $wp_user_id ? new WP_User($wp_user_id) : null;
+                $wp_role = ($wp_user && $wp_user->exists() && !empty($wp_user->roles)) ? $wp_user->roles[0] : '';
+                $wp_role_labels = [
+                    'akpp_mechanic'   => '🔧 Механик',
+                    'akpp_manager'    => '💼 Менеджер',
+                    'akpp_accountant' => '📊 Бухгалтер',
+                    'akpp_director'   => '👑 Директор',
+                    'akpp_client'     => '👤 Клиент',
+                ];
+                ?>
+                <div class="form-group" style="margin-bottom:20px;padding:20px;background:#0d1526;border:1px solid #2d3748;border-radius:8px;border-left:4px solid #63b3ed;">
+                    <label style="display:block;color:#63b3ed;margin-bottom:12px;font-weight:700;font-size:15px;">🔐 Аккаунт и права доступа (вход в CRM)</label>
+                    <?php if ($wp_user && $wp_user->exists()): ?>
+                        <p style="color:#e2e8f0;margin-bottom:12px;">
+                            Логин: <strong style="color:#00ff88;"><?php echo esc_html($wp_user->user_login); ?></strong>
+                            &nbsp;·&nbsp; Роль: <strong style="color:#00ff88;"><?php echo esc_html($wp_role_labels[$wp_role] ?? $wp_role); ?></strong>
+                        </p>
+                        <div style="display:flex;gap:10px;align-items:center;">
+                            <select id="emp-wp-role" style="flex:1;padding:10px;background:#0a0f1c;border:1px solid #2d3748;border-radius:6px;color:#fff;">
+                                <?php foreach ($wp_role_labels as $val => $label): ?>
+                                    <option value="<?php echo esc_attr($val); ?>" <?php selected($wp_role, $val); ?>><?php echo esc_html($label); ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                            <button type="button" id="btn-update-role" class="button" style="background:#63b3ed;border-color:#63b3ed;color:#0a0f1c;font-weight:600;">💾 Сменить роль</button>
+                        </div>
+                        <p style="color:#718096;font-size:12px;margin-top:8px;">Вход в CRM: <code>akpp45.ru/wp-login.php</code>. Меню и действия ограничены ролью сотрудника.</p>
+                    <?php else: ?>
+                        <p style="color:#a0aec0;margin-bottom:12px;">Аккаунт для входа в CRM ещё не создан.</p>
+                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+                            <input type="text" id="emp-account-login" placeholder="Логин (латиницей)" style="padding:10px;background:#0a0f1c;border:1px solid #2d3748;border-radius:6px;color:#fff;">
+                            <input type="text" id="emp-account-password" placeholder="Пароль (мин. 6 символов)" style="padding:10px;background:#0a0f1c;border:1px solid #2d3748;border-radius:6px;color:#fff;">
+                        </div>
+                        <div style="display:flex;gap:10px;align-items:center;margin-top:10px;">
+                            <select id="emp-account-role" style="flex:1;padding:10px;background:#0a0f1c;border:1px solid #2d3748;border-radius:6px;color:#fff;">
+                                <?php foreach ($wp_role_labels as $val => $label): ?>
+                                    <option value="<?php echo esc_attr($val); ?>" <?php echo $val === 'akpp_mechanic' ? 'selected' : ''; ?>><?php echo esc_html($label); ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                            <button type="button" id="btn-create-account" class="button" style="background:#00ff88;border-color:#00ff88;color:#0a0f1c;font-weight:600;">🔑 Создать аккаунт</button>
+                        </div>
+                    <?php endif; ?>
+                </div>
+                <?php endif; ?>
                 <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:30px;">
                     <a href="?page=akpp-crm-employees" class="button button-secondary">Отмена</a>
                     <button type="submit" class="button button-primary" 
@@ -184,6 +230,38 @@ if ($action === 'edit' || $action === 'add') :
             return false;
         });
         
+        // ===== АККАУНТ И ПРАВА СОТРУДНИКА =====
+        $('#btn-create-account').on('click', function() {
+            var login = $('#emp-account-login').val().trim();
+            var password = $('#emp-account-password').val();
+            var role = $('#emp-account-role').val();
+            if (!login || password.length < 6) { showNotice('Укажите логин и пароль (мин. 6 символов)', 'error'); return; }
+            var btn = $(this).prop('disabled', true).text('⏳ Создание...');
+            $.post('/wp-admin/admin-ajax.php', {
+                action: 'akpp_create_employee_account',
+                employee_id: <?php echo intval($employee_id); ?>,
+                login: login, password: password, role: role,
+                nonce: '<?php echo wp_create_nonce("akpp45_nonce"); ?>'
+            }, function(res) {
+                if (res.success) { showNotice(res.data.message, 'success'); setTimeout(function(){ location.reload(); }, 1000); }
+                else { showNotice(res.data.message || '❌ Ошибка', 'error'); btn.prop('disabled', false).text('🔑 Создать аккаунт'); }
+            }).fail(function(){ showNotice('❌ Ошибка соединения', 'error'); btn.prop('disabled', false).text('🔑 Создать аккаунт'); });
+        });
+
+        $('#btn-update-role').on('click', function() {
+            var role = $('#emp-wp-role').val();
+            var btn = $(this).prop('disabled', true).text('⏳...');
+            $.post('/wp-admin/admin-ajax.php', {
+                action: 'akpp_update_employee_role',
+                employee_id: <?php echo intval($employee_id); ?>,
+                role: role,
+                nonce: '<?php echo wp_create_nonce("akpp45_nonce"); ?>'
+            }, function(res) {
+                if (res.success) { showNotice(res.data.message, 'success'); setTimeout(function(){ location.reload(); }, 1000); }
+                else { showNotice(res.data.message || '❌ Ошибка', 'error'); btn.prop('disabled', false).text('💾 Сменить роль'); }
+            }).fail(function(){ showNotice('❌ Ошибка соединения', 'error'); btn.prop('disabled', false).text('💾 Сменить роль'); });
+        });
+
         function showNotice(message, type) {
             var bgColor = type === 'success' ? '#00ff88' : '#fc8181';
             var textColor = type === 'success' ? '#0a0f1c' : '#fff';

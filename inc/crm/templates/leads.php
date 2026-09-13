@@ -263,6 +263,27 @@ $leads_table->prepare_items();
     </div>
 </div>
 
+<div id="akpp-lead-chat-modal" class="akpp-modal">
+    <div class="akpp-modal-content" style="max-width:700px;display:flex;flex-direction:column;height:80vh">
+        <div class="akpp-modal-header">
+            <div>
+                <h3 style="margin:0">💬 Переписка с клиентом</h3>
+                <p id="akpp-lead-chat-title" style="margin:4px 0 0 0;font-size:13px;color:#a0aec0"></p>
+            </div>
+            <button type="button" class="akpp-modal-close">&times;</button>
+        </div>
+        <div id="akpp-lead-chat-status" style="padding:10px 16px;background:#2d3748;border-bottom:1px solid #4a5568;font-size:13px"></div>
+        <div id="akpp-lead-chat-messages" style="flex:1;overflow-y:auto;padding:20px;background:#0f1419"></div>
+        <form id="akpp-lead-chat-form" style="display:flex;gap:12px;padding:16px;background:#2d3748">
+            <input type="text" id="akpp-lead-chat-message" placeholder="Напишите сообщение клиенту..." style="flex:1;padding:12px 16px;background:#1a1f2e;border:1px solid #4a5568;border-radius:8px;color:#fff">
+            <button type="submit" class="button button-primary">📤</button>
+        </form>
+        <div style="padding:12px 16px;background:#1a1f2e;border-top:1px solid #4a5568;display:flex;justify-content:space-between;align-items:center;gap:12px">
+            <span id="akpp-lead-convert-hint" style="font-size:12px;color:#a0aec0"></span>
+            <button type="button" id="akpp-lead-convert-btn" class="button button-primary" style="background:#00ff88;border-color:#00ff88;color:#0a0f1c;font-weight:600;white-space:nowrap">🚀 Создать сделку</button>
+        </div>
+    </div>
+</div>
 <script>
 jQuery(document).ready(function($) {
     // ========================================================================
@@ -316,6 +337,96 @@ jQuery(document).ready(function($) {
     });
     
     // ========================================================================
+    // === Чат менеджера с клиентом (Этап 6b-2) ===
+    var leadChatModal = $('#akpp-lead-chat-modal');
+    var leadChatMessages = $('#akpp-lead-chat-messages');
+    var leadChatForm = $('#akpp-lead-chat-form');
+    var leadChatInput = $('#akpp-lead-chat-message');
+    var currentChatLeadId = null;
+    var ajaxUrl = '<?php echo admin_url('admin-ajax.php'); ?>';
+    var chatNonce = '<?php echo wp_create_nonce('akpp_lead_chat_nonce'); ?>';
+    var adminNonce = '<?php echo wp_create_nonce('akpp45_nonce'); ?>';
+
+    function loadManagerChat() {
+        if (!currentChatLeadId) return;
+        $.post(ajaxUrl, { action: 'akpp_get_lead_messages', lead_id: currentChatLeadId, nonce: chatNonce }, function(r) {
+            if (r.success && r.data.messages) {
+                leadChatMessages.html('');
+                if (r.data.messages.length === 0) {
+                    leadChatMessages.html('<div style="text-align:center;color:#718096;padding:40px">💬 Переписка пуста</div>');
+                } else {
+                    r.data.messages.forEach(function(msg) {
+                        var isMgr = msg.sender_type === 'manager';
+                        leadChatMessages.append(
+                            '<div style="margin-bottom:12px;display:flex;justify-content:' + (isMgr ? 'flex-end' : 'flex-start') + '">' +
+                            '<div style="max-width:70%;padding:10px 14px;border-radius:12px;background:' + (isMgr ? '#00ff88' : '#2d3748') + ';color:' + (isMgr ? '#1a1f2e' : '#fff') + '">' +
+                            '<div style="font-size:11px;opacity:0.7">' + (isMgr ? 'Вы (менеджер)' : 'Клиент') + ' · ' + msg.created_at + '</div>' +
+                            '<div>' + msg.message + '</div></div></div>'
+                        );
+                    });
+                    leadChatMessages.scrollTop(leadChatMessages[0].scrollHeight);
+                }
+            }
+        });
+    }
+
+    function loadConvertStatus() {
+        if (!currentChatLeadId) return;
+        $.post(ajaxUrl, { action: 'akpp_get_lead_agree_status_admin', lead_id: currentChatLeadId, nonce: adminNonce }, function(r) {
+            if (r.success) {
+                var $btn = $('#akpp-lead-convert-btn'), $hint = $('#akpp-lead-convert-hint'), $status = $('#akpp-lead-chat-status');
+                if (r.data.deal_id > 0) {
+                    $btn.prop('disabled', true).css({opacity:0.5}).text('💰 Сделка #' + r.data.deal_id);
+                    $hint.text('Лид уже конвертирован в сделку');
+                    $status.html('💰 <strong style="color:#00ff88">Конвертирован в сделку #' + r.data.deal_id + '</strong>');
+                } else if (r.data.client_agreed === 1) {
+                    $btn.prop('disabled', false).css({opacity:1}).text('🚀 Создать сделку');
+                    $hint.html('✅ <strong style="color:#00ff88">Клиент согласен</strong> ' + (r.data.agreed_at || ''));
+                    $status.html('✅ <strong style="color:#00ff88">Клиент согласовал условия</strong> ' + (r.data.agreed_at || ''));
+                } else {
+                    $btn.prop('disabled', true).css({opacity:0.5}).text('🚀 Создать сделку');
+                    $hint.text('⏳ Клиент ещё не согласовал условия — конвертация заблокирована');
+                    $status.html('⏳ <span style="color:#a0aec0">Ожидает согласования клиента</span>');
+                }
+            }
+        });
+    }
+
+    $(document).on('click', '.akpp-open-lead-chat', function() {
+        currentChatLeadId = $(this).data('lead-id');
+        $('#akpp-lead-chat-title').text($(this).data('lead-title'));
+        leadChatModal.addClass('active').fadeIn(200);
+        loadManagerChat();
+        loadConvertStatus();
+    });
+
+    leadChatForm.on('submit', function(e) {
+        e.preventDefault();
+        var message = leadChatInput.val().trim();
+        if (!message || !currentChatLeadId) return;
+        var $btn = $(this).find('button[type="submit"]').prop('disabled', true);
+        $.post(ajaxUrl, { action: 'akpp_send_lead_message', lead_id: currentChatLeadId, message: message, nonce: chatNonce }, function(r) {
+            if (r.success) { leadChatInput.val(''); loadManagerChat(); }
+            else { alert(r.data.message || 'Ошибка'); }
+            $btn.prop('disabled', false);
+        }).fail(function() { alert('Ошибка соединения'); $btn.prop('disabled', false); });
+    });
+
+    $('#akpp-lead-convert-btn').on('click', function() {
+        if (!currentChatLeadId || $(this).prop('disabled')) return;
+        if (!confirm('Создать сделку из этого лида?')) return;
+        var $btn = $(this).prop('disabled', true);
+        $.post(ajaxUrl, { action: 'akpp_convert_lead', lead_id: currentChatLeadId, nonce: adminNonce }, function(r) {
+            alert(r.data.message || (r.success ? '✅ Сделка создана' : '❌ Ошибка'));
+            if (r.success) { setTimeout(function(){ location.reload(); }, 1000); }
+            else { loadConvertStatus(); $btn.prop('disabled', false); }
+        }).fail(function() { alert('Ошибка соединения'); $btn.prop('disabled', false); });
+    });
+
+    setInterval(function() {
+        if (currentChatLeadId && leadChatModal.hasClass('active')) { loadManagerChat(); loadConvertStatus(); }
+    }, 7000);
+
     // АВТОСКРЫТИЕ УВЕДОМЛЕНИЙ
     // ========================================================================
     setTimeout(function() {

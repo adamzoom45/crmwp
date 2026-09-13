@@ -43,7 +43,17 @@ if ($edit_mode) {
 // Получаем данные для формы
 $employees = $wpdb->get_results("SELECT id, name FROM {$wpdb->prefix}akpp_employees WHERE is_active = 1 ORDER BY name");
 $vehicles = $wpdb->get_results("SELECT id, make, model, year, vin, engine FROM {$wpdb->prefix}akpp_vehicles ORDER BY make, model LIMIT 500");
-$parts = $wpdb->get_results("SELECT id, name, sku, category, price, markup_percent, quantity FROM {$wpdb->prefix}akpp_parts WHERE price > 0 ORDER BY name LIMIT 500");
+$parts = $wpdb->get_results("
+    SELECT p.id, 'part' AS source, p.name, p.sku, p.price, p.markup_percent, p.quantity
+    FROM {$wpdb->prefix}akpp_parts p WHERE p.price > 0
+    UNION ALL
+    SELECT s.id, 'shop', s.name COLLATE utf8mb4_unicode_ci, s.sku COLLATE utf8mb4_unicode_ci, s.price, 0, s.stock
+    FROM {$wpdb->prefix}akpp_shop_products s WHERE s.is_active = 1 AND s.price > 0
+    UNION ALL
+    SELECT o.id, 'oil', o.name, '' COLLATE utf8mb4_unicode_ci, o.price_per_liter, 0, 0
+    FROM {$wpdb->prefix}akpp_oils o WHERE o.price_per_liter > 0
+    ORDER BY name LIMIT 500
+", ARRAY_A);
 $transmissions = $wpdb->get_results("SELECT id, code, make, model FROM {$wpdb->prefix}akpp_transmissions ORDER BY code LIMIT 200");
 
 // Подключаем текст оферты
@@ -61,15 +71,16 @@ $year = $deal_data['year'] ?? '';
 $engine = $deal_data['engine'] ?? '';
 $transmission_code = '';
 $vehicle_id = $deal_data['vehicle_id'] ?? 0;
-$calculation_type = 'norm';
-$standard_hours = $deal_data['work_hours'] ?? 1;
-$hourly_rate = 1500;
+$calculation_type = $deal_data['calculation_type'] ?? 'norm';
+$standard_hours = floatval($deal_data['standard_hours'] ?? 0) ?: floatval($deal_data['work_hours'] ?? 1);
+$hourly_rate = floatval($deal_data['hourly_rate'] ?? 0) ?: 1500;
 $work_cost = $deal_data['work_cost'] ?? 0;
 $emp_percent = $deal_data['employee_percent'] ?? 40;
 $total_amount = $deal_data['total_amount'] ?? 0;
 $employee_id = $deal_data['employee_id'] ?? 0;
 $status = $deal_data['status'] ?? 'new';
 $comment = $deal_data['problem_description'] ?? '';
+        $service_category = $deal_data['service_category'] ?? 'akpp';
 $lead_id = intval($_GET['lead_id'] ?? 0);
 
 // Если ручной расчёт
@@ -210,6 +221,11 @@ if ($edit_mode && $work_cost > 0 && $standard_hours > 0) {
                 <label>Поиск запчасти из БД</label>
                 <input type="text" id="part-search" placeholder="Начните вводить название или артикул..." autocomplete="off">
                 <div id="part-search-results" class="search-dropdown"></div>
+                <div style="margin-top:8px;display:flex;gap:8px;align-items:center;">
+                    <input type="text" id="manual-part-name" placeholder="Или введите позицию вручную (напр. Промывка АКПП)" style="flex:1;padding:8px;background:#2d3748;border:1px solid #4a5568;border-radius:6px;color:#fff;">
+                    <input type="number" id="manual-part-price" placeholder="Цена" min="0" step="0.01" style="width:110px;padding:8px;background:#2d3748;border:1px solid #4a5568;border-radius:6px;color:#fff;">
+                    <button type="button" id="manual-part-add" class="button" style="background:#00ff88;border-color:#00ff88;color:#0a0f1c;">➕</button>
+                </div>
             </div>
 
             <table class="wp-list-table widefat striped" id="parts-table">
@@ -260,14 +276,34 @@ if ($edit_mode && $work_cost > 0 && $standard_hours > 0) {
             <div class="form-grid-2">
                 <div class="form-group">
                     <label>Сотрудник</label>
-                    <select name="employee_id">
-                        <option value="">-- Не выбран --</option>
-                        <?php foreach ($employees as $emp): ?>
-                            <option value="<?php echo $emp->id; ?>" <?php selected($employee_id, $emp->id); ?>>
-                                <?php echo esc_html($emp->name); ?>
-                            </option>
-                        <?php endforeach; ?>
-                    </select>
+                    <?php
+                    $cu = wp_get_current_user();
+                    $is_mechanic_only = $cu && $cu->exists() &&
+                        !current_user_can('manage_options') &&
+                        !in_array('akpp_manager', (array)$cu->roles, true) &&
+                        !in_array('akpp_director', (array)$cu->roles, true) &&
+                        !in_array('akpp_accountant', (array)$cu->roles, true) &&
+                        in_array('akpp_mechanic', (array)$cu->roles, true);
+                    $my_emp_id = 0; $my_emp_name = '';
+                    if ($is_mechanic_only) {
+                        $my_emp = $wpdb->get_row($wpdb->prepare("SELECT id, name FROM {$wpdb->prefix}akpp_employees WHERE wp_user_id = %d LIMIT 1", $cu->ID));
+                        if ($my_emp) { $my_emp_id = intval($my_emp->id); $my_emp_name = $my_emp->name; }
+                    }
+                    ?>
+                    <?php if ($is_mechanic_only): ?>
+                        <input type="text" value="<?php echo esc_attr($my_emp_name ?: 'Вы'); ?>" readonly style="background:#1a3a2e;color:#00ff88;font-weight:600;">
+                        <input type="hidden" name="employee_id" value="<?php echo intval($my_emp_id); ?>">
+                        <small style="color:#718096;font-size:12px;display:block;margin-top:4px;">🔒 Сделка закреплена за вами</small>
+                    <?php else: ?>
+                        <select name="employee_id">
+                            <option value="">-- Не выбран --</option>
+                            <?php foreach ($employees as $emp): ?>
+                                <option value="<?php echo $emp->id; ?>" <?php selected($employee_id, $emp->id); ?>>
+                                    <?php echo esc_html($emp->name); ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    <?php endif; ?>
                 </div>
                 <div class="form-group">
                     <label>Статус</label>
@@ -280,6 +316,17 @@ if ($edit_mode && $work_cost > 0 && $standard_hours > 0) {
                         <option value="cancelled" <?php selected($status, 'cancelled'); ?>>❌ Отменена</option>
                     </select>
                 </div>
+            </div>
+            <div class="form-group">
+                <label>Направление работ</label>
+                <select name="service_category">
+                    <option value="akpp" <?php selected($service_category, 'akpp'); ?>>⚙️ АКПП</option>
+                    <option value="engine" <?php selected($service_category, 'engine'); ?>>🔩 ДВС</option>
+                    <option value="suspension" <?php selected($service_category, 'suspension'); ?>>🛞 Ходовая и рулевое</option>
+                    <option value="body" <?php selected($service_category, 'body'); ?>>🚗 Кузовные</option>
+                    <option value="electric" <?php selected($service_category, 'electric'); ?>>⚡ Электрика</option>
+                    <option value="interior" <?php selected($service_category, 'interior'); ?>>💺 Салон</option>
+                </select>
             </div>
             <div class="form-group">
                 <label>Описание проблемы</label>
@@ -295,10 +342,10 @@ if ($edit_mode && $work_cost > 0 && $standard_hours > 0) {
             <div style="background:rgba(0,255,136,0.1);padding:15px;border-radius:8px;margin-bottom:15px;">
                 <p style="margin:0;color:#e2e8f0;">
                     <strong>Объявление на Авито:</strong> 
-                    <a href="https://www.avito.ru/kurgan/predlozheniya_uslug/remont_akpp_7991698408" 
+                    <a href="<?php echo esc_url(get_option('akpp_avito_ad_url', (get_option('akpp_master_mode') ? 'https://www.avito.ru/kurgan/predlozheniya_uslug/remont_akpp_7991698408' : ''))); ?>" 
                        target="_blank" 
                        style="color:#00ff88;font-weight:600;text-decoration:none;">
-                        🔗 remont_akpp_7991698408
+                        🔗 <?php echo esc_html(get_option('akpp_avito_ad_slug', (get_option('akpp_master_mode') ? 'remont_akpp_7991698408' : ''))); ?>
                     </a>
                 </p>
             </div>
@@ -313,7 +360,7 @@ if ($edit_mode && $work_cost > 0 && $standard_hours > 0) {
             </div>
             
             <div id="agreement-full-text" style="display:none;margin-bottom:20px;">
-                <?php echo akpp_get_agreement_text('1.0'); ?>
+                <?php $__cust = trim((string) get_option('akpp_custom_agreement', '')); if ($__cust !== '') { echo '<div class="agreement-full-text agreement-protected">' . wp_kses_post($__cust) . '</div>'; } else { echo akpp_get_agreement_text('1.1'); } ?>
             </div>
             
             <div style="background:#0a0f1c;padding:20px;border-radius:8px;border:1px solid #2d3748;">
@@ -412,8 +459,8 @@ jQuery(document).ready(function($) {
             foreach ($deal_parts as $dp) {
                 $js_parts[] = [
                     'id' => intval($dp['part_id']),
-                    'name' => $dp['name'] ?? '',
-                    'sku' => $dp['sku'] ?? '',
+                    'name' => $dp['part_name'] ?? $dp['name'] ?? '', // manual-load-fix-8c3b
+                    'sku' => $dp['part_sku'] ?? $dp['sku'] ?? '',
                     'price' => floatval($dp['price_at_deal'] ?? $dp['price'] ?? 0),
                     'qty' => intval($dp['quantity'] ?? 1)
                 ];
@@ -507,9 +554,9 @@ jQuery(document).ready(function($) {
             var markup = parseFloat(p.markup_percent) || 0;
             var priceWithMarkup = parseFloat(p.price) * (1 + markup / 100);
             
-            html += '<div class="search-item" data-id="' + p.id + '" data-name="' + p.name + '" data-sku="' + (p.sku || '') + '" data-price="' + priceWithMarkup.toFixed(2) + '">';
+            html += '<div class="search-item" data-id="' + p.id + '" data-source="' + (p.source||'part') + '" data-name="' + p.name + '" data-sku="' + (p.sku || '') + '" data-price="' + priceWithMarkup.toFixed(2) + '">';
             html += '<strong>' + p.name + '</strong>';
-            html += '<small>Арт: ' + (p.sku || '—') + ' | Наценка: ' + markup + '%</small>';
+            html += '<small>' + ({part:'[Склад]',shop:'[Магазин]',oil:'[Масло]'}[p.source]||'') + ' Арт: ' + (p.sku || '—') + ' | Наценка: ' + markup + '%</small>';
             html += '<span class="price">' + priceWithMarkup.toLocaleString('ru-RU', {maximumFractionDigits: 0}) + ' ₽</span>';
             html += '</div>';
         });
@@ -523,10 +570,11 @@ jQuery(document).ready(function($) {
             name: $(this).data('name'),
             sku: $(this).data('sku'),
             price: parseFloat($(this).data('price')),
-            qty: 1
+                qty: 1,
+                source: $(this).data('source') || 'part'
         };
         
-        var exists = partsList.find(function(p) { return p.id === part.id; });
+        var exists = partsList.find(function(p) { return p.id === part.id && p.source === part.source; });
         if (exists) {
             exists.qty++;
         } else {
@@ -536,6 +584,19 @@ jQuery(document).ready(function($) {
         renderParts();
         $('#part-search-results').removeClass('active');
         $('#part-search').val('');
+    });
+
+    // Ручной ввод позиции (8c-3-pre)
+    $('#manual-part-add').on('click', function() {
+        var name = $('#manual-part-name').val().trim();
+        var price = parseFloat($('#manual-part-price').val()) || 0;
+        if (!name) { alert('Введите название позиции'); return; }
+        if (price <= 0) { alert('Введите цену'); return; }
+        var part = { id: 0, source: 'manual', name: name, sku: '', price: price, qty: 1 };
+        var exists = partsList.find(function(p) { return p.source === 'manual' && p.name === name; });
+        if (exists) { exists.qty++; } else { partsList.push(part); }
+        renderParts();
+        $('#manual-part-name').val(''); $('#manual-part-price').val('');
     });
     
     // ========================================================================
@@ -722,7 +783,7 @@ jQuery(document).ready(function($) {
             '<strong>Автомобиль:</strong> ' + carInfo + '<br>' +
             '<strong>Сумма работ:</strong> ' + totalAmount + ' ₽</div>' +
             '<p>Заказчик подтверждает согласие с условиями договора-оферты, размещённой на сайте Исполнителя ' +
-            'и на Авито (объявление № 7991698408).</p>' +
+            'и на Авито (объявление № <?php echo esc_js(get_option('akpp_avito_ad_id', (get_option('akpp_master_mode') ? '7991698408' : ''))); ?>).</p>' +
             '<div class="signature"><div><p>_____________________ / ' + clientName + ' /</p><p>Заказчик</p></div>' +
             '<div><p>_____________________ / Представитель /</p><p>Исполнитель</p></div></div>' +
             '</body></html>';
@@ -771,7 +832,8 @@ jQuery(document).ready(function($) {
                         name: part.name,
                         sku: part.sku,
                         price: part.price,
-                        quantity: part.qty
+                        quantity: part.qty,
+                        source: part.source || 'part'
                     })
                 });
             });

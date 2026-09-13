@@ -17,6 +17,7 @@ $agreements = $wpdb->get_results("SELECT * FROM {$table} ORDER BY accepted_at DE
     <div class="agreements-page-header" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
         <h1>📜 Согласия с договором-офертой</h1>
         <button type="button" id="export-agreements" class="button button-primary">📥 Экспорт CSV</button>
+        <button type="button" id="bulk-delete-agreements" class="button" style="background:#fc8181;border-color:#fc8181;color:#fff;margin-left:10px;">🗑️ Удалить выбранные</button>
     </div>
 
     <!-- Статистика -->
@@ -48,7 +49,7 @@ $agreements = $wpdb->get_results("SELECT * FROM {$table} ORDER BY accepted_at DE
                     <th>Источник</th>
                     <th>IP</th>
                     <th>Дата согласия</th>
-                    <th style="width:100px;">Действия</th>
+                    <th style="width:140px;"><label style="cursor:pointer;"><input type="checkbox" id="select-all-agreements" title="Выделить все"> Действия</label></th>
                 </tr>
             </thead>
             <tbody>
@@ -80,6 +81,7 @@ $agreements = $wpdb->get_results("SELECT * FROM {$table} ORDER BY accepted_at DE
                             <td><code style="font-size:11px;"><?php echo esc_html($agr->ip_address); ?></code></td>
                             <td><?php echo date_i18n('d.m.Y H:i', strtotime($agr->accepted_at)); ?></td>
                             <td>
+                                <input type="checkbox" class="agr-checkbox" data-id="<?php echo intval($agr->id); ?>" style="margin-right:8px;vertical-align:middle;">
                                 <button class="button button-small btn-view-agreement" 
                                         data-id="<?php echo $agr->id; ?>"
                                         data-name="<?php echo esc_attr($agr->client_name); ?>"
@@ -92,6 +94,11 @@ $agreements = $wpdb->get_results("SELECT * FROM {$table} ORDER BY accepted_at DE
                                         data-version="<?php echo esc_attr($agr->agreement_version); ?>"
                                         data-useragent="<?php echo esc_attr($agr->user_agent); ?>"
                                         style="background:#00ff88;border-color:#00ff88;color:#1a1f2e;">👁️</button>
+                                  <button class="button button-small btn-delete-agreement"
+                                          data-id="<?php echo intval($agr->id); ?>"
+                                          data-deal="<?php echo intval($agr->deal_id); ?>"
+                                          title="Удалить согласие"
+                                          style="background:#fc8181;border-color:#fc8181;color:#fff;margin-left:5px;">🗑️</button>
                             </td>
                         </tr>
                     <?php endforeach; ?>
@@ -103,6 +110,28 @@ $agreements = $wpdb->get_results("SELECT * FROM {$table} ORDER BY accepted_at DE
 
 <script>
 jQuery(document).ready(function($) {
+
+    // ===== МАССОВОЕ УДАЛЕНИЕ СОГЛАСИЙ =====
+    $(document).on('change', '#select-all-agreements', function() {
+        $('.agr-checkbox').prop('checked', $(this).is(':checked'));
+    });
+    $('#bulk-delete-agreements').on('click', function() {
+        var ids = [];
+        $('.agr-checkbox:checked').each(function() { ids.push($(this).data('id')); });
+        if (ids.length === 0) { alert('Выберите хотя бы одно согласие'); return; }
+        if (!confirm('Удалить выбранные согласия (' + ids.length + ' шт.)?\nПривязанные к сделкам будут пропущены.')) return;
+        var btn = $(this).prop('disabled', true).text('⏳ Удаление...');
+        $.post(ajaxurl, {
+            action: 'akpp_bulk_delete_agreements',
+            ids: ids,
+            nonce: '<?php echo wp_create_nonce("akpp45_nonce"); ?>'
+        }, function(res) {
+            if (res.success) { alert(res.data.message); location.reload(); }
+            else { alert('❌ ' + (res.data.message || 'Ошибка')); btn.prop('disabled', false).text('🗑️ Удалить выбранные'); }
+        }).fail(function() {
+            alert('❌ Ошибка соединения'); btn.prop('disabled', false).text('🗑️ Удалить выбранные');
+        });
+    });
     // Просмотр деталей согласия
     $(document).on('click', '.btn-view-agreement', function() {
         var data = $(this).data();
@@ -133,6 +162,34 @@ jQuery(document).ready(function($) {
     // Экспорт CSV
     $('#export-agreements').on('click', function() {
         alert('Функция экспорта будет добавлена позже');
+    });
+
+    // Удаление согласия
+    $(document).on('click', '.btn-delete-agreement', function() {
+        var id = $(this).data('id');
+        var deal = $(this).data('deal');
+        var msg = (deal > 0)
+            ? 'Согласие #' + id + ' привязано к сделке #' + deal + '.\nСервер запретит удаление, если сделка существует.\nПродолжить?'
+            : 'Удалить согласие #' + id + '? Это действие необратимо.';
+        if (!confirm(msg)) return;
+
+        var btn = $(this).prop('disabled', true).text('⏳');
+        $.post(ajaxurl, {
+            action: 'akpp_delete_agreement',
+            id: id,
+            nonce: '<?php echo wp_create_nonce("akpp45_nonce"); ?>'
+        }, function(res) {
+            if (res.success) {
+                alert(res.data.message);
+                location.reload();
+            } else {
+                alert('❌ ' + (res.data.message || 'Ошибка удаления'));
+                btn.prop('disabled', false).text('🗑️');
+            }
+        }).fail(function() {
+            alert('❌ Ошибка соединения');
+            btn.prop('disabled', false).text('🗑️');
+        });
     });
 });
 </script>
