@@ -24,7 +24,15 @@ Text Domain: akpp45
     --accent-glow: rgba(0, 255, 136, 0.3);
     --text-main: #ffffff;
     --text-muted: #9ca3af;
-    --border: rgba(0, 255, 136, 0.2);
+    --border: rgba(255, 255, 255, 0.10);
+    --border-accent: rgba(0, 255, 136, 0.28);
+    --accent-2: #41d2e2;
+    --accent-3: #f5b544;
+    --bg-elevated: #0e1524;
+    --surface-1: #131b2c;
+    --surface-2: #1a2438;
+    --font: 'Inter', system-ui, -apple-system, sans-serif;
+    --font-display: 'Unbounded', 'Inter', sans-serif;
     --glow: 0 0 20px rgba(0, 255, 136, 0.3);
     --font: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
 }
@@ -620,3 +628,10 @@ section {
     white-space: nowrap;
     border-width: 0;
 }
+/* === SITE-REFRESH-TYPE: дисплейная типографика + базовые утилиты === */
+body{ font-family: var(--font); }
+.hero-title, .section-title{ font-family: var(--font-display); }
+.hero-title{ line-height: 1.08; letter-spacing: -0.5px; }
+.section-title{ line-height: 1.16; letter-spacing: -0.3px; }
+.eyebrow{ display:inline-block; text-transform:uppercase; letter-spacing:2px; font-size:12px; font-weight:700; color:var(--accent); margin-bottom:14px; }
+::selection{ background:rgba(0,255,136,.28); color:#fff; }

@@ -26,8 +26,8 @@ get_header();
                     Также Hyundai, Kia, Mazda, Ford, Renault, Mitsubishi.
                 </p>
                 <div class="hero-actions">
-                    <a href="tel:+79638669996" class="btn btn-primary">
-                        📞 +7 (963) 866-99-96
+                    <a href="tel:<?php echo akpp_obf("+79638669996"); ?>" class="btn btn-primary" aria-label="Позвонить">
+                        📞 <?php echo akpp_obf("+7 (963) 866-99-96"); ?>
                     </a>
                     <a href="https://t.me/akppkgn" target="_blank" class="btn btn-secondary">
                         💬 Telegram
@@ -236,19 +236,19 @@ get_header();
                 <div class="contact-card">
                     <div class="contact-icon">📞</div>
                     <h3>Телефон</h3>
-                    <p><a href="tel:+79638669996">+7 (963) 866-99-96</a></p>
+                    <p><a href="tel:<?php echo akpp_obf("+79638669996"); ?>" aria-label="Позвонить"><?php echo akpp_obf("+7 (963) 866-99-96"); ?></a></p>
                 </div>
 
                 <div class="contact-card">
                     <div class="contact-icon">💬</div>
                     <h3>Telegram</h3>
-                    <p><a href="https://t.me/akppkgn" target="_blank">@akppkgn</a></p>
+                    <p><a href="https://t.me/<?php echo akpp_obf("akppkgn"); ?>" target="_blank" rel="noopener"><?php echo akpp_obf("@akppkgn"); ?></a></p>
                 </div>
 
                 <div class="contact-card">
                     <div class="contact-icon">✉️</div>
                     <h3>Email</h3>
-                    <p><span class="email-protected" data-user="adamzoom" data-domain="bk.ru">Написать</span></p>
+                    <p><a class="contact-email-link" href="<?php echo is_user_logged_in() ? esc_url(home_url('/lk/?section=leads&new=1')) : esc_url(wp_login_url(home_url('/lk/?section=leads&new=1'))); ?>"><?php echo akpp_obf("adamzoom@bk.ru"); ?></a></p>
                 </div>
 
             </div>
