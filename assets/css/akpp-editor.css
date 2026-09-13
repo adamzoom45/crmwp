@@ -1,0 +1,31 @@
+.akpp-ed-sub{ color:#a0aec0; max-width:900px; margin:6px 0 18px; }
+.akpp-ed-layout{ display:grid; grid-template-columns:280px 1fr 280px; gap:14px; align-items:start; }
+.akpp-ed-sidebar,.akpp-ed-right{ background:#0a0f1c; border:1px solid #2d3748; border-radius:12px; padding:12px; max-height:calc(100vh - 160px); overflow:auto; position:sticky; top:52px; }
+.akpp-ed-files-h{ color:#00ff88; font-size:12px; font-weight:800; text-transform:uppercase; letter-spacing:.7px; margin-bottom:10px; display:flex; align-items:center; justify-content:space-between; }
+.akpp-ed-files-list{ display:flex; flex-direction:column; gap:3px; }
+.akpp-ed-file{ display:flex; flex-direction:column; align-items:flex-start; text-align:left; background:transparent; border:1px solid transparent; border-radius:7px; padding:7px 10px; cursor:pointer; color:#cbd5e0; font-family:ui-monospace,monospace; font-size:11.5px; transition:all .15s; width:100%; }
+.akpp-ed-file:hover{ background:#1a1f2e; border-color:#2d3748; color:#fff; }
+.akpp-ed-file.active{ background:#1a1f2e; border-color:#00ff88; color:#00ff88; }
+.akpp-ed-file-name{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:100%; }
+.akpp-ed-file-meta{ color:#718096; font-size:10px; margin-top:2px; }
+.akpp-ed-main{ background:#0a0f1c; border:1px solid #2d3748; border-radius:12px; overflow:hidden; }
+.akpp-ed-toolbar{ display:flex; align-items:center; justify-content:space-between; gap:10px; padding:10px 14px; border-bottom:1px solid #2d3748; background:#0e1524; }
+.akpp-ed-cur{ color:#e2e8f0; font-family:ui-monospace,monospace; font-size:12.5px; font-weight:700; }
+.akpp-ed-actions{ display:flex; gap:8px; }
+.akpp-ed-status{ padding:8px 14px; font-family:ui-monospace,monospace; font-size:12px; display:none; }
+.akpp-ed-status.ok{ background:rgba(0,255,136,.08); color:#00ff88; display:block; border-bottom:1px solid rgba(0,255,136,.2); }
+.akpp-ed-status.err{ background:rgba(252,129,129,.08); color:#fc8181; display:block; border-bottom:1px solid rgba(252,129,129,.2); white-space:pre-wrap; }
+.akpp-ed-code{ width:100%; min-height:640px; background:#05080f; color:#e2e8f0; border:0; padding:14px; font-family:ui-monospace,monospace; font-size:13px; line-height:1.5; resize:vertical; outline:none; }
+.akpp-ed-history{ display:flex; flex-direction:column; gap:5px; }
+.akpp-ed-history-item{ background:#1a1f2e; border:1px solid #2d3748; border-radius:7px; padding:8px 10px; font-size:11px; display:flex; justify-content:space-between; align-items:center; gap:6px; }
+.akpp-ed-history-item .ts{ color:#41d2e2; font-family:ui-monospace,monospace; font-weight:700; }
+.akpp-ed-history-item .meta{ color:#718096; font-size:10px; }
+.akpp-ed-history-item button{ background:#2d3748; color:#cbd5e0; border:1px solid #4a5568; border-radius:5px; padding:3px 8px; font-size:10.5px; cursor:pointer; }
+.akpp-ed-history-item button:hover{ background:#00ff88; color:#08120c; border-color:#00ff88; }
+.akpp-ed-presets-list{ display:flex; flex-direction:column; gap:6px; }
+.akpp-ed-preset{ background:#1a1f2e; border:1px solid #2d3748; border-radius:8px; padding:10px; cursor:pointer; transition:all .15s; }
+.akpp-ed-preset:hover{ border-color:#41d2e2; transform:translateY(-1px); }
+.akpp-ed-preset .name{ color:#fff; font-weight:700; font-size:12.5px; margin-bottom:4px; }
+.akpp-ed-preset .desc{ color:#a0aec0; font-size:11px; line-height:1.4; }
+.CodeMirror{ height:640px !important; font-size:13px !important; }
+@media (max-width:1200px){ .akpp-ed-layout{ grid-template-columns:1fr; } .akpp-ed-sidebar,.akpp-ed-right{ position:static; max-height:none; } }
