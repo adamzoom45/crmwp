@@ -197,6 +197,12 @@ class AKPP_AJAX_Leads extends AKPP_AJAX_Base {
             return;
         }
         
+
+        // Этап 6b: конвертация только после согласия клиента
+        if (empty($lead['client_agreed'])) {
+            wp_send_json_error(['message' => 'Клиент ещё не согласовал заявку. Конвертация в сделку невозможна.']);
+            return;
+        }
         $wpdb->insert($wpdb->prefix . 'akpp_deals', [
             'client_id' => $lead['client_id'],
             'status' => 'new',
@@ -344,106 +350,106 @@ class AKPP_AJAX_Leads extends AKPP_AJAX_Base {
             }
         }
     }
-  /**
- * Получить сообщения по лиду
- */
-public function ajax_get_lead_messages() {
-    if (!is_user_logged_in()) {
-        wp_send_json_error(['message' => 'Необходимо войти']);
-        return;
-    }
-    
-    check_ajax_referer('akpp_lead_chat_nonce', 'nonce');
-    
-    global $wpdb;
-    $lead_id = intval($_POST['lead_id'] ?? 0);
-    $user_id = get_current_user_id();
-    $table = $wpdb->prefix . 'akpp_lead_messages';
-    
-    // Проверяем что лид принадлежит пользователю
-    $lead = $wpdb->get_row($wpdb->prepare(
-        "SELECT id FROM {$wpdb->prefix}akpp_leads WHERE id = %d AND (client_id = %d OR client_email = (SELECT user_email FROM {$wpdb->users} WHERE ID = %d))",
-        $lead_id,
-        $user_id,
-        $user_id
-    ));
-    
-    if (!$lead) {
-        wp_send_json_error(['message' => 'Лид не найден']);
-        return;
-    }
-    
-    $messages = $wpdb->get_results($wpdb->prepare(
-        "SELECT * FROM {$table} WHERE lead_id = %d ORDER BY created_at ASC LIMIT 200",
-        $lead_id
-    ));
-    
-    $formatted = [];
-    foreach ($messages as $msg) {
-        $formatted[] = [
-            'id' => $msg->id,
-            'message' => esc_html($msg->message),
-            'sender_type' => $msg->sender_type,
-            'created_at' => date_i18n('d.m.Y H:i', strtotime($msg->created_at))
-        ];
-    }
-    
-    // Помечаем сообщения менеджера как прочитанные
-    $wpdb->update($table, 
-        ['is_read' => 1], 
-        ['lead_id' => $lead_id, 'sender_type' => 'manager', 'is_read' => 0],
-        ['%d'],
-        ['%d', '%s', '%d']
-    );
-    
-    wp_send_json_success(['messages' => $formatted]);
-}
+    /**
+     * Получить сообщения по лиду (клиент или менеджер)
+     */
+    public function ajax_get_lead_messages() {
+        if (!is_user_logged_in()) {
+            wp_send_json_error(['message' => 'Необходимо войти']);
+            return;
+        }
 
-/**
- * Отправить сообщение по лиду
- */
-public function ajax_send_lead_message() {
-    if (!is_user_logged_in()) {
-        wp_send_json_error(['message' => 'Необходимо войти']);
-        return;
+        check_ajax_referer('akpp_lead_chat_nonce', 'nonce');
+
+        global $wpdb;
+        $lead_id = intval($_POST['lead_id'] ?? 0);
+        $user_id = get_current_user_id();
+        $table = $wpdb->prefix . 'akpp_lead_messages';
+
+        // Проверяем что лид принадлежит пользователю (или пользователь — менеджер)
+        if (!current_user_can('akpp_manage_leads')) {
+            $lead = $wpdb->get_row($wpdb->prepare(
+                "SELECT id FROM {$wpdb->prefix}akpp_leads WHERE id = %d AND (client_id = %d OR client_email = (SELECT user_email FROM {$wpdb->users} WHERE ID = %d))",
+                $lead_id, $user_id, $user_id
+            ));
+            if (!$lead) {
+                wp_send_json_error(['message' => 'Лид не найден']);
+                return;
+            }
+        }
+
+        $messages = $wpdb->get_results($wpdb->prepare(
+            "SELECT * FROM {$table} WHERE lead_id = %d ORDER BY created_at ASC LIMIT 200",
+            $lead_id
+        ));
+
+        $formatted = [];
+        foreach ($messages as $msg) {
+            $formatted[] = [
+                'id' => $msg->id,
+                'message' => esc_html($msg->message),
+                'sender_type' => $msg->sender_type,
+                'created_at' => date_i18n('d.m.Y H:i', strtotime($msg->created_at))
+            ];
+        }
+
+        // Помечаем сообщения как прочитанные (менеджер читает клиентские, клиент — менеджерские)
+        $read_type = current_user_can('akpp_manage_leads') ? 'client' : 'manager';
+        $wpdb->update($table,
+            ['is_read' => 1],
+            ['lead_id' => $lead_id, 'sender_type' => $read_type, 'is_read' => 0],
+            ['%d'],
+            ['%d', '%s', '%d']
+        );
+
+        wp_send_json_success(['messages' => $formatted]);
     }
-    
-    check_ajax_referer('akpp_lead_chat_nonce', 'nonce');
-    
-    global $wpdb;
-    $lead_id = intval($_POST['lead_id'] ?? 0);
-    $user_id = get_current_user_id();
-    $message = sanitize_textarea_field($_POST['message'] ?? '');
-    
-    if (empty($message)) {
-        wp_send_json_error(['message' => 'Сообщение пустое']);
-        return;
+
+    /**
+     * Отправить сообщение по лиду (клиент или менеджер)
+     */
+    public function ajax_send_lead_message() {
+        if (!is_user_logged_in()) {
+            wp_send_json_error(['message' => 'Необходимо войти']);
+            return;
+        }
+
+        check_ajax_referer('akpp_lead_chat_nonce', 'nonce');
+
+        global $wpdb;
+        $lead_id = intval($_POST['lead_id'] ?? 0);
+        $user_id = get_current_user_id();
+        $message = sanitize_textarea_field($_POST['message'] ?? '');
+
+        if (empty($message)) {
+            wp_send_json_error(['message' => 'Сообщение пустое']);
+            return;
+        }
+
+        // Проверяем что лид принадлежит пользователю (или пользователь — менеджер)
+        $is_manager = current_user_can('akpp_manage_leads');
+        if (!$is_manager) {
+            $lead = $wpdb->get_row($wpdb->prepare(
+                "SELECT id FROM {$wpdb->prefix}akpp_leads WHERE id = %d AND (client_id = %d OR client_email = (SELECT user_email FROM {$wpdb->users} WHERE ID = %d))",
+                $lead_id, $user_id, $user_id
+            ));
+            if (!$lead) {
+                wp_send_json_error(['message' => 'Лид не найден']);
+                return;
+            }
+        }
+
+        $table = $wpdb->prefix . 'akpp_lead_messages';
+
+        $wpdb->insert($table, [
+            'lead_id' => $lead_id,
+            'user_id' => $user_id,
+            'sender_type' => $is_manager ? 'manager' : 'client',
+            'message' => $message,
+            'is_read' => 0,
+            'created_at' => current_time('mysql')
+        ]);
+
+        wp_send_json_success(['message' => 'Сообщение отправлено']);
     }
-    
-    // Проверяем что лид принадлежит пользователю
-    $lead = $wpdb->get_row($wpdb->prepare(
-        "SELECT id FROM {$wpdb->prefix}akpp_leads WHERE id = %d AND (client_id = %d OR client_email = (SELECT user_email FROM {$wpdb->users} WHERE ID = %d))",
-        $lead_id,
-        $user_id,
-        $user_id
-    ));
-    
-    if (!$lead) {
-        wp_send_json_error(['message' => 'Лид не найден']);
-        return;
-    }
-    
-    $table = $wpdb->prefix . 'akpp_lead_messages';
-    
-    $wpdb->insert($table, [
-        'lead_id' => $lead_id,
-        'user_id' => $user_id,
-        'sender_type' => 'client',
-        'message' => $message,
-        'is_read' => 0,
-        'created_at' => current_time('mysql')
-    ]);
-    
-    wp_send_json_success(['message' => 'Сообщение отправлено']);
-}
 }

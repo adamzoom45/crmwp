@@ -82,7 +82,7 @@ class AKPP_AJAX_Search extends AKPP_AJAX_Base {
         $results = $wpdb->get_results($wpdb->prepare(
             "SELECT p.*, c.name as category_name
              FROM {$table} p
-             LEFT JOIN {$wpdb->prefix}akpp_shop_categories c ON p.category_id = c.id
+             LEFT JOIN {$wpdb->prefix}akpp_part_categories c ON p.category_id = c.id
              WHERE {$where}
              ORDER BY p.name ASC
              LIMIT %d",
@@ -101,6 +101,7 @@ class AKPP_AJAX_Search extends AKPP_AJAX_Base {
     // ========================================================================
     
     public function ajax_search_vehicles() {
+        if (!$this->check_permissions("akpp_view_vehicles")) return;
         global $wpdb;
         $table = $wpdb->prefix . 'akpp_vehicles';
         
@@ -139,6 +140,7 @@ class AKPP_AJAX_Search extends AKPP_AJAX_Base {
     // ========================================================================
     
     public function ajax_search_employees() {
+        if (!$this->check_permissions("akpp_view_employees")) return;
         global $wpdb;
         $table = $wpdb->prefix . 'akpp_employees';
         

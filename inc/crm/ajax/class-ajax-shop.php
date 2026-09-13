@@ -55,10 +55,16 @@ class AKPP_AJAX_Shop extends AKPP_AJAX_Base {
         $table = $wpdb->prefix . 'akpp_shop_products';
         $id = intval($_POST['id'] ?? 0);
         
+        // Категория: поддержка category_id (id из akpp_categories) и category (slug) — конверсия id→slug
+        $category_slug = sanitize_text_field($_POST['category'] ?? '');
+        $category_id = intval($_POST['category_id'] ?? 0);
+        if ($category_slug === '' && $category_id > 0) {
+            $category_slug = (string)$wpdb->get_var($wpdb->prepare("SELECT slug FROM {$wpdb->prefix}akpp_categories WHERE id = %d", $category_id));
+        }
         $data = [
             'name'           => sanitize_text_field($_POST['name'] ?? ''),
             'sku'            => sanitize_text_field($_POST['sku'] ?? ''),
-            'category_id'    => intval($_POST['category_id'] ?? 0),
+            'category'         => $category_slug,
             'price'          => floatval($_POST['price'] ?? 0),
             'old_price'      => floatval($_POST['old_price'] ?? 0),
             'stock'          => intval($_POST['stock'] ?? 0),
@@ -110,7 +116,6 @@ class AKPP_AJAX_Shop extends AKPP_AJAX_Base {
         
         global $wpdb;
         $table = $wpdb->prefix . 'akpp_shop_products';
-        $category_id = intval($_POST['category_id'] ?? 0);
         $search = sanitize_text_field($_POST['search'] ?? '');
         $limit = min(100, intval($_POST['limit'] ?? 50));
         $offset = intval($_POST['offset'] ?? 0);
@@ -118,9 +123,9 @@ class AKPP_AJAX_Shop extends AKPP_AJAX_Base {
         $where = "1=1";
         $params = [];
         
-        if ($category_id > 0) {
-            $where .= " AND p.category_id = %d";
-            $params[] = $category_id;
+        if ($category_slug !== '') {
+            $where .= " AND p.category = %s";
+            $params[] = $category_slug;
         }
         
         if (!empty($search)) {
@@ -143,7 +148,7 @@ class AKPP_AJAX_Shop extends AKPP_AJAX_Base {
         $products = $wpdb->get_results($wpdb->prepare(
             "SELECT p.*, c.name as category_name
              FROM {$table} p
-             LEFT JOIN {$wpdb->prefix}akpp_shop_categories c ON p.category_id = c.id
+               LEFT JOIN {$wpdb->prefix}akpp_categories c ON p.category = c.slug
              WHERE {$where}
              ORDER BY p.created_at DESC
              LIMIT %d OFFSET %d",
@@ -165,7 +170,7 @@ class AKPP_AJAX_Shop extends AKPP_AJAX_Base {
         $product = $wpdb->get_row($wpdb->prepare(
             "SELECT p.*, c.name as category_name
              FROM {$wpdb->prefix}akpp_shop_products p
-             LEFT JOIN {$wpdb->prefix}akpp_shop_categories c ON p.category_id = c.id
+               LEFT JOIN {$wpdb->prefix}akpp_categories c ON p.category = c.slug
              WHERE p.id = %d",
             $id
         ), ARRAY_A);
@@ -267,9 +272,9 @@ class AKPP_AJAX_Shop extends AKPP_AJAX_Base {
         
         $categories = $wpdb->get_results(
             "SELECT c.*, COUNT(p.id) as products_count
-             FROM {$wpdb->prefix}akpp_shop_categories c
-             LEFT JOIN {$wpdb->prefix}akpp_shop_products p ON c.id = p.category_id
-             WHERE c.is_active = 1
+             FROM {$wpdb->prefix}akpp_categories c
+             LEFT JOIN {$wpdb->prefix}akpp_shop_products p ON p.category = c.slug
+             WHERE c.is_active = 1 AND c.scope IN ('shop','both')
              GROUP BY c.id
              ORDER BY c.sort_order ASC, c.name ASC",
             ARRAY_A

@@ -37,6 +37,8 @@ class AKPP_AJAX_Agreements extends AKPP_AJAX_Base {
         // 3. ПРОСМОТР СОГЛАСИЙ (админка)
         add_action('wp_ajax_akpp_get_agreements', [$this, 'ajax_get_agreements']);
         add_action('wp_ajax_akpp_export_agreements', [$this, 'ajax_export_agreements']);
+        add_action('wp_ajax_akpp_delete_agreement', [$this, 'ajax_delete_agreement']);
+        add_action('wp_ajax_akpp_bulk_delete_agreements', [$this, 'ajax_bulk_delete_agreements']);
     }
     
     // ========================================================================
@@ -212,5 +214,113 @@ class AKPP_AJAX_Agreements extends AKPP_AJAX_Base {
             'csv' => $csv,
             'filename' => 'agreements_' . date('Y-m-d') . '.csv'
         ]);
+    }
+
+    // ========================================================================
+    // 4. УДАЛЕНИЕ СОГЛАСИЯ (админка, с защитой привязанных к сделке)
+    // ========================================================================
+
+
+    // ========================================================================
+    // 5. МАССОВОЕ УДАЛЕНИЕ СОГЛАСИЙ (админка, с защитой привязанных к сделке)
+    // ========================================================================
+
+    public function ajax_bulk_delete_agreements() {
+        if (!$this->check_permissions()) return;
+        check_ajax_referer('akpp45_nonce', 'nonce');
+
+        global $wpdb;
+        $table = $wpdb->prefix . 'akpp_agreements';
+
+        $ids = isset($_POST['ids']) ? array_map('intval', (array) $_POST['ids']) : [];
+        $ids = array_filter($ids, function ($v) { return $v > 0; });
+        if (empty($ids)) {
+            wp_send_json_error(['message' => 'Не выбрано ни одного согласия']);
+            return;
+        }
+
+        $deleted = 0;
+        $skipped = [];
+
+        foreach ($ids as $id) {
+            $agreement = $wpdb->get_row($wpdb->prepare("SELECT * FROM {$table} WHERE id = %d", $id), ARRAY_A);
+            if (!$agreement) continue;
+
+            // Защита 1: согласие привязано к сделке через deal_id
+            $linked_deal_id = intval($agreement['deal_id'] ?? 0);
+            if ($linked_deal_id > 0) {
+                $deal_exists = $wpdb->get_var($wpdb->prepare(
+                    "SELECT id FROM {$wpdb->prefix}akpp_deals WHERE id = %d", $linked_deal_id
+                ));
+                if ($deal_exists) { $skipped[] = $id; continue; }
+            }
+
+            // Защита 2: сделка ссылается на согласие через agreement_id
+            $deal_by_agreement = $wpdb->get_var($wpdb->prepare(
+                "SELECT id FROM {$wpdb->prefix}akpp_deals WHERE agreement_id = %d LIMIT 1", $id
+            ));
+            if ($deal_by_agreement) { $skipped[] = $id; continue; }
+
+            if ($wpdb->delete($table, ['id' => $id], ['%d']) !== false) {
+                $deleted++;
+            }
+        }
+
+        $msg = '✅ Удалено согласий: ' . $deleted;
+        if (!empty($skipped)) {
+            $msg .= '. Пропущено (привязаны к сделкам): ' . count($skipped) . ' (ID: ' . implode(', ', $skipped) . ')';
+        }
+
+        wp_send_json_success(['message' => $msg, 'deleted' => $deleted, 'skipped' => $skipped]);
+    }
+    public function ajax_delete_agreement() {
+        if (!$this->check_permissions()) return;
+        check_ajax_referer('akpp45_nonce', 'nonce');
+
+        global $wpdb;
+        $table = $wpdb->prefix . 'akpp_agreements';
+
+        $id = intval($_POST['id'] ?? 0);
+        if ($id <= 0) {
+            wp_send_json_error(['message' => 'Неверный ID согласия']);
+            return;
+        }
+
+        // Проверка существования записи
+        $agreement = $wpdb->get_row($wpdb->prepare("SELECT * FROM {$table} WHERE id = %d", $id), ARRAY_A);
+        if (!$agreement) {
+            wp_send_json_error(['message' => 'Согласие не найдено']);
+            return;
+        }
+
+        // ЗАЩИТА 1: согласие привязано к сделке через deal_id
+        $linked_deal_id = intval($agreement['deal_id'] ?? 0);
+        if ($linked_deal_id > 0) {
+            $deal_exists = $wpdb->get_var($wpdb->prepare(
+                "SELECT id FROM {$wpdb->prefix}akpp_deals WHERE id = %d", $linked_deal_id
+            ));
+            if ($deal_exists) {
+                wp_send_json_error(['message' => 'Нельзя удалить: согласие привязано к сделке #' . $linked_deal_id . '. Сначала удалите сделку.']);
+                return;
+            }
+        }
+
+        // ЗАЩИТА 2: сделка ссылается на это согласие через agreement_id
+        $deal_by_agreement = $wpdb->get_var($wpdb->prepare(
+            "SELECT id FROM {$wpdb->prefix}akpp_deals WHERE agreement_id = %d LIMIT 1", $id
+        ));
+        if ($deal_by_agreement) {
+            wp_send_json_error(['message' => 'Нельзя удалить: на это согласие ссылается сделка #' . intval($deal_by_agreement) . '. Сначала удалите сделку.']);
+            return;
+        }
+
+        // Удаляем
+        $deleted = $wpdb->delete($table, ['id' => $id], ['%d']);
+        if ($deleted === false) {
+            wp_send_json_error(['message' => 'Ошибка удаления: ' . $wpdb->last_error]);
+            return;
+        }
+
+        wp_send_json_success(['message' => '✅ Согласие #' . $id . ' удалено']);
     }
 }
