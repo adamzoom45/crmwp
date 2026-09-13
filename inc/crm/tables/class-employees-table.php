@@ -101,6 +101,7 @@ class AKPP_Employees_Table extends WP_List_Table {
             'phone'     => 'Телефон',
             'email'     => 'Email',
             'is_active' => 'Статус',
+            'account'   => '🔑 Аккаунт',
             'actions'   => 'Действия',
         ];
     }
@@ -214,6 +215,38 @@ class AKPP_Employees_Table extends WP_List_Table {
         return '<span style="display:inline-block;padding:4px 12px;border-radius:12px;font-size:12px;font-weight:600;background:#fc818122;color:#fc8181;">❌ Неактивен</span>';
     }
     
+    protected function column_account($item) {
+        $wp_user_id = intval($item['wp_user_id'] ?? 0);
+        if ($wp_user_id <= 0) {
+            return '<span style="color:#718096;font-size:12px;">— нет аккаунта</span>';
+        }
+        $user = get_userdata($wp_user_id);
+        if (!$user) {
+            return '<span style="color:#fc8181;font-size:12px;">⚠️ аккаунт удалён</span>';
+        }
+        $role_labels = [
+            'akpp_mechanic'   => ['label' => '🔧 Механик', 'color' => '#00ff88'],
+            'akpp_manager'    => ['label' => '💼 Менеджер', 'color' => '#63b3ed'],
+            'akpp_accountant' => ['label' => '📊 Бухгалтер', 'color' => '#f6ad55'],
+            'akpp_director'   => ['label' => '👑 Директор', 'color' => '#fc8181'],
+            'akpp_client'     => ['label' => '👤 Клиент', 'color' => '#a0aec0'],
+            'administrator'   => ['label' => '⚙️ Админ', 'color' => '#b794f4'],
+        ];
+        $role = !empty($user->roles) ? $user->roles[0] : '';
+        $info = $role_labels[$role] ?? ['label' => ucfirst($role), 'color' => '#a0aec0'];
+        $badge = sprintf(
+            '<span style="display:inline-block;padding:3px 10px;border-radius:12px;font-size:11px;font-weight:600;background:%s22;color:%s;">%s</span>',
+            esc_attr($info['color']),
+            esc_attr($info['color']),
+            esc_html($info['label'])
+        );
+        return sprintf(
+            '<div style="font-size:12px;"><strong style="color:#e2e8f0;">%s</strong><br>%s</div>',
+            esc_html($user->user_login),
+            $badge
+        );
+    }
+
     protected function column_actions($item) {
         $actions = [];
         

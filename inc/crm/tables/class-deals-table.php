@@ -29,6 +29,7 @@ class AKPP_Deals_Table extends WP_List_Table {
         // Фильтры
         $status_filter = isset($_GET['status_filter']) ? sanitize_text_field($_GET['status_filter']) : 'all';
         $employee_filter = isset($_GET['employee_filter']) ? intval($_GET['employee_filter']) : 0;
+        $service_filter = isset($_GET['service_filter']) ? sanitize_text_field($_GET['service_filter']) : 'all';
         $search = isset($_GET['s']) ? sanitize_text_field($_GET['s']) : '';
         
         // Построение WHERE
@@ -43,6 +44,10 @@ class AKPP_Deals_Table extends WP_List_Table {
         if ($employee_filter > 0) {
             $where[] = "d.employee_id = %d";
             $params[] = $employee_filter;
+        if ($service_filter !== 'all') {
+            $where[] = "d.service_category = %s";
+            $params[] = $service_filter;
+        }
         }
         
         if (!empty($search)) {
@@ -112,10 +117,20 @@ class AKPP_Deals_Table extends WP_List_Table {
             'client_name'  => 'Клиент',
             'vehicle'      => 'Автомобиль',
             'status'       => 'Статус',
+            'service_category' => 'Направление',
             'total_amount' => 'Сумма',
             'created_at'   => 'Дата',
             'actions'      => 'Действия',
         ];
+    }
+
+    protected function column_service_category($item) {
+        $cats = [
+            'akpp' => '⚙️ АКПП', 'engine' => '🔩 ДВС', 'suspension' => '🛞 Ходовая',
+            'body' => '🚗 Кузовные', 'electric' => '⚡ Электрика', 'interior' => '💺 Салон',
+        ];
+        $cat = $item['service_category'] ?? 'akpp';
+        return $cats[$cat] ?? esc_html($cat);
     }
     
     public function get_sortable_columns() {
@@ -265,6 +280,15 @@ class AKPP_Deals_Table extends WP_List_Table {
                 <?php endforeach; ?>
             </select>
             
+            <select name="service_filter">
+                <option value="all" <?php selected($service_filter, 'all'); ?>>Все направления</option>
+                <option value="akpp" <?php selected($service_filter, 'akpp'); ?>>⚙️ АКПП</option>
+                <option value="engine" <?php selected($service_filter, 'engine'); ?>>🔩 ДВС</option>
+                <option value="suspension" <?php selected($service_filter, 'suspension'); ?>>🛞 Ходовая и рулевое</option>
+                <option value="body" <?php selected($service_filter, 'body'); ?>>🚗 Кузовные</option>
+                <option value="electric" <?php selected($service_filter, 'electric'); ?>>⚡ Электрика</option>
+                <option value="interior" <?php selected($service_filter, 'interior'); ?>>💺 Салон</option>
+            </select>
             <input type="submit" name="filter_action" class="button" value="Фильтровать">
         </div>
         <?php

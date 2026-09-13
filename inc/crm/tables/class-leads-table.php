@@ -106,6 +106,8 @@ class AKPP_Leads_Table extends WP_List_Table {
             'source'       => 'Источник',
             'status'       => 'Статус',
             'created_at'   => 'Дата',
+            'agreement'    => 'Согласование',
+            'chat'         => '💬 Чат',
             'actions'      => 'Действия',
         ];
     }
@@ -283,6 +285,33 @@ class AKPP_Leads_Table extends WP_List_Table {
         return implode(' ', $actions);
     }
     
+    protected function column_agreement($item) {
+        if (!empty($item['deal_id']) && $item['deal_id'] > 0) {
+            return '<span style="color:#00ff88;font-weight:600">💰 Сделка #' . intval($item['deal_id']) . '</span>';
+        }
+        $agreed = intval($item['client_agreed'] ?? 0);
+        if ($agreed) {
+            $date = !empty($item['agreed_at']) ? '<br><small style="color:#a0aec0">' . date_i18n('d.m.Y H:i', strtotime($item['agreed_at'])) . '</small>' : '';
+            return '<span style="color:#00ff88;font-weight:600">✅ Согласен</span>' . $date;
+        }
+        return '<span style="color:#a0aec0">⏳ Ожидает</span>';
+    }
+
+    protected function column_chat($item) {
+        global $wpdb;
+        $unread = (int)$wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*) FROM {$wpdb->prefix}akpp_lead_messages WHERE lead_id = %d AND sender_type = 'client' AND is_read = 0",
+            $item['id']
+        ));
+        $badge = $unread > 0 ? ' <span style="background:#fc8181;color:#fff;border-radius:10px;padding:2px 8px;font-size:11px;font-weight:700">' . $unread . '</span>' : '';
+        return sprintf(
+            '<button type="button" class="button button-small akpp-open-lead-chat" data-lead-id="%d" data-lead-title="%s">💬%s</button>',
+            intval($item['id']),
+            esc_attr(($item['client_name'] ?? 'Клиент') . ' · ' . ($item['car_brand'] ?: 'Заявка #' . $item['id'])),
+            $badge
+        );
+    }
+
     protected function column_default($item, $column_name) {
         return isset($item[$column_name]) ? esc_html($item[$column_name]) : '—';
     }
