@@ -6,6 +6,8 @@ if (isset($_GET['issued'])) echo '<div class="notice notice-success"><p>✅ Се
 $offerr = ['badreq'=>'Не удалось разобрать строку запроса (ждём AKPPREQ-…)','nokey'=>'Код активации из запроса не найден в реестре','blocked'=>'Эта лицензия заблокирована'];
 if (isset($_GET['offerr'], $offerr[$_GET['offerr']])) echo '<div class="notice notice-error"><p>⚠️ ' . esc_html($offerr[$_GET['offerr']]) . '</p></div>';
 
+if (isset($_GET['unblocked'])) echo '<div class="notice notice-success"><p>✅ Лицензия включена.</p></div>';
+if (isset($_GET['autorenew'])) echo '<div class="notice notice-success"><p>✅ Автопродление переключено.</p></div>';
 $licenses = $wpdb->get_results("SELECT * FROM $t ORDER BY created_at DESC LIMIT 100");
 $m_total = count($licenses); $m_active = $m_expired = $m_blocked = $m_pending = 0;
 foreach ($licenses as $l) { $st = $l->status; if ($st === 'active' && strtotime($l->valid_until) < $now) $st = 'expired';
@@ -87,6 +89,10 @@ $pubkey = AKPP_License::pubkey();
 .akpp-lic-tab.active{ display:block; animation:lic-rise .35s cubic-bezier(.2,.7,.2,1) both; }
 @media (max-width:760px){ .akpp-lic-tabs{ position:static; } .akpp-lic-tab-btn{ flex:1; text-align:center; padding:10px 8px; font-size:12px; } }
 @media (prefers-reduced-motion:reduce){ .akpp-lic-tab.active{ animation:none; } .akpp-lic-tab-btn{ transition:none; } }
+/* lic-merge-css: create + offline = one card */
+.akpp-lic div:has(form input[name="note"]){margin-bottom:0!important;border-bottom:none!important;border-radius:16px 16px 0 0!important;}
+.akpp-lic div:has(form input[name="note"]) + div{margin-top:0!important;border-top:none!important;border-radius:0 0 16px 16px!important;}
+.akpp-lic div:has(form input[name="note"]) + div > h2{margin-top:6px;padding-top:20px;border-top:1px dashed #2d3748;}
 </style>
 <div class="wrap akpp-lic">
     <div class="akpp-lic-head">
@@ -140,7 +146,14 @@ $pubkey = AKPP_License::pubkey();
             <label>Срок аренды
                 <select name="plan_months"><option value="12">1 год</option><option value="24">2 года</option><option value="36">3 года</option><option value="1">1 месяц (тест)</option></select>
             </label>
-            <label>Заметка (клиент / домен)<input type="text" name="note" placeholder="ИП Иванов · client.ru"></label>
+            <label>Заметка (клиент / домен)<input type="text" name="note" placeholder="ИП Иванов · client.ru"><div class="akpp-lic-addons-fix2" style="flex:1 1 100%;grid-column:1/-1;margin:0 0 14px">
+<label style="display:block;font-size:12px;font-weight:700;color:#a0aec0;text-transform:uppercase;letter-spacing:.05em;margin:0 0 8px">Доп-модули по лицензии</label>
+<div style="display:flex;flex-wrap:wrap;gap:8px 20px">
+<?php foreach (AKPP_License::ADDON_WHITELIST as $ad): ?>
+<label style="display:inline-flex;align-items:center;gap:7px;margin:0;color:#e2e8f0;font-size:13px;font-weight:600;text-transform:none;letter-spacing:normal"><input type="checkbox" name="addons[]" value="<?php echo esc_attr($ad); ?>" checked style="width:auto;height:auto;margin:0;flex:0 0 auto"> <?php echo esc_html($ad); ?></label>
+<?php endforeach; ?>
+</div>
+</div></label>
             <button type="submit" class="btn">Сгенерировать код</button>
         </form>
     </div>
@@ -174,12 +187,12 @@ $pubkey = AKPP_License::pubkey();
         <table>
             <thead><tr><th>Код активации</th><th>Срок</th><th>Статус</th><th>Домен</th><th>Валидна до</th><th>Сертификат</th><th>Действия</th></tr></thead>
             <tbody>
-            <?php foreach ($licenses as $l):
+            <?php foreach ($licenses as $l): /* akpp-lic-skip-blocked */ if ($l->status === 'blocked') continue;
                 $st = $l->status; if ($st === 'active' && strtotime($l->valid_until) < $now) $st = 'expired';
                 $st_label = ['pending'=>'Ожидает активации','active'=>'Активна','blocked'=>'Заблокирована','expired'=>'Истекла'][$st] ?? $st;
             ?>
                 <tr>
-                    <td><code><?php echo esc_html($l->activation_key); ?></code><?php if ($l->note): ?><div class="muted"><?php echo esc_html($l->note); ?></div><?php endif; ?></td>
+                    <td><code><?php echo esc_html($l->activation_key); ?><br><?php foreach (AKPP_License::decode_addons($l->addons ?? null) as $ad): ?><span class="akpp-lic-addons" style="display:inline-block;margin:2px 4px 0 0;padding:2px 8px;border-radius:6px;background:#12352a;border:1px solid #1f6f4c;color:#7ef0b2;font-size:11px"><?php echo esc_html($ad); ?></span><?php endforeach; ?></code><?php if ($l->note): ?><div class="muted"><?php echo esc_html($l->note); ?></div><?php endif; ?></td>
                     <td><?php echo (int) $l->plan_months; ?> мес</td>
                     <td><span class="st st-<?php echo esc_attr($st); ?>"><span class="dot"></span><?php echo esc_html($st_label); ?></span></td>
                     <td><?php echo $l->domain ? esc_html($l->domain) : '<span class="muted">—</span>'; ?></td>
@@ -194,7 +207,9 @@ $pubkey = AKPP_License::pubkey();
                             <button type="submit" class="btn-gray" title="Продлить аренду (перевыпуск сертификата)">⏱</button>
                         </form>
                         <?php endif; ?>
-                        <?php if ($l->status !== 'blocked'): ?>
+                        <?php if ($l->status === 'blocked'): ?><form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" style="display:inline" onsubmit="return confirm('Включить лицензию?'); ?>"><?php wp_nonce_field('akpp_license_unblock_' . $l->id); ?><input type="hidden" name="action" value="akpp_license_unblock"><input type="hidden" name="id" value="<?php echo (int) $l->id; ?>"><button type="submit" class="btn" title="Разблокировать и перевыпустить сертификат">Включить</button></form><?php endif; ?>
+<?php if ($l->status === 'active'): ?><form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" style="display:inline"><?php wp_nonce_field('akpp_license_autorenew_' . $l->id); ?><input type="hidden" name="action" value="akpp_license_autorenew"><input type="hidden" name="id" value="<?php echo (int) $l->id; ?>"><button type="submit" class="<?php echo !empty($l->auto_renew) ? 'btn' : 'btn-gray'; ?>" title="Автопродление: <?php echo !empty($l->auto_renew) ? 'ВКЛ' : 'выкл'; ?>">🔁</button></form><?php endif; ?>
+<?php if ($l->status !== 'blocked'): ?>
                         <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" style="display:inline" onsubmit="return confirm('Заблокировать лицензию?');">
                             <?php wp_nonce_field('akpp_license_block_' . $l->id); ?><input type="hidden" name="action" value="akpp_license_block"><input type="hidden" name="id" value="<?php echo (int) $l->id; ?>">
                             <button type="submit" class="btn-red">Блок</button>
@@ -212,6 +227,27 @@ $pubkey = AKPP_License::pubkey();
             <?php endforeach; ?>
             </tbody>
         </table>
+<div class="akpp-lic-card akpp-lic-blocked-card" style="margin-top:22px;border-color:#5b2c3a">
+<h2>🚫 Заблокированные лицензии</h2>
+<?php $bl = array_values(array_filter($licenses, function ($x) { return $x->status === 'blocked'; })); ?>
+<?php if (empty($bl)): ?><p class="muted">Заблокированных лицензий нет.</p>
+<?php else: ?>
+<table>
+<thead><tr><th>Код активации</th><th>Срок</th><th>Домен</th><th>Заметка</th><th>Действия</th></tr></thead>
+<tbody>
+<?php foreach ($bl as $l): ?>
+<tr>
+<td><code><?php echo esc_html($l->activation_key); ?></code></td>
+<td><?php echo (int) $l->plan_months; ?> мес</td>
+<td><?php echo $l->domain ? esc_html($l->domain) : '—'; ?></td>
+<td><?php echo esc_html($l->note ?: '—'); ?></td>
+<td><form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" style="display:inline" onsubmit="return confirm('Включить лицензию?');"><?php wp_nonce_field('akpp_license_unblock_' . $l->id); ?><input type="hidden" name="action" value="akpp_license_unblock"><input type="hidden" name="id" value="<?php echo (int) $l->id; ?>"><button type="submit" class="btn">Включить</button></form></td>
+</tr>
+<?php endforeach; ?>
+</tbody>
+</table>
+<?php endif; ?>
+</div>
         <?php endif; ?>
     </div>
 

@@ -87,8 +87,8 @@ $ajax_url = admin_url('admin-ajax.php');
 <section class="shop-catalog">
     <div class="shop-catalog-head">
         <div>
-            <h2 class="shop-catalog-title">Магазин запчастей</h2>
-            <p class="shop-catalog-sub">Запчасти для АКПП Toyota, Lexus и других марок в наличии.</p>
+            <h2 class="shop-catalog-title"><?php echo esc_html(get_option('akpp_shop_title', 'Магазин запчастей')); ?> <!-- akpp-shop-opt --></h2>
+            <p class="shop-catalog-sub"><?php echo esc_html(get_option('akpp_shop_subtitle', 'Запчасти для АКПП Toyota, Lexus и других марок в наличии.')); ?></p>
         </div>
         <a href="<?php echo esc_url(home_url('/cart/')); ?>" class="shop-cart-btn">🛒 <span>Корзина</span> <span class="cart-count"><?php echo (int) $cart['count']; ?></span></a>
     </div>

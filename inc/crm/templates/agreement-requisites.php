@@ -20,7 +20,7 @@ $g = function ($k, $d) { return esc_attr(get_option($k, $d)); };
 .akpp-req input:focus,.akpp-req textarea:focus{outline:none;border-color:#00ff88;box-shadow:0 0 0 3px rgba(0,255,136,.14)}
 .akpp-req textarea{resize:vertical;min-height:70px}
 .akpp-req .hint{font-size:11.5px;color:#718096;margin-top:2px}
-.akpp-req .save{display:flex;align-items:center;gap:16px;margin-top:6px}
+.akpp-req .save{display:flex;flex-wrap:wrap;align-items:flex-start;gap:16px;margin-top:6px}.akpp-req .save>div[style*="background"]{flex:1 1 100%;width:100%;box-sizing:border-box;margin:0}.akpp-req .save>div[style*="background"] input[type="text"],.akpp-req .save>div[style*="background"] textarea{width:100%;box-sizing:border-box}
 .akpp-req .btn{background:linear-gradient(135deg,#00ff88,#00cc6a);color:#08120c;border:none;border-radius:11px;padding:14px 30px;font-weight:800;font-size:15px;cursor:pointer;transition:transform .2s,box-shadow .25s,filter .2s}
 .akpp-req .btn:hover{transform:translateY(-2px);box-shadow:0 14px 30px -14px rgba(0,255,136,.7);filter:brightness(1.05)}
 .akpp-req .note{color:#718096;font-size:12.5px}
@@ -64,9 +64,9 @@ $g = function ($k, $d) { return esc_attr(get_option($k, $d)); };
     <div class="save">
       <div style="background:#1a1f2e;border:1px solid #2d3748;border-radius:16px;padding:24px;margin:0 0 22px;flex:1 1 100%;width:100%;">
     <h3 style="margin:0 0 6px;color:#fff;font-size:16px;">🗺 2ГИС</h3>
-    <p style="margin:0 0 16px;color:#a0aec0;font-size:12.5px;">Ссылка на страницу вашей компании в 2ГИС. Показывается в контактах шаблонов сайта. Каждая лицензия вписывает свою.</p>
-    <label style="display:block;color:#a0aec0;font-size:11.5px;font-weight:600;margin-bottom:6px;">ССЫЛКА НА СТРАНИЦУ 2ГИС</label>
-    <input type="url" name="akpp_2gis_url" value="<?php echo esc_attr(get_option('akpp_2gis_url', '')); ?>" placeholder="https://2gis.ru/kurgan/firm/70000000000000000" style="width:100%;background:#0a0f1c;border:1px solid #2d3748;border-radius:9px;color:#fff;padding:11px 13px;font-size:13px;">
+    <p style="margin:0 0 16px;color:#a0aec0;font-size:12.5px;">Только ID компании (цифры из ссылки вида 2gis.ru/город/firm/ID). Ссылка соберётся автоматически. Можно вставить ссылку целиком — ID вытащим сами.</p>
+    <label style="display:block;color:#a0aec0;font-size:11.5px;font-weight:600;margin-bottom:6px;">ID КОМПАНИИ В 2ГИС (FIRM ID)</label>
+    <input type="text" name="akpp_2gis_id" value="<?php echo esc_attr(get_option('akpp_2gis_id', '')); ?>" placeholder="70000000000000001" style="width:100%;background:#0a0f1c;border:1px solid #2d3748;border-radius:9px;color:#fff;padding:11px 13px;font-size:13px;">
 </div>
 <div style="background:#1a1f2e;border:1px solid #2d3748;border-radius:16px;padding:24px;margin:0 0 22px;flex:1 1 100%;width:100%;">
     <h3 style="margin:0 0 6px;color:#fff;font-size:16px;">📄 Тексты оферты и гарантии</h3>

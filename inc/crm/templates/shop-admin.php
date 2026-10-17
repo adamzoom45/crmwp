@@ -126,6 +126,25 @@ if (isset($_GET['view_order'])) {
         <h1 style="color: #00ff88; border-left: 4px solid #00ff88; padding-left: 15px; margin: 0;">
             🛒 Магазин АКПП45
         </h1>
+<div class="akpp_shop_settings_form" style="background:#1a1f2e;border:1px solid #2d3748;border-radius:14px;padding:18px 22px;margin:16px 0">
+  <h2 style="margin:0 0 12px;color:#00ff88;font-size:16px">⚙️ Настройки магазина (уникальны для этой установки)</h2>
+  <?php if (isset($_GET['shop_saved'])): ?><div class="notice notice-success" style="margin:0 0 10px"><p>✅ Настройки магазина сохранены.</p></div><?php endif; ?>
+  <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+    <?php wp_nonce_field('akpp_shop_settings'); ?>
+    <input type="hidden" name="action" value="akpp_shop_save_settings">
+    <label style="color:#a0aec0;font-size:12px">Название витрины<br>
+      <input type="text" name="akpp_shop_title" value="<?php echo esc_attr(get_option('akpp_shop_title', 'Магазин запчастей')); ?>" style="width:100%;margin-top:4px"></label>
+    <label style="color:#a0aec0;font-size:12px">Подзаголовок<br>
+      <input type="text" name="akpp_shop_subtitle" value="<?php echo esc_attr(get_option('akpp_shop_subtitle', '')); ?>" style="width:100%;margin-top:4px"></label>
+    <label style="color:#a0aec0;font-size:12px">Бренд: название (шапка)<br>
+      <input type="text" name="akpp_brand_name" value="<?php echo esc_attr(get_option('akpp_brand_name', get_bloginfo('name'))); ?>" style="width:100%;margin-top:4px"></label>
+    <label style="color:#a0aec0;font-size:12px">Бренд: город<br>
+      <input type="text" name="akpp_brand_city" value="<?php echo esc_attr(get_option('akpp_brand_city', '')); ?>" style="width:100%;margin-top:4px"></label>
+    <label style="color:#a0aec0;font-size:12px">Бренд: телефон<br>
+      <input type="text" name="akpp_brand_phone" value="<?php echo esc_attr(get_option('akpp_brand_phone', '')); ?>" style="width:100%;margin-top:4px"></label>
+    <div style="grid-column:1/-1"><button class="button button-primary">💾 Сохранить настройки магазина</button></div>
+  </form>
+</div>
         <div style="display: flex; gap: 10px;">
             <a href="<?php echo esc_url(home_url('/shop/')); ?>" target="_blank" class="button" style="background: #2d3748; color: #fff; border: 1px solid #4a5568;">
                 🔗 Открыть магазин ↗

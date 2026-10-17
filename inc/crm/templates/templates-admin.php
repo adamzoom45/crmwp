@@ -1,5 +1,16 @@
 <?php if (!defined('ABSPATH')) exit;
-$tpls = akpp_site_templates(); $cur = akpp_current_site_template();
+// akpp-tpl-access-guard: права + лицензия (вставка однократно)
+if (!current_user_can('akpp_apply_templates') && !current_user_can('manage_options')) {
+    echo '<div class="wrap"><h1>🎨 Шаблоны сайта</h1><div class="notice notice-error"><p>❌ Недостаточно прав для работы с шаблонами.</p></div></div>';
+    return;
+}
+if (class_exists('AKPP_License') && !get_option('akpp_master_mode')) {
+    $st = AKPP_License::client_state();
+    if ((($st['status'] ?? '') !== 'active')) {
+        echo '<div class="wrap"><h1>🎨 Шаблоны сайта</h1><div class="notice notice-warning"><p>⚠️ Шаблоны сайтов доступны только при активной лицензии CRM.</p></div></div>';
+        return;
+    }
+}$tpls = akpp_site_templates(); $cur = akpp_current_site_template();
 if (isset($_GET['applied'])) echo '<div class="notice notice-success"><p>✅ Шаблон «' . esc_html($tpls[$_GET['applied']]['name'] ?? '') . '» применён. Откройте сайт, чтобы увидеть результат.</p></div>';
 $shop_on = (bool) get_option('akpp_shop_enabled', 1);
 ?>
