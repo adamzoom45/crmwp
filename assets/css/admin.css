@@ -2031,4 +2031,10 @@ textarea::placeholder {
     .akpp-form .parts-search-group {
         flex-direction: column;
     }
-}
+/* REQ-DESIGN-FIX-2: реквизиты — карточки вне разброса flex .save */
+body[class*="akpp-crm-requisites"] .akpp-req .save{display:flex !important;flex-wrap:wrap !important;align-items:flex-start !important;gap:16px !important;}
+body[class*="akpp-crm-requisites"] .akpp-req .save > div[style*="background"]{width:100% !important;max-width:100% !important;box-sizing:border-box;margin:0 !important;}
+body[class*="akpp-crm-requisites"] .akpp-req .save > div[style*="background"] input[type="text"],
+body[class*="akpp-crm-requisites"] .akpp-req .save > div[style*="background"] textarea{width:100%;box-sizing:border-box;}
+body[class*="akpp-crm-requisites"] .akpp-req .save > .button,
+body[class*="akpp-crm-requisites"] .akpp-req .save > button{margin-top:4px;}
