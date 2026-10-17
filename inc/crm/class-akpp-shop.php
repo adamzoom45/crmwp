@@ -18,6 +18,8 @@ class AKPP_Shop {
     }
     
     private function __construct() {
+        $this->ensure_shop_tables();
+        add_action('admin_init', function () { $this->auto_install_shop(); }, 5);
         // AJAX обработчики
         add_action('wp_ajax_akpp_shop_add_to_cart', [$this, 'ajax_add_to_cart']);
         add_action('wp_ajax_nopriv_akpp_shop_add_to_cart', [$this, 'ajax_add_to_cart']);
@@ -49,6 +51,8 @@ class AKPP_Shop {
         add_shortcode('akpp_shop_cart', [$this, 'shortcode_cart']);
         add_shortcode('akpp_shop_checkout', [$this, 'shortcode_checkout']);
         add_shortcode('akpp_shop_products', [$this, 'shortcode_products']);
+        add_action('admin_post_akpp_shop_save_settings', [$this, 'handle_save_shop_settings']);
+
     }
     
     // ========================================================================
@@ -74,6 +78,79 @@ class AKPP_Shop {
     public static function status_meta($code) {
         $all = self::order_statuses();
         return $all[$code] ?? ['label' => $code, 'icon' => '•', 'color' => '#9ca3af', 'step' => 0, 'branch' => ''];
+    }
+    /** Автосоздание таблиц магазина (универсально: префикс БД tenant) */
+    private function ensure_shop_tables() {
+        global $wpdb;
+        $p = $wpdb->prefix;
+        $charset = $wpdb->get_charset_collate();
+        $sqls = [
+            "CREATE TABLE IF NOT EXISTS {$p}akpp_shop_products (id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT, sku VARCHAR(100) NOT NULL, name VARCHAR(255) NOT NULL, description TEXT, price DECIMAL(10,2) NOT NULL DEFAULT 0.00, stock INT NOT NULL DEFAULT 0, image_url VARCHAR(500) DEFAULT NULL, is_active TINYINT(1) NOT NULL DEFAULT 1, created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, PRIMARY KEY (id), KEY sku (sku)) $charset",
+            "CREATE TABLE IF NOT EXISTS {$p}akpp_shop_categories (id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT, name VARCHAR(100) NOT NULL, slug VARCHAR(100) NOT NULL, sort_order INT NOT NULL DEFAULT 0, PRIMARY KEY (id), UNIQUE KEY slug (slug)) $charset",
+            "CREATE TABLE IF NOT EXISTS {$p}akpp_shop_orders (id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT, order_number VARCHAR(50) NOT NULL, client_name VARCHAR(255) NOT NULL, client_phone VARCHAR(20) DEFAULT NULL, client_email VARCHAR(100) DEFAULT NULL, status VARCHAR(50) NOT NULL DEFAULT 'new', total DECIMAL(10,2) NOT NULL DEFAULT 0.00, notes TEXT, created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, PRIMARY KEY (id), KEY order_number (order_number), KEY status (status)) $charset",
+            "CREATE TABLE IF NOT EXISTS {$p}akpp_shop_order_items (id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT, order_id BIGINT UNSIGNED NOT NULL, product_id BIGINT UNSIGNED NOT NULL, quantity INT NOT NULL DEFAULT 1, price DECIMAL(10,2) NOT NULL DEFAULT 0.00, PRIMARY KEY (id), KEY order_id (order_id), KEY product_id (product_id)) $charset",
+            "CREATE TABLE IF NOT EXISTS {$p}akpp_shop_order_messages (id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT, order_id BIGINT UNSIGNED NOT NULL, sender_type ENUM('client','manager') NOT NULL, message TEXT NOT NULL, created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, PRIMARY KEY (id), KEY order_id (order_id)) $charset",
+            "CREATE TABLE IF NOT EXISTS {$p}akpp_shop_cart (id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT, session_id VARCHAR(100) NOT NULL, product_id BIGINT UNSIGNED NOT NULL, quantity INT NOT NULL DEFAULT 1, created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, PRIMARY KEY (id), KEY session_id (session_id)) $charset",
+        ];
+        foreach ($sqls as $sql) $wpdb->query($sql);
+    }
+    /** Сохранение уникальных настроек витрины (опции этой установки) */
+    public function handle_save_shop_settings() {
+        if (!current_user_can('manage_options')) wp_die('Недостаточно прав');
+        check_admin_referer('akpp_shop_settings');
+        if (isset($_POST['akpp_shop_title'])) update_option('akpp_shop_title', sanitize_text_field(wp_unslash($_POST['akpp_shop_title'])));
+        if (isset($_POST['akpp_shop_subtitle'])) update_option('akpp_shop_subtitle', sanitize_text_field(wp_unslash($_POST['akpp_shop_subtitle'])));
+        foreach (['akpp_brand_name','akpp_brand_city','akpp_brand_phone'] as $bk) if (isset($_POST[$bk])) update_option($bk, sanitize_text_field(wp_unslash($_POST[$bk])));
+        wp_safe_redirect(admin_url('admin.php?page=akpp-crm-shop&shop_saved=1'));
+        exit;
+    }
+    /** Автоинсталляция магазина: страницы + дефолтные настройки (один раз на установку) */
+    private function auto_install_shop() {
+        $missing = false;
+        foreach (['shop','cart','checkout','lk'] as $sl) { if (!get_page_by_path($sl)) { $missing = true; break; } }
+        if (!$missing && get_option('akpp_shop_autoinstall_done')) return;
+        if (class_exists('AKPP_License') && method_exists('AKPP_License', 'feature_allowed') && !AKPP_License::feature_allowed('shop')) return;
+
+        $pages = [
+            'shop'     => ['Магазин запчастей', '[akpp_shop_catalog]'],
+            'cart'     => ['Корзина', '[akpp_shop_cart]'],
+            'checkout' => ['Оформление заказа', '[akpp_shop_checkout]'],
+            'lk' => ['Личный кабинет', '[akpp_account]'],
+            'oferta' => ['Оферта', 'Публичная оферта об оказании услуг. Реквизиты исполнителя: [akpp_requisites] Условия и порядок расчётов определяются настоящей офертой.'],
+            'garantiya' => ['Гарантия', 'Гарантийные обязательства на работы и запчасти фиксируются в заказ-наряде. Срок гарантии определяет исполнитель.'],
+        ];
+        foreach ($pages as $slug => $d) {
+            if (!get_page_by_path($slug)) {
+                $pid = wp_insert_post(['post_title' => $d[0], 'post_name' => $slug, 'post_content' => $d[1], 'post_status' => 'publish', 'post_type' => 'page']);
+                if ($slug === 'shop' && !is_wp_error($pid)) update_option('akpp_shop_page_id', $pid);
+            }
+        }
+
+        if (!get_option('akpp_shop_settings')) {
+            update_option('akpp_shop_settings', [
+                'payments' => ['card', 'sbp'],
+                'contact_phone' => '', 'contact_email' => '', 'contact_telegram' => '',
+                'pickup_address' => '', 'delivery_cost' => '0', 'delivery_cities' => '',
+            ]);
+        }
+        // универсально: права на шаблоны + дефолтный шаблон фронта + сброс rewrite
+        $role = get_role('administrator');
+        if ($role && !$role->has_cap('akpp_apply_templates')) $role->add_cap('akpp_apply_templates');
+        if (!get_option('akpp_tpl_default_set')) {
+            $tpl = 'template-saas-light.php';
+            $front = (int) get_option('page_on_front');
+            if (!$front || get_post($front) === null) {
+                $front = wp_insert_post(['post_title' => 'Главная', 'post_name' => 'home', 'post_content' => '', 'post_status' => 'publish', 'post_type' => 'page']);
+            }
+            if ($front && !is_wp_error($front)) {
+                update_post_meta($front, '_wp_page_template', $tpl);
+                update_option('page_on_front', $front);
+                update_option('show_on_front', 'page');
+            }
+            update_option('akpp_tpl_default_set', 1);
+        }
+        flush_rewrite_rules();
+        update_option('akpp_shop_autoinstall_done', 1);
     }
     public function get_products($args = []) {
         global $wpdb;

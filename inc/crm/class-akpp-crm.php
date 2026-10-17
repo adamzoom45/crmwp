@@ -20,7 +20,7 @@ if (!defined('AKPP_CRM_URL')) {
 }
 
 if (!defined('AKPP_CRM_VERSION')) {
-    define('AKPP_CRM_VERSION', '5.1.0');
+    define('AKPP_CRM_VERSION', '5.1.1');
 }
 
 class AKPP_CRM {
@@ -58,11 +58,7 @@ class AKPP_CRM {
 
         // Интеграции
         $this->require_file('class-akpp-push.php');
-        $this->require_file('class-akpp-telegram.php');
         $this->require_file('class-akpp-parser.php');
-        $this->require_file('class-avito-api.php');
-        $this->require_file('class-avito-webhook.php');
-        $this->require_file('class-avito-cron.php');
 
         // Магазин
         $this->require_file('class-akpp-shop.php');
@@ -150,11 +146,6 @@ class AKPP_CRM {
             new AKPP_Avito_Cron();
         }
 
-        // Telegram
-        if (class_exists('AKPP_Telegram')) {
-            AKPP_Telegram::get_instance();
-        }
-
         // Push уведомления
         if (class_exists('AKPP_Push')) {
             AKPP_Push::get_instance();
@@ -223,10 +214,11 @@ class AKPP_CRM {
         add_submenu_page('akpp-crm-shop', 'Склад', '📦 Склад', 'akpp_view_parts', 'akpp-crm-shop-parts', [$this, 'render_parts_page']);
         add_submenu_page('akpp-crm-shop', 'Открыть магазин на сайте', '🔗 Открыть на сайте ↗', 'akpp_view_shop', 'akpp-crm-shop-link', [$this, 'redirect_to_shop']);
         // === Интеграции ===
-        add_menu_page('Интеграции', '🔌 Интеграции', 'akpp_manage_integrations', 'akpp-crm-avito-dialogs', [$this, 'render_avito_dialogs_page'], 'dashicons-admin-plugins', 35);
-        add_submenu_page('akpp-crm-avito-dialogs', 'Диалоги Авито', '💬 Авито', 'akpp_manage_integrations', 'akpp-crm-avito-dialogs', [$this, 'render_avito_dialogs_page']);
-        add_submenu_page('akpp-crm-avito-dialogs', 'Настройки Авито', '⚡ Настройки Авито', 'akpp_manage_integrations', 'akpp-crm-avito-settings', [$this, 'render_avito_settings_page']);
-        add_submenu_page('akpp-crm-avito-dialogs', 'Telegram бот', '📱 Telegram', 'akpp_manage_integrations', 'akpp-crm-telegram', [$this, 'render_telegram_page']);
+        add_menu_page('Интеграции', '🔌 Интеграции', 'akpp_manage_integrations', 'akpp-crm-avito-dialogs', 'akpp_drom_render_page', 'dashicons-admin-plugins', 35);
+        
+        
+        // akpp-drom-menu-fengshui: Drom зарегистрирован здесь же, единым центром меню (как в репо)
+        add_submenu_page('akpp-crm-avito-dialogs', 'Drom/Farpost', '🚗 Drom/Farpost', 'akpp_manage_integrations', 'akpp-crm-drom', 'akpp_drom_render_page');
     }
 
     // ========================================================================
@@ -496,20 +488,27 @@ class AKPP_CRM {
         include AKPP_CRM_PATH . 'templates/agreements.php';
     }
 
-    public function render_avito_dialogs_page() {
-        if (!class_exists('AKPP_Avito_Dialogs_Table')) {
-            echo '<div class="wrap"><h1>Диалоги Авито</h1><div class="notice notice-error"><p>Класс AKPP_Avito_Dialogs_Table не найден</p></div></div>';
-            return;
+    /** Шорткод реквизитов оферты (данные из опций этой установки) */
+    public function shortcode_requisites($atts = []) {
+        $g = function ($k, $d = '') { return get_option('akpp_' . $k, $d); };
+        $rows = [
+            'Наименование' => $g('company_name'), 'ИНН' => $g('company_inn'),
+            'Форма/статус' => $g('company_status'), 'Адрес' => $g('company_address'),
+            'Город' => $g('company_city'), 'Телефон' => $g('company_phone'),
+            'Email' => $g('company_email'), 'Сайт' => $g('company_site'),
+        ];
+        $out = '<div class="akpp-requisites" style="background:#1a1f2e;border:1px solid #2d3748;border-radius:14px;padding:20px 24px;color:#e2e8f0;margin:16px 0">';
+        $out .= '<h3 style="color:#00ff88;margin:0 0 12px">Реквизиты исполнителя</h3><table style="width:100%;color:#e2e8f0">';
+        foreach ($rows as $k => $v) {
+            if ($v !== '') $out .= '<tr><td style="padding:6px 12px 6px 0;color:#a0aec0;white-space:nowrap">' . esc_html($k) . '</td><td style="padding:6px 0">' . esc_html($v) . '</td></tr>';
         }
-        $table = new AKPP_Avito_Dialogs_Table();
-        echo '<div class="wrap"><h1>💬 Диалоги Авито</h1><form method="post">';
-        $table->prepare_items();
-        $table->display();
-        echo '</form></div>';
+        $out .= '</table></div>';
+        return $out;
     }
 
+
     public function render_avito_settings_page() {
-        include AKPP_CRM_PATH . 'templates/avito-settings.php';
+        include AKPP_CRM_PATH . 'templates/avito-unified.php';
     }
 
     public function render_telegram_page() {

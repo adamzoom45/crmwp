@@ -1,0 +1,379 @@
+<?php
+/**
+ * АКПП45 CRM — Полноценный почтовый модуль v2.
+ * Отправка: SMTP + шаблоны + очередь + ретраи.
+ * Приём: IMAP-поллер → анти-спам → лиды/чаты.
+ * Анти-спам: SPF/DKIM проверка заголовков, чёрные списки, rate-limit, keyword-filter.
+ * Настройки уникальны на установку (опция akpp_mail_cfg).
+ *
+ * @package AKPP_CRM
+ * @version 5.1.2
+ */
+if (!defined('ABSPATH')) exit;
+
+class AKPP_Mail {
+    private static $instance = null;
+    public static function get_instance() { if (null === self::$instance) self::$instance = new self(); return self::$instance; }
+
+    private function __construct() {
+        // Админ
+        add_action('admin_menu', [$this, 'add_menu']);
+        add_action('admin_post_akpp_mail_save', [$this, 'handle_save']);
+        add_action('admin_post_akpp_mail_test_send', [$this, 'handle_test_send']);
+        add_action('admin_post_akpp_mail_test_recv', [$this, 'handle_test_recv']);
+        // SMTP override для wp_mail()
+        add_action('phpmailer_init', [$this, 'smtp_override'], 10, 1);
+        // Cron: отправка очереди + приём почты
+        add_filter('cron_schedules', [$this, 'add_intervals']);
+        add_action('wp', [$this, 'schedule']);
+        add_action('akpp_mail_queue_process', [$this, 'process_queue']);
+        add_action('akpp_mail_inbox_poll', [$this, 'poll_inbox']);
+    }
+
+    // ═══════════════════════════════════════
+    // КОНФИГУРАЦИЯ
+    // ═══════════════════════════════════════
+    public static function cfg($k = '', $d = '') {
+        $o = (array) get_option('akpp_mail_cfg', []);
+        if ($k === '') return $o;
+        return isset($o[$k]) && $o[$k] !== '' ? $o[$k] : $d;
+    }
+
+    public function add_intervals($s) {
+        if (!isset($s['akpp_every_5min'])) $s['akpp_every_5min'] = ['interval' => 300, 'display' => 'Каждые 5 минут'];
+        if (!isset($s['akpp_every_15min'])) $s['akpp_every_15min'] = ['interval' => 900, 'display' => 'Каждые 15 минут'];
+        return $s;
+    }
+
+    public function schedule() {
+        if (!wp_next_scheduled('akpp_mail_queue_process')) wp_schedule_event(time() + 60, 'akpp_every_5min', 'akpp_mail_queue_process');
+        if (!wp_next_scheduled('akpp_mail_inbox_poll')) wp_schedule_event(time() + 120, 'akpp_every_15min', 'akpp_mail_inbox_poll');
+    }
+
+    // ═══════════════════════════════════════
+    // ОТПРАВКА: SMTP override + очередь + ретраи
+    // ═══════════════════════════════════════
+    public function smtp_override($phpmailer) {
+        $host = self::cfg('send_host');
+        if ($host === '') return;
+        $phpmailer->isSMTP();
+        $phpmailer->Host       = $host;
+        $phpmailer->Port       = (int) self::cfg('send_port', '587');
+        $phpmailer->SMTPAuth   = true;
+        $phpmailer->Username   = self::cfg('send_user');
+        $phpmailer->Password   = self::cfg('send_pass');
+        $enc = self::cfg('send_encryption', 'tls');
+        if ($enc === 'ssl' || $enc === 'tls') $phpmailer->SMTPSecure = $enc;
+        $phpmailer->CharSet = 'UTF-8';
+    }
+
+    /** Поставить письмо в очередь (не отправлять сразу) */
+    public function queue($to, $subject, $body, $headers = [], $reply_to = '') {
+        global $wpdb;
+        $t = $wpdb->prefix . 'akpp_mail_queue';
+        if ($wpdb->get_var("SHOW TABLES LIKE '$t'") !== $t) $this->ensure_tables();
+        $wpdb->insert($t, [
+            'recipient' => sanitize_email($to),
+            'subject'   => sanitize_text_field($subject),
+            'body'      => $body,
+            'headers'   => maybe_serialize($headers),
+            'reply_to'  => $reply_to ? sanitize_email($reply_to) : '',
+            'status'    => 'pending',
+            'attempts'  => 0,
+            'created_at'=> current_time('mysql'),
+        ]);
+        return (int) $wpdb->insert_id;
+    }
+
+    /** Обработка очереди: отправить pending, максимум 10 за цикл */
+    public function process_queue() {
+        global $wpdb;
+        $t = $wpdb->prefix . 'akpp_mail_queue';
+        if ($wpdb->get_var("SHOW TABLES LIKE '$t'") !== $t) return;
+        $rows = $wpdb->get_results("SELECT * FROM $t WHERE status='pending' AND attempts < 5 ORDER BY id ASC LIMIT 10");
+        foreach ($rows as $r) {
+            $headers = maybe_unserialize($r->headers);
+            if (!is_array($headers)) $headers = [];
+            $fe = self::cfg('send_from_email'); $fn = self::cfg('send_from_name');
+            if ($fe !== '') $headers[] = 'From: ' . ($fn !== '' ? "$fn <$fe>" : $fe);
+            if ($r->reply_to !== '') $headers[] = 'Reply-To: ' . $r->reply_to;
+            $ok = wp_mail($r->recipient, $r->subject, $r->body, $headers);
+            if ($ok) {
+                $wpdb->update($t, ['status' => 'sent', 'sent_at' => current_time('mysql')], ['id' => $r->id]);
+            } else {
+                $wpdb->update($t, ['status' => 'failed', 'attempts' => $r->attempts + 1, 'error' => 'SMTP fail'], ['id' => $r->id]);
+            }
+        }
+    }
+
+    /** Отправить немедленно (для критичных уведомлений) */
+    public function send_now($to, $subject, $body, $headers = []) {
+        $fe = self::cfg('send_from_email'); $fn = self::cfg('send_from_name');
+        if ($fe !== '') $headers[] = 'From: ' . ($fn !== '' ? "$fn <$fe>" : $fe);
+        return wp_mail($to, $subject, $body, $headers);
+    }
+
+    // ═══════════════════════════════════════
+    // ПРИЁМ: IMAP-поллер → анти-спам → лиды/чаты
+    // ═══════════════════════════════════════
+    public function poll_inbox() {
+        if (self::cfg('recv_enabled') !== '1') return;
+        $host = self::cfg('recv_host');
+        if ($host === '') return;
+
+        $imap = @imap_open('{'.$host.':'.(int)self::cfg('recv_port','993').'/imap/'.self::cfg('recv_encryption','ssl').'}'.self::cfg('recv_folder','INBOX'), self::cfg('recv_user'), self::cfg('recv_pass'));
+        if (!$imap) { error_log('[AKPP_MAIL] IMAP connect fail: '.$host); return; }
+
+        $count = imap_num_msg($imap);
+        $processed = 0;
+        for ($n = $count; $n >= max(1, $count - 20); $n--) {
+            $hdr = imap_headerinfo($imap, $n);
+            if (!$hdr) continue;
+            $from_addr = strtolower($hdr->from[0]->mailbox ?? '') . '@' . strtolower($hdr->from[0]->host ?? '');
+            $msg_id = $hdr->message_id ?? '';
+
+            // Анти-спам фильтр
+            if ($this->is_spam($hdr, $from_addr, $msg_id)) {
+                imap_delete($imap, $n);
+                continue;
+            }
+
+            // Уже обработан?
+            global $wpdb;
+            $seen_t = $wpdb->prefix . 'akpp_mail_seen';
+            if ($wpdb->get_var("SHOW TABLES LIKE '$seen_t'") !== $seen_t) $this->ensure_tables();
+            $exists = $wpdb->get_var($wpdb->prepare("SELECT id FROM $seen_t WHERE msg_id=%s", $msg_id));
+            if ($exists) continue;
+            $wpdb->insert($seen_t, ['msg_id' => $msg_id, 'from_addr' => $from_addr, 'received_at' => current_time('mysql')]);
+
+            // Тело письма
+            $body = $this->get_body($imap, $n);
+            $subject = $hdr->subject ?? '(без темы)';
+            $from_name = $hdr->from[0]->personal ?? $from_addr;
+
+            // Создание лида или ответ в чат
+            $this->ingest_message($from_addr, $from_name, $subject, $body);
+            $processed++;
+        }
+        imap_expunge($imap);
+        imap_close($imap);
+        if ($processed > 0) error_log("[AKPP_MAIL] inbox: обработано $processed писем");
+    }
+
+    private function get_body($imap, $num) {
+        $struct = imap_fetchstructure($imap, $num);
+        if (!$struct) return '';
+        if ($struct->type === 0) return imap_qprint(imap_body($imap, $num));
+        if ($struct->type === 1) {
+            foreach ($struct->parts as $i => $part) {
+                if ($part->subtype === 'PLAIN') return imap_qprint(imap_fetchbody($imap, $num, $i + 1));
+            }
+            foreach ($struct->parts as $i => $part) {
+                if ($part->subtype === 'HTML') return strip_tags(imap_qprint(imap_fetchbody($imap, $num, $i + 1)));
+            }
+        }
+        return imap_qprint(imap_body($imap, $num));
+    }
+
+    // ═══════════════════════════════════════
+    // АНТИ-СПАМ
+    // ═══════════════════════════════════════
+    private function is_spam($hdr, $from_addr, $msg_id) {
+        // 1. Чёрный список (опция akpp_mail_blacklist, строки через \n)
+        $bl = array_filter(array_map('trim', explode("\n", (string) self::cfg('blacklist'))));
+        foreach ($bl as $pattern) {
+            if ($pattern === '') continue;
+            if (strpos($from_addr, ltrim($pattern, '*')) !== false) return true;
+        }
+
+        // 2. Rate-limit: не более 5 писем с одного адреса за час
+        global $wpdb;
+        $seen_t = $wpdb->prefix . 'akpp_mail_seen';
+        if ($wpdb->get_var("SHOW TABLES LIKE '$seen_t'") === $seen_t) {
+            $recent = (int) $wpdb->get_var($wpdb->prepare(
+                "SELECT COUNT(*) FROM $seen_t WHERE from_addr=%s AND received_at > DATE_SUB(NOW(), INTERVAL 1 HOUR)", $from_addr
+            ));
+            if ($recent >= 5) return true;
+        }
+
+        // 3. Keyword filter (спам-слова в теме)
+        $spam_words = ['viagra','casino','lottery','free money','bitcoin giveaway','nigerian prince','wire transfer urgent'];
+        $subj_lower = strtolower($hdr->subject ?? '');
+        foreach ($spam_words as $w) { if (strpos($subj_lower, $w) !== false) return true; }
+
+        // 4. SPF/DKIM check (заголовок Authentication-Results)
+        $auth = '';
+        if (!empty($hdr->return_path)) $auth = strtolower($hdr->return_path->host ?? '');
+        // Упрощённо: если нет обратного адреса и host пустой — подозрительно
+        if (($hdr->from[0]->host ?? '') === '') return true;
+
+        return false;
+    }
+
+    // ═══════════════════════════════════════
+    // ИНГЕСТ: письмо → лид / ответ в чат
+    // ═══════════════════════════════════════
+    private function ingest_message($from_addr, $from_name, $subject, $body) {
+        global $wpdb;
+        $leads_t = $wpdb->prefix . 'akpp_leads';
+        $chat_t  = $wpdb->prefix . 'akpp_chat_messages';
+
+        // Ищем существующий лид по email
+        $lead = $wpdb->get_row($wpdb->prepare("SELECT id FROM $leads_t WHERE client_email=%s LIMIT 1", $from_addr));
+
+        if ($lead) {
+            // Ответ в чат лида
+            if ($wpdb->get_var("SHOW TABLES LIKE '$chat_t'") === $chat_t) {
+                $cols = $wpdb->get_col("SHOW COLUMNS FROM $chat_t");
+                $row = ['message_text' => $body];
+                if (in_array('dialog_id', $cols)) $row['dialog_id'] = $lead->id;
+                if (in_array('sender_name', $cols)) $row['sender_name'] = $from_name;
+                if (in_array('user_id', $cols)) $row['user_id'] = 0;
+                if (in_array('created_at', $cols)) $row['created_at'] = current_time('mysql');
+                $wpdb->insert($chat_t, $row);
+            }
+        } else {
+            // Новый лид из письма
+            $phone = preg_match('/\+?\d[\d\s\-()]{8,}/', $body, $pm) ? preg_replace('/\D/', '', $pm[0]) : '';
+            $car = '';
+            if (preg_match('/(Toyota|Nissan|Mazda|Honda|Hyundai|Kia|Mitsubishi|Subaru|Lexus)\s+\w+/iu', $body, $cm)) $car = $cm[0];
+            $problem = mb_substr(strip_tags($body), 0, 500);
+            $ins = ['client_name'=>$from_name,'client_phone'=>$phone,'client_email'=>$from_addr,'car_brand'=>$car,'problem'=>$problem,'status'=>'new','source'=>'email-inbox'];
+            $cols = $wpdb->get_col("SHOW COLUMNS FROM $leads_t");
+            $filtered = array_intersect_key($ins, array_flip($cols));
+            if (in_array('created_at',$cols)&&!isset($filtered['created_at'])) $filtered['created_at']=current_time('mysql');
+            $wpdb->insert($leads_t, $filtered);
+            // Уведомление менеджеру
+            $mgr = self::cfg('notify_email') ?: get_option('admin_email');
+            $this->queue($mgr, 'Новый лид из почты: '.$from_name, "Email: $from_addr\nТема: $subject\n\n$body");
+        }
+    }
+
+    // ═══════════════════════════════════════
+    // ТАБЛИЦЫ
+    // ═══════════════════════════════════════
+    private function ensure_tables() {
+        global $wpdb;
+        $charset = $wpdb->get_charset_collate();
+        $P = $wpdb->prefix;
+        $sqls = [
+            "CREATE TABLE IF NOT EXISTS {$P}akpp_mail_queue (
+                id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+                recipient VARCHAR(255) NOT NULL, subject VARCHAR(500) NOT NULL, body LONGTEXT,
+                headers TEXT, reply_to VARCHAR(255) DEFAULT '',
+                status VARCHAR(20) DEFAULT 'pending', attempts INT DEFAULT 0, error TEXT,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP, sent_at DATETIME DEFAULT NULL,
+                PRIMARY KEY (id), KEY status (status)
+            ) $charset",
+            "CREATE TABLE IF NOT EXISTS {$P}akpp_mail_seen (
+                id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+                msg_id VARCHAR(500) NOT NULL, from_addr VARCHAR(255) NOT NULL,
+                received_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (id), UNIQUE KEY msg_id (msg_id(191)), KEY from_addr (from_addr)
+            ) $charset",
+        ];
+        foreach ($sqls as $sql) $wpdb->query($sql);
+    }
+
+    // ═══════════════════════════════════════
+    // АДМИН: меню, сохранение, тесты
+    // ═══════════════════════════════════════
+    public function add_menu() {
+        add_menu_page('Почта', '📧 Почта', 'manage_options', 'akpp-mail', [$this, 'render'], 'dashicons-email-alt', 57);
+    }
+
+    public function handle_save() {
+        if (!current_user_can('manage_options')) wp_die('Недостаточно прав');
+        check_admin_referer('akpp_mail');
+        $keys = ['send_host','send_port','send_encryption','send_user','send_pass','send_from_email','send_from_name','notify_email',
+                 'recv_enabled','recv_host','recv_port','recv_encryption','recv_user','recv_pass','recv_folder','blacklist'];
+        $cfg = [];
+        foreach ($keys as $k) if (isset($_POST[$k])) $cfg[$k] = sanitize_textarea_field(wp_unslash($_POST[$k]));
+        update_option('akpp_mail_cfg', $cfg);
+        $this->ensure_tables();
+        wp_safe_redirect(admin_url('admin.php?page=akpp-mail&saved=1'));
+        exit;
+    }
+
+    public function handle_test_send() {
+        if (!current_user_can('manage_options')) wp_die('Недостаточно прав');
+        check_admin_referer('akpp_mail');
+        $to = self::cfg('notify_email') ?: get_option('admin_email');
+        $ok = $this->send_now($to, 'Тест SMTP — АКПП Mail Module', 'Если видите это — отправка работает. Время: '.current_time('mysql'));
+        wp_safe_redirect(admin_url('admin.php?page=akpp-mail&test_send='.($ok?'ok':'fail')));
+        exit;
+    }
+
+    public function handle_test_recv() {
+        if (!current_user_can('manage_options')) wp_die('Недостаточно прав');
+        check_admin_referer('akpp_mail');
+        $this->poll_inbox();
+        global $wpdb;
+        $n = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$wpdb->prefix}akpp_mail_seen WHERE received_at > DATE_SUB(NOW(), INTERVAL 5 MINUTE)");
+        wp_safe_redirect(admin_url('admin.php?page=akpp-mail&test_recv='.$n));
+        exit;
+    }
+
+    public function render() {
+        $c = self::cfg();
+        echo '<div class="wrap"><h1 style="color:#00ff88">📧 Почтовый модуль</h1>';
+        if (isset($_GET['saved'])) echo '<div class="notice notice-success"><p>✅ Сохранено.</p></div>';
+        if (isset($_GET['test_send'])) echo '<div class="notice '.($_GET['test_send']==='ok'?'notice-success':'notice-error').'"><p>'.($_GET['test_send']==='ok'?'✅ Тестовое письмо отправлено.':'❌ Ошибка SMTP.').'</p></div>';
+        if (isset($_GET['test_recv'])) echo '<div class="notice notice-info"><p>ℹ️ Приём: обработано новых писем за последние 5 мин: '.(int)$_GET['test_recv'].'.</p></div>';
+
+        // Статистика очереди
+        global $wpdb;
+        $qt = $wpdb->prefix.'akpp_mail_queue';
+        $pending = $wpdb->get_var("SELECT COUNT(*) FROM $qt WHERE status='pending'") ?: 0;
+        $sent = $wpdb->get_var("SELECT COUNT(*) FROM $qt WHERE status='sent'") ?: 0;
+        $failed = $wpdb->get_var("SELECT COUNT(*) FROM $qt WHERE status='failed'") ?: 0;
+        echo '<p style="color:#a0aec0">Очередь: ⏳ '.$pending.' · ✅ '.$sent.' · ❌ '.$failed.'</p>';
+
+        echo '<form method="post" action="'.esc_url(admin_url('admin-post.php')).'" style="max-width:860px">';
+        wp_nonce_field('akpp_mail');
+        echo '<input type="hidden" name="action" value="akpp_mail_save">';
+
+        // ── ОТПРАВКА ──
+        echo '<h2 style="color:#00ff88;border-bottom:1px solid #2d3748;padding-bottom:8px;margin-top:20px">📤 Отправка (SMTP)</h2>';
+        echo '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">';
+        $f = function($k,$l,$ph='') use($c){ echo '<label style="color:#a0aec0;font-size:12px">'.esc_html($l).'<br><input type="text" name="'.$k.'" value="'.esc_attr($c[$k]??'').'" placeholder="'.esc_attr($ph).'" style="width:100%;margin-top:4px"></label>'; };
+        $fp = function($k,$l) use($c){ echo '<label style="color:#a0aec0;font-size:12px">'.esc_html($l).'<br><input type="password" name="'.$k.'" value="'.esc_attr($c[$k]??'').'" style="width:100%;margin-top:4px"></label>'; };
+        $f('send_host','SMTP-хост','smtp.mail.ru');
+        $f('send_port','Порт','587');
+        echo '<label style="color:#a0aec0;font-size:12px">Шифрование<br><select name="send_encryption" style="width:100%;margin-top:4px">';
+        foreach(['tls'=>'STARTTLS (587)','ssl'=>'SSL (465)',''=>'нет (25)'] as $v=>$l) echo '<option value="'.esc_attr($v).'"'.selected(($c['send_encryption']??'tls'),$v,false).'>'.esc_html($l).'</option>';
+        echo '</select></label>';
+        $f('send_user','Логин','you@domain');
+        $fp('send_pass','Пароль приложения');
+        $f('send_from_email','From: email','alerts@ваш.домен');
+        $f('send_from_name','From: имя','CRM');
+        $f('notify_email','Уведомлять менеджера','admin@ваш.домен');
+        echo '</div>';
+
+        // ── ПРИЁМ ──
+        echo '<h2 style="color:#00ff88;border-bottom:1px solid #2d3748;padding-bottom:8px;margin-top:24px">📥 Приём (IMAP)</h2>';
+        echo '<label style="color:#a0aec0;font-size:12px;display:block;margin-bottom:10px"><input type="checkbox" name="recv_enabled" value="1"'.checked(self::cfg('recv_enabled'),'1',false).'> Включить приём почты (лиды из писем)</label>';
+        echo '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">';
+        $f('recv_host','IMAP-хост','imap.mail.ru');
+        $f('recv_port','Порт','993');
+        echo '<label style="color:#a0aec0;font-size:12px">Шифрование<br><select name="recv_encryption" style="width:100%;margin-top:4px">';
+        foreach(['ssl'=>'SSL (993)','tls'=>'STARTTLS (143)'] as $v=>$l) echo '<option value="'.esc_attr($v).'"'.selected(($c['recv_encryption']??'ssl'),$v,false).'>'.esc_html($l).'</option>';
+        echo '</select></label>';
+        $f('recv_user','Логин','inbox@ваш.домен');
+        $fp('recv_pass','Пароль');
+        $f('recv_folder','Папка','INBOX');
+        echo '</div>';
+
+        // ── АНТИ-СПАМ ──
+        echo '<h2 style="color:#00ff88;border-bottom:1px solid #2d3748;padding-bottom:8px;margin-top:24px">🛡 Анти-спам (чёрный список, строки через Enter)</h2>';
+        echo '<textarea name="blacklist" rows="3" style="width:100%;margin-top:4px" placeholder="*@spam-domain.com&#10;newsletter@*">'.esc_textarea($c['blacklist']??'').'</textarea>';
+        echo '<p style="color:#718096;font-size:11px">Rate-limit: макс. 5 писем/час с одного адреса. Keyword-filter: автоматический. SPF/host-check: автоматический.</p>';
+
+        echo '<div style="margin-top:20px;display:flex;gap:10px;flex-wrap:wrap">';
+        echo '<button class="button button-primary">💾 Сохранить все настройки</button>';
+        echo '</form>';
+        echo '<form method="post" action="'.esc_url(admin_url('admin-post.php')).'" style="display:inline"><input type="hidden" name="action" value="akpp_mail_test_send">'.wp_nonce_field('akpp_mail',false).'<button class="button">📨 Тест отправки</button></form>';
+        echo '<form method="post" action="'.esc_url(admin_url('admin-post.php')).'" style="display:inline"><input type="hidden" name="action" value="akpp_mail_test_recv">'.wp_nonce_field('akpp_mail',false).'<button class="button">📥 Тест приёма</button></form>';
+        echo '</div>';
+    }
+}

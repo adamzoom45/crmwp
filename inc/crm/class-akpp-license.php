@@ -16,6 +16,19 @@ class AKPP_License {
         add_action('admin_menu', [$this, 'add_menu']);                  // master-панель
         add_action('admin_post_akpp_license_create', [$this, 'handle_create']);
         add_action('admin_post_akpp_license_block', [$this, 'handle_block']);
+        // akpp-lic-unhook-marker
+        add_action('admin_post_akpp_license_unblock', [$this, 'handle_unblock']);
+        add_action('admin_post_akpp_license_autorenew', [$this, 'handle_autorenew']);
+        add_action('akpp_license_autorenew_cron', [$this, 'cron_autorenew']);
+        if (get_option('akpp_master_mode') && !wp_next_scheduled('akpp_license_autorenew_cron')) wp_schedule_event(time() + 60, 'daily', 'akpp_license_autorenew_cron');
+        if (get_option('akpp_license_token')) {
+            add_action('akpp_license_online_ping', [$this, 'online_ping']);
+            add_action('init', [$this, 'online_check_apply']);
+            add_action('template_redirect', [$this, 'front_lock'], 1);
+            add_action('admin_init', [$this, 'admin_lock'], 1);
+            add_action('rest_api_init', [$this, 'rest_lock'], 1);
+            if (!wp_next_scheduled('akpp_license_online_ping')) wp_schedule_event(time() + 120, 'daily', 'akpp_license_online_ping');
+        }
         add_action('admin_post_akpp_license_reset', [$this, 'handle_reset']);
         add_action('admin_post_akpp_license_extend', [$this, 'handle_extend']);
         add_action('admin_post_akpp_license_offline_issue', [$this, 'handle_offline_issue']);
@@ -122,10 +135,11 @@ class AKPP_License {
     }
 
     /** Выпуск сертификата (мастер): payload + подпись -> токен "base64(payload).base64(sig)" */
-    public static function issue_certificate($iid, $domain, $fp, $plan_months, $valid_until, $note = '', $unlimited = false) {
+    public static function issue_certificate($iid, $domain, $fp, $plan_months, $valid_until, $note = '', $unlimited = false, $addons = []) {
         $payload = ['v' => 1, 'iid' => $iid, 'domain' => $domain, 'fp' => $fp, 'plan' => (int) $plan_months,
             'iat' => current_time('timestamp'), 'exp' => strtotime($valid_until), 'note' => (string) $note];
         if ($unlimited) $payload['unlimited'] = true;
+        if (!empty($addons)) $payload['addons'] = array_values((array) $addons);
         return base64_encode(self::canon($payload)) . '.' . self::sign_payload($payload);
     }
 
@@ -189,15 +203,21 @@ class AKPP_License {
         $iid = sanitize_text_field($req->get_param('installation_id'));
         $domain = sanitize_text_field($req->get_param('domain'));
         $fp = sanitize_text_field($req->get_param('fingerprint'));
+        // license_token_lookup_by_domain
+        if (!$iid && $domain) {
+            $lic0 = $wpdb->get_row($wpdb->prepare("SELECT * FROM $t WHERE domain = %s LIMIT 1", $domain));
+            if ($lic0) $iid = (string) $lic0->installation_id;
+        }
         if (!$iid) return new WP_REST_Response(['ok' => false, 'status' => 'not_found'], 404);
         $lic = $wpdb->get_row($wpdb->prepare("SELECT * FROM $t WHERE installation_id = %s", $iid));
         if (!$lic) return new WP_REST_Response(['ok' => false, 'status' => 'not_found'], 404);
         $wpdb->update($t, ['last_check' => current_time('mysql')], ['id' => $lic->id]);
         if ($lic->status === 'blocked') return new WP_REST_Response(['ok' => false, 'status' => 'blocked', 'reason' => 'license_blocked']);
         if ($lic->domain && $lic->domain !== $domain) return new WP_REST_Response(['ok' => false, 'status' => 'blocked', 'reason' => 'domain_mismatch']);
-        if ($lic->fingerprint && $lic->fingerprint !== $fp) return new WP_REST_Response(['ok' => false, 'status' => 'blocked', 'reason' => 'code_modified']);
+        $unl = ((int) $lic->plan_months >= 600) || stripos((string) $lic->note, 'безлимит') !== false || $lic->fingerprint === 'unlimited-owner';
+        if (!$unl && $lic->fingerprint && $lic->fingerprint !== $fp) return new WP_REST_Response(['ok' => false, 'status' => 'blocked', 'reason' => 'code_modified']);
         if (strtotime($lic->valid_until) < current_time('timestamp')) return new WP_REST_Response(['ok' => false, 'status' => 'expired', 'valid_until' => $lic->valid_until]);
-        return new WP_REST_Response(['ok' => true, 'status' => 'active', 'valid_until' => $lic->valid_until, 'plan_months' => (int) $lic->plan_months]);
+        return new WP_REST_Response(['ok' => true, 'status' => 'active', 'valid_until' => $lic->valid_until, 'plan_months' => (int) $lic->plan_months, 'addons' => self::decode_addons($lic->addons ?? null), 'license_token' => (string) $lic->license_token]);
     }
 
     // ===================== КЛИЕНТСКИЙ АГЕНТ =====================
@@ -209,6 +229,7 @@ class AKPP_License {
         $r = self::verify_certificate($token, wp_parse_url(home_url(), PHP_URL_HOST), self::code_fingerprint());
         if ($r['ok']) {
             update_option('akpp_license_state', ['status' => 'active', 'valid_until' => date('Y-m-d H:i:s', $r['payload']['exp']), 'plan_months' => (int) ($r['payload']['plan'] ?? 0)]);
+            if (array_key_exists('addons', $r['payload'])) update_option('akpp_license_features', (array) $r['payload']['addons']); else delete_option('akpp_license_features');
         } else {
             $map = ['expired' => 'expired', 'domain_mismatch' => 'blocked', 'code_modified' => 'blocked', 'bad_signature' => 'blocked', 'bad_format' => 'blocked', 'bad_payload' => 'blocked'];
             update_option('akpp_license_state', ['status' => $map[$r['reason']] ?? 'blocked', 'reason' => $r['reason'], 'valid_until' => isset($r['payload']['exp']) ? date('Y-m-d H:i:s', $r['payload']['exp']) : null]);
@@ -260,7 +281,7 @@ class AKPP_License {
         global $wpdb;
         $wpdb->insert($wpdb->prefix . 'akpp_licenses', [
             'activation_key' => self::gen_key(), 'plan_months' => max(1, intval($_POST['plan_months'] ?? 12)),
-            'status' => 'pending', 'note' => sanitize_text_field($_POST['note'] ?? ''), 'created_at' => current_time('mysql'),
+            'addons' => wp_json_encode(array_values(array_intersect((array) ($_POST['addons'] ?? []), self::ADDON_WHITELIST))), 'status' => 'pending', 'note' => sanitize_text_field($_POST['note'] ?? ''), 'created_at' => current_time('mysql'),
         ]);
         wp_safe_redirect(admin_url('admin.php?page=akpp-licenses&created=1')); exit;
     }
@@ -298,7 +319,7 @@ class AKPP_License {
             $wpdb->update($t, $upd, ['id' => $id]);
             $lic2 = $wpdb->get_row($wpdb->prepare("SELECT * FROM $t WHERE id = %d", $id));
             if ($lic2 && $lic2->installation_id && $lic2->domain && $lic2->fingerprint) {
-                $tok = self::issue_certificate($lic2->installation_id, $lic2->domain, $lic2->fingerprint, (int) $lic2->plan_months, $new, $lic2->note);
+                $tok = self::issue_certificate($lic2->installation_id, $lic2->domain, $lic2->fingerprint, (int) $lic2->plan_months, $new, $lic2->note, false, self::decode_addons($lic2->addons ?? null));
                 $wpdb->update($t, ['license_token' => $tok], ['id' => $id]);
             }
         }
@@ -312,6 +333,179 @@ class AKPP_License {
         wp_safe_redirect(admin_url('admin.php?page=akpp-licenses')); exit;
     }
 
+    /** Разблокировка вручную: статус active + перевыпуск сертификата */
+    /** Онлайн-сверка с мастером: применяет blocked/expired/active (троттлинг 5 мин) */
+    public function online_check_apply() {
+        if (get_option('akpp_master_mode')) return;
+        $token = get_option('akpp_license_token');
+        $url = self::master_url();
+        if (!$token || !$url) return;
+        if (get_transient('akpp_license_ping_ts')) return;
+        set_transient('akpp_license_ping_ts', 1, 300);
+        $res = wp_remote_post(trailingslashit($url) . 'wp-json/akpp-license/v1/check', [
+            'body' => ['domain' => wp_parse_url(home_url(), PHP_URL_HOST), 'fingerprint' => self::code_fingerprint()],
+            'timeout' => 10,
+        ]);
+        if (is_wp_error($res)) return; // мастер недоступен — текущее состояние не трогаем
+        $data = json_decode(wp_remote_retrieve_body($res), true);
+        if (!is_array($data)) return;
+        if (!empty($data['ok'])) {
+            update_option('akpp_license_state', ['status' => 'active', 'valid_until' => $data['valid_until'] ?? null, 'plan_months' => (int) ($data['plan_months'] ?? 0)]);
+            if (!empty($data['license_token']) && $data['license_token'] !== $token) {
+                $v = self::verify_certificate($data['license_token'], wp_parse_url(home_url(), PHP_URL_HOST), self::code_fingerprint());
+                if (!empty($v['ok'])) update_option('akpp_license_token', $data['license_token']);
+            }
+            if (array_key_exists('addons', $data)) update_option('akpp_license_features', (array) $data['addons']);
+        } else {
+            $st = (string) ($data['status'] ?? 'blocked');
+            if (in_array($st, ['blocked', 'expired'], true)) {
+                update_option('akpp_license_state', ['status' => $st, 'reason' => (string) ($data['reason'] ?? ''), 'valid_until' => $data['valid_until'] ?? null]);
+            }
+        }
+    }
+
+    /** Блокировка фронта: 503 + экран, когда мастер сказал blocked/expired */
+    public function front_lock() {
+        if (get_option('akpp_master_mode')) return;
+        if (!get_option('akpp_license_token')) return;
+        if (!self::is_locked()) return;
+        $p = (string) ($_SERVER['REQUEST_URI'] ?? '');
+        foreach (['/wp-login.php', '/wp-admin/', '/wp-cron.php', '/wp-json/akpp-license', 'robots.txt', 'favicon'] as $x) {
+            if (strpos($p, $x) !== false) return;
+        }
+        status_header(503);
+        header('Retry-After: 3600');
+        nocache_headers();
+        echo '<!DOCTYPE html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Сервис приостановлен</title><style>body{margin:0;background:#0a0f1c;color:#e2e8f0;font-family:system-ui,"Segoe UI",Roboto,sans-serif;display:flex;min-height:100vh;align-items:center;justify-content:center}.c{max-width:560px;margin:16px;padding:40px;border:1px solid #2d3748;border-radius:18px;background:#1a1f2e;text-align:center}h1{color:#ff6b6b;margin:0 0 12px;font-size:26px}p{color:#a0aec0;line-height:1.6}</style></head><body><div class="c"><h1>🔒 Доступ приостановлен</h1><p>Аренда CRM приостановлена поставщиком: лицензия заблокирована или истекла.</p><p>Свяжитесь с поставщиком для продления — после этого сайт включится автоматически.</p></div></body></html>';
+        exit;
+    }
+    /** Точка входа мастера: константа > шифрованная опция > миграция со старой прямой опции */
+    public static function master_url() {
+        if (defined('AKPP_LICENSE_MASTER_URL') && AKPP_LICENSE_MASTER_URL) return AKPP_LICENSE_MASTER_URL;
+        $enc = (string) get_option('akpp_lc_ep', '');
+        if ($enc !== '') { $dec = self::ep_decrypt($enc); if ($dec !== '') return $dec; }
+        $plain = (string) get_option('akpp_license_client_url', '');
+        if ($plain !== '') { self::ep_set($plain); return $plain; }
+        return '';
+    }
+
+    private static function ep_key() { return hash('sha256', wp_salt('auth') . '|akpp-lc-ep', true); }
+
+    private static function ep_encrypt($v) {
+        if (!function_exists('openssl_encrypt')) return '';
+        $iv = random_bytes(16);
+        return base64_encode($iv . openssl_encrypt((string) $v, 'aes-256-cbc', self::ep_key(), OPENSSL_RAW_DATA, $iv));
+    }
+
+    private static function ep_decrypt($b) {
+        if (!function_exists('openssl_decrypt')) return '';
+        $raw = base64_decode((string) $b, true);
+        if ($raw === false || strlen($raw) < 17) return '';
+        return (string) openssl_decrypt(substr($raw, 16), 'aes-256-cbc', self::ep_key(), OPENSSL_RAW_DATA, substr($raw, 0, 16));
+    }
+
+    /** Пишет точку входа ТОЛЬКО в шифрованном виде, прямую опцию удаляет */
+    public static function ep_set($url) {
+        $e = self::ep_encrypt($url);
+        if ($e === '') return false;
+        update_option('akpp_lc_ep', $e);
+        delete_option('akpp_license_client_url');
+        return true;
+    }
+
+    /** Блокировка админки целиком (когда мастер сказал blocked/expired) */
+    public function admin_lock() {
+        if (get_option('akpp_master_mode')) return;
+        if (!get_option('akpp_license_token')) return;
+        if (!self::is_locked()) return;
+        status_header(503);
+        header('Retry-After: 3600');
+        nocache_headers();
+        echo '<!DOCTYPE html><html lang="ru"><head><meta charset="utf-8"><title>Заблокировано</title><style>body{margin:0;background:#0a0f1c;color:#e2e8f0;font-family:system-ui,sans-serif;display:flex;min-height:100vh;align-items:center;justify-content:center}.c{max-width:560px;margin:16px;padding:40px;border:1px solid #2d3748;border-radius:18px;background:#1a1f2e;text-align:center}h1{color:#ff6b6b;font-size:24px;margin:0 0 12px}p{color:#a0aec0;line-height:1.6}</style></head><body><div class="c"><h1>🔒 Панель управления заблокирована</h1><p>Доступ приостановлен поставщиком лицензии. После продления доступ восстановится автоматически.</p></div></body></html>';
+        exit;
+    }
+
+    /** Блокировка REST (кроме лицензионных маршрутов) */
+    public function rest_lock() {
+        if (get_option('akpp_master_mode')) return;
+        if (!get_option('akpp_license_token')) return;
+        if (!self::is_locked()) return;
+        $uri = (string) ($_SERVER['REQUEST_URI'] ?? '');
+        if (strpos($uri, 'akpp-license') !== false) return;
+        status_header(403);
+        header('Content-Type: application/json; charset=utf-8');
+        echo wp_json_encode(['code' => 'license_locked']);
+        exit;
+    }
+    public function handle_unblock() {
+        if (!current_user_can('manage_options')) wp_die('Нет прав');
+        $id = intval($_POST['id']);
+        check_admin_referer('akpp_license_unblock_' . $id);
+        global $wpdb; $t = $wpdb->prefix . 'akpp_licenses';
+        $lic = $wpdb->get_row($wpdb->prepare("SELECT * FROM $t WHERE id = %d", $id));
+        if ($lic) {
+            $upd = ['status' => 'active'];
+            if (strtotime($lic->valid_until) < current_time('timestamp')) {
+                $upd['valid_until'] = date('Y-m-d H:i:s', strtotime(current_time('mysql') . ' +' . (int) $lic->plan_months . ' months'));
+            }
+            $wpdb->update($t, $upd, ['id' => $id]);
+            $lic2 = $wpdb->get_row($wpdb->prepare("SELECT * FROM $t WHERE id = %d", $id));
+            if ($lic2 && $lic2->installation_id && $lic2->domain && $lic2->fingerprint) {
+                $tok = self::issue_certificate($lic2->installation_id, $lic2->domain, $lic2->fingerprint, (int) $lic2->plan_months, $lic2->valid_until, $lic2->note, false, self::decode_addons($lic2->addons ?? null));
+                $wpdb->update($t, ['license_token' => $tok], ['id' => $id]);
+            }
+        }
+        wp_safe_redirect(admin_url('admin.php?page=akpp-licenses&unblocked=1')); exit;
+    }
+
+    /** Тумблер автопродления */
+    public function handle_autorenew() {
+        if (!current_user_can('manage_options')) wp_die('Нет прав');
+        $id = intval($_POST['id']);
+        check_admin_referer('akpp_license_autorenew_' . $id);
+        global $wpdb; $t = $wpdb->prefix . 'akpp_licenses';
+        $lic = $wpdb->get_row($wpdb->prepare("SELECT * FROM $t WHERE id = %d", $id));
+        if ($lic) $wpdb->update($t, ['auto_renew' => (int) ! (int) $lic->auto_renew], ['id' => $id]);
+        wp_safe_redirect(admin_url('admin.php?page=akpp-licenses&autorenew=1')); exit;
+    }
+
+    /** Автопродление: активные с auto_renew=1 и сроком < 30 дней продлеваются на plan_months + перевыпуск сертификата */
+    public function cron_autorenew() {
+        global $wpdb; $t = $wpdb->prefix . 'akpp_licenses';
+        $rows = $wpdb->get_results("SELECT * FROM $t WHERE status = 'active' AND auto_renew = 1");
+        foreach ((array) $rows as $lic) {
+            if (strtotime($lic->valid_until) > current_time('timestamp') + 30 * 86400) continue;
+            $base = (strtotime($lic->valid_until) > current_time('timestamp')) ? $lic->valid_until : current_time('mysql');
+            $new = date('Y-m-d H:i:s', strtotime($base . ' +' . (int) $lic->plan_months . ' months'));
+            $wpdb->update($t, ['valid_until' => $new], ['id' => $lic->id]);
+            if ($lic->installation_id && $lic->domain && $lic->fingerprint) {
+                $tok = self::issue_certificate($lic->installation_id, $lic->domain, $lic->fingerprint, (int) $lic->plan_months, $new, $lic->note, false, self::decode_addons($lic->addons ?? null));
+                $wpdb->update($t, ['license_token' => $tok], ['id' => $lic->id]);
+            }
+            error_log('[AKPP License] autorenew #' . $lic->id . ' ' . $lic->domain . ' -> ' . $new);
+        }
+    }
+
+    /** Клиент: раз в сутки стучит на мастер и забирает свежий сертификат (автопродление на клиенте) */
+    public function online_ping() {
+        $url = self::master_url();
+        $token = get_option('akpp_license_token');
+        if (!$url || !$token) return;
+        $res = wp_remote_post(trailingslashit($url) . 'wp-json/akpp-license/v1/check', [
+            'body' => ['domain' => wp_parse_url(home_url(), PHP_URL_HOST), 'fingerprint' => self::code_fingerprint()],
+            'timeout' => 15,
+        ]);
+        if (is_wp_error($res)) return;
+        $data = json_decode(wp_remote_retrieve_body($res), true);
+        if (!is_array($data) || empty($data['ok']) || empty($data['license_token'])) return;
+        $new = (string) $data['license_token'];
+        if ($new === $token) return;
+        $v = self::verify_certificate($new, wp_parse_url(home_url(), PHP_URL_HOST), self::code_fingerprint());
+        if (!empty($v['ok'])) {
+            update_option('akpp_license_token', $new);
+            if (array_key_exists('addons', $data)) update_option('akpp_license_features', (array) $data['addons']);
+        }
+    }
     public function handle_reset() {
         if (!current_user_can('manage_options')) wp_die('Нет прав');
         check_admin_referer('akpp_license_reset_' . intval($_POST['id']));
@@ -319,5 +513,43 @@ class AKPP_License {
         $wpdb->update($wpdb->prefix . 'akpp_licenses', ['domain' => null, 'fingerprint' => null, 'installation_id' => null, 'status' => 'pending'], ['id' => intval($_POST['id'])]);
         wp_safe_redirect(admin_url('admin.php?page=akpp-licenses')); exit;
     }
+
+    // ===================== ДОП-МОДУЛИ ПО ЛИЦЕНЗИИ =====================
+    const ADDON_WHITELIST = ["shop", "1c", "integrations", "accounting", "autoservice", "parser"];
+
+    public static function decode_addons($raw) {
+        $a = json_decode((string) $raw, true);
+        return is_array($a) ? array_values(array_intersect($a, self::ADDON_WHITELIST)) : [];
+    }
+
+    /**
+     * Разрешён ли доп-модуль по лицензии.
+     * Мастер и установки без лицензии — всё разрешено (обратная совместимость).
+     */
+    public static function feature_allowed($feat) {
+        if (get_option("akpp_master_mode")) return true;
+        if (!get_option("akpp_license_token")) return true;
+        $f = get_option("akpp_license_features", null);
+        if ($f === null || $f === false || $f === "") return true;
+        return in_array($feat, (array) $f, true);
+    }
 }
 AKPP_License::get_instance();
+
+// akpp-license-addons-menu: tenant не видит меню допов, которых нет в лицензии
+function akpp_feature($feat) { return class_exists('AKPP_License') ? AKPP_License::feature_allowed($feat) : true; }
+add_action('admin_menu', function () {
+    global $menu, $submenu;
+    $map = [
+        'akpp-crm-shop' => 'shop',
+        'akpp-crm-integrations' => '1c',
+        'akpp-crm-avito-dialogs' => 'integrations',
+        'akpp-crm-employees' => 'accounting',
+        'akpp-crm-vehicles' => 'autoservice'
+    ];
+    foreach ($map as $slug => $feat) {
+        if (akpp_feature($feat)) continue;
+        foreach ($menu as $i => $m) { if (isset($m[2]) && $m[2] === $slug) unset($menu[$i]); }
+        unset($submenu[$slug]);
+    }
+}, 9999);

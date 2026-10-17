@@ -1,0 +1,122 @@
+<?php
+/**
+ * АКПП45 CRM - Email-уведомления (свой SMTP, настройки уникальны на установку).
+ * Заменяет мёртвый канал Telegram. Готовые методы notify_* вшиваются в события CRM.
+ *
+ * @package AKPP_CRM
+ * @version 5.1.2
+ */
+if (!defined('ABSPATH')) exit;
+
+class AKPP_Mail {
+    private static $instance = null;
+    public static function get_instance() { if (null === self::$instance) self::$instance = new self(); return self::$instance; }
+
+    private function __construct() {
+        add_action('admin_menu', [$this, 'add_menu']);
+        add_action('admin_post_akpp_mail_save', [$this, 'handle_save']);
+        add_action('admin_post_akpp_mail_test', [$this, 'handle_test']);
+        add_action('phpmailer_init', [$this, 'smtp_override'], 10, 1);
+    }
+
+    public static function cfg($k = '', $d = '') {
+        $o = (array) get_option('akpp_mail_cfg', []);
+        if ($k === '') return $o;
+        return $o[$k] !== '' ? $o[$k] : $d;
+    }
+
+    public function add_menu() {
+        add_menu_page('Уведомления', '📧 Почта', 'manage_options', 'akpp-mail', [$this, 'render'], 'dashicons-email', 57);
+    }
+
+    /** Подстановка SMTP в wp_mail() только если хост задан */
+    public function smtp_override($phpmailer) {
+        $host = self::cfg('host');
+        if ($host === '') return;
+        $phpmailer->isSMTP();
+        $phpmailer->Host       = $host;
+        $phpmailer->Port       = (int) self::cfg('port', '587');
+        $phpmailer->SMTPAuth   = true;
+        $phpmailer->Username   = self::cfg('user');
+        $phpmailer->Password   = self::cfg('pass');
+        $enc = self::cfg('encryption', 'tls');
+        if ($enc === 'ssl' || $enc === 'tls') $phpmailer->SMTPSecure = $enc;
+        $phpmailer->CharSet = 'UTF-8';
+    }
+
+    public function handle_save() {
+        if (!current_user_can('manage_options')) wp_die('Недостаточно прав');
+        check_admin_referer('akpp_mail');
+        $keys = ['host','port','encryption','user','pass','from_email','from_name','notify_email'];
+        $cfg = [];
+        foreach ($keys as $k) if (isset($_POST[$k])) $cfg[$k] = sanitize_text_field(wp_unslash($_POST[$k]));
+        if (isset($_POST['enabled'])) $cfg['enabled'] = '1'; else $cfg['enabled'] = '0';
+        update_option('akpp_mail_cfg', $cfg);
+        wp_safe_redirect(admin_url('admin.php?page=akpp-mail&saved=1'));
+        exit;
+    }
+
+    public function handle_test() {
+        if (!current_user_can('manage_options')) wp_die('Недостаточно прав');
+        check_admin_referer('akpp_mail');
+        $to = self::cfg('notify_email') ?: get_option('admin_email');
+        $r = $this->send($to, 'Тест SMTP — АКПП CRM', 'Если вы видите это письмо — почтовый канал работает. Время: ' . current_time('mysql'));
+        wp_safe_redirect(admin_url('admin.php?page=akpp-mail&test=' . ($r ? 'ok' : 'fail')));
+        exit;
+    }
+
+    /** Отправка письма (используется и триггерами CRM) */
+    public function send($to, $subject, $body) {
+        if (self::cfg('enabled') !== '1') return false;
+        $headers = [];
+        $fe = self::cfg('from_email'); $fn = self::cfg('from_name');
+        if ($fe !== '') $headers[] = 'From: ' . ($fn !== '' ? $fn . ' <' . $fe . '>' : $fe);
+        return wp_mail($to, $subject, $body, $headers);
+    }
+
+    // ===== Готовые триггеры (вшиваются в события CRM следующим блоком) =====
+    public function notify_new_lead($lead_id) {
+        $to = self::cfg('notify_email') ?: get_option('admin_email');
+        return $this->send($to, 'Новый лид #' . $lead_id, 'Создан новый лид. Откройте CRM → Лиды.');
+    }
+    public function notify_new_order($order_id, $number = '') {
+        $to = self::cfg('notify_email') ?: get_option('admin_email');
+        return $this->send($to, 'Новый заказ #' . ($number ?: $order_id), 'В магазине оформлен новый заказ.');
+    }
+    public function notify_status($kind, $id, $status) {
+        $to = self::cfg('notify_email') ?: get_option('admin_email');
+        return $this->send($to, 'Смена статуса: ' . $kind . ' #' . $id, 'Новый статус: ' . $status);
+    }
+
+    public function render() {
+        $c = self::cfg();
+        echo '<div class="wrap"><h1 style="color:#00ff88">📧 Email-уведомления</h1>';
+        if (isset($_GET['saved'])) echo '<div class="notice notice-success"><p>✅ Настройки почты сохранены.</p></div>';
+        if (isset($_GET['test'])) echo '<div class="notice ' . ($_GET['test'] === 'ok' ? 'notice-success' : 'notice-error') . '"><p>' . ($_GET['test'] === 'ok' ? '✅ Тестовое письмо отправлено (проверьте почту).' : '❌ Ошибка отправки — проверьте хост/порт/логин/пароль.') . '</p></div>';
+        if (self::cfg('enabled') !== '1') echo '<p style="color:#f6ad55">⚠️ Канал выключен. Включите галочку и сохраните, чтобы триггеры CRM слали письма.</p>';
+        echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" style="max-width:720px;display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:14px">';
+        wp_nonce_field('akpp_mail');
+        echo '<input type="hidden" name="action" value="akpp_mail_save">';
+        $f = function ($k, $l, $ph = '', $t = 'text') use ($c) {
+            echo '<label style="color:#a0aec0;font-size:12px">' . esc_html($l) . '<br><input type="' . $t . '" name="' . $k . '" value="' . esc_attr($c[$k] ?? '') . '" placeholder="' . esc_attr($ph) . '" style="width:100%;margin-top:4px"></label>';
+        };
+        $f('host', 'SMTP-хост', 'smtp.mail.ru / smtp.yandex.ru / ваш сервер');
+        $f('port', 'Порт', '587 / 465 / 25');
+        echo '<label style="color:#a0aec0;font-size:12px">Шифрование<br><select name="encryption" style="width:100%;margin-top:4px">';
+        foreach (['tls' => 'STARTTLS (587)', 'ssl' => 'SSL (465)', '' => 'нет (25)'] as $v => $l) echo '<option value="' . esc_attr($v) . '"' . selected(($c['encryption'] ?? 'tls'), $v, false) . '>' . esc_html($l) . '</option>';
+        echo '</select></label>';
+        $f('user', 'Логин SMTP', 'you@domain');
+        $f('pass', 'Пароль SMTP', 'пароль приложения', 'password');
+        $f('from_email', 'From: email', 'alerts@ваш.домен');
+        $f('from_name', 'From: имя', 'АКПП CRM');
+        $f('notify_email', 'Куда слать (менеджер)', 'admin@ваш.домен');
+        echo '<label style="color:#a0aec0;font-size:12px;grid-column:1/-1"><input type="checkbox" name="enabled" value="1"' . checked(self::cfg('enabled'), '1', false) . '> Включить email-уведомления</label>';
+        echo '<div style="grid-column:1/-1;display:flex;gap:10px"><button class="button button-primary">💾 Сохранить</button></div>';
+        echo '</form>';
+        echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" style="margin-top:12px">';
+        wp_nonce_field('akpp_mail');
+        echo '<input type="hidden" name="action" value="akpp_mail_test">';
+        echo '<button class="button">📨 Отправить тестовое письмо</button>';
+        echo '</form></div>';
+    }
+}
