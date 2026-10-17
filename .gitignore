@@ -1,0 +1,6 @@
+*.bak.*
+*.deprecated
+.DS_Store
+debug.log
+.git/
+node_modules/

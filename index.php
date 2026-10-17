@@ -27,7 +27,7 @@ get_header();
                 </p>
                 <div class="hero-actions">
                     <a href="tel:<?php echo akpp_obf("+79638669996"); ?>" class="btn btn-primary" aria-label="Позвонить">
-                        📞 <?php echo akpp_obf("+7 (963) 866-99-96"); ?>
+                        📞 <?php echo akpp_obf((string) get_option('akpp_brand_phone', '')); ?>
                     </a>
                     <a href="https://t.me/akppkgn" target="_blank" class="btn btn-secondary">
                         💬 Telegram
@@ -236,7 +236,7 @@ get_header();
                 <div class="contact-card">
                     <div class="contact-icon">📞</div>
                     <h3>Телефон</h3>
-                    <p><a href="tel:<?php echo akpp_obf("+79638669996"); ?>" aria-label="Позвонить"><?php echo akpp_obf("+7 (963) 866-99-96"); ?></a></p>
+                    <p><a href="tel:<?php echo akpp_obf("+79638669996"); ?>" aria-label="Позвонить"><?php echo akpp_obf((string) get_option('akpp_brand_phone', '')); ?></a></p>
                 </div>
 
                 <div class="contact-card">

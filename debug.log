@@ -1,0 +1,836 @@
+[13-Sep-2026 08:35:58 UTC] [AKPP Avito Cron] Ошибка синхронизации: Ошибка API при получении диалогов: Не указаны Client ID или Client Secret в настройках.
+[13-Sep-2026 08:41:11 UTC] [AKPP Avito Cron] Ошибка синхронизации: Ошибка API при получении диалогов: Не указаны Client ID или Client Secret в настройках.
+[13-Sep-2026 08:56:53 UTC] [AKPP Avito Cron] Ошибка синхронизации: Ошибка API при получении диалогов: Не указаны Client ID или Client Secret в настройках.
+[13-Sep-2026 09:11:22 UTC] [AKPP Avito Cron] Ошибка синхронизации: Ошибка API при получении диалогов: Не указаны Client ID или Client Secret в настройках.
+[13-Sep-2026 09:25:20 UTC] [AKPP Avito Cron] Ошибка синхронизации: Ошибка API при получении диалогов: Не указаны Client ID или Client Secret в настройках.
+[13-Sep-2026 09:29:41 UTC] PHP Fatal error:  Cannot redeclare function get_plugin_data() (previously declared in /home/akpp/htdocs/akpp45.ru/wp-admin/includes/plugin.php:74) in /home/akpp/htdocs/akpp45.ru/wp-admin/includes/plugin.php on line 74
+[13-Sep-2026 09:36:20 UTC] PHP Fatal error:  Cannot redeclare function get_plugin_data() (previously declared in /home/akpp/htdocs/akpp45.ru/wp-admin/includes/plugin.php:74) in /home/akpp/htdocs/akpp45.ru/wp-admin/includes/plugin.php on line 74
+[13-Sep-2026 09:41:05 UTC] [AKPP Avito Cron] Ошибка синхронизации: Ошибка API при получении диалогов: Не указаны Client ID или Client Secret в настройках.
+[13-Sep-2026 09:52:14 UTC] PHP Parse error:  syntax error, unexpected token ":" in /home/akpp/htdocs/akpp45.ru/wp-content/themes/akpp-kurgan/inc/crm/templates/templates-admin.php on line 304
+[13-Sep-2026 09:52:14 UTC] [AKPP45 FATAL] syntax error, unexpected token ":" in /home/akpp/htdocs/akpp45.ru/wp-content/themes/akpp-kurgan/inc/crm/templates/templates-admin.php on line 304
+[13-Sep-2026 09:55:24 UTC] [AKPP Avito Cron] Ошибка синхронизации: Ошибка API при получении диалогов: Не указаны Client ID или Client Secret в настройках.
+[13-Sep-2026 09:59:52 UTC] PHP Fatal error:  Uncaught Error: Call to undefined method AKPP_License::decode_addons() in phar:///usr/bin/wp/vendor/wp-cli/eval-command/src/Eval_Command.php(39) : eval()'d code:1
+Stack trace:
+#0 phar:///usr/bin/wp/vendor/wp-cli/eval-command/src/Eval_Command.php(39): eval()
+#1 [internal function]: Eval_Command->__invoke()
+#2 phar:///usr/bin/wp/vendor/wp-cli/wp-cli/php/WP_CLI/Dispatcher/CommandFactory.php(100): call_user_func()
+#3 [internal function]: WP_CLI\Dispatcher\CommandFactory::{closure:WP_CLI\Dispatcher\CommandFactory::create_subcommand():97}()
+#4 phar:///usr/bin/wp/vendor/wp-cli/wp-cli/php/WP_CLI/Dispatcher/Subcommand.php(497): call_user_func()
+#5 phar:///usr/bin/wp/vendor/wp-cli/wp-cli/php/WP_CLI/Runner.php(470): WP_CLI\Dispatcher\Subcommand->invoke()
+#6 phar:///usr/bin/wp/vendor/wp-cli/wp-cli/php/WP_CLI/Runner.php(493): WP_CLI\Runner->run_command()
+#7 phar:///usr/bin/wp/vendor/wp-cli/wp-cli/php/WP_CLI/Runner.php(136): WP_CLI\Runner->run_command_and_exit()
+#8 phar:///usr/bin/wp/vendor/wp-cli/wp-cli/php/WP_CLI/Runner.php(1228): WP_CLI\Runner->do_early_invoke()
+#9 phar:///usr/bin/wp/vendor/wp-cli/wp-cli/php/WP_CLI/Bootstrap/LaunchRunner.php(28): WP_CLI\Runner->start()
+#10 phar:///usr/bin/wp/vendor/wp-cli/wp-cli/php/bootstrap.php(84): WP_CLI\Bootstrap\LaunchRunner->process()
+#11 phar:///usr/bin/wp/vendor/wp-cli/wp-cli/php/wp-cli.php(35): WP_CLI\bootstrap()
+#12 phar:///usr/bin/wp/php/boot-phar.php(20): include('...')
+#13 /usr/bin/wp(4): include('...')
+#14 {main}
+  thrown in phar:///usr/bin/wp/vendor/wp-cli/eval-command/src/Eval_Command.php(39) : eval()'d code on line 1
+[13-Sep-2026 10:00:43 UTC] PHP Fatal error:  Uncaught Error: Undefined constant AKPP_License::ADDON_WHITELIST in /home/akpp/htdocs/akpp45.ru/wp-content/themes/akpp-kurgan/inc/crm/templates/licenses.php:145
+Stack trace:
+#0 /home/akpp/htdocs/akpp45.ru/wp-content/themes/akpp-kurgan/inc/crm/class-akpp-license.php(254): include()
+#1 /home/akpp/htdocs/akpp45.ru/wp-includes/class-wp-hook.php(353): AKPP_License->render_panel()
+#2 /home/akpp/htdocs/akpp45.ru/wp-includes/class-wp-hook.php(377): WP_Hook->apply_filters()
+#3 /home/akpp/htdocs/akpp45.ru/wp-includes/plugin.php(523): WP_Hook->do_action()
+#4 /home/akpp/htdocs/akpp45.ru/wp-admin/admin.php(264): do_action()
+#5 {main}
+  thrown in /home/akpp/htdocs/akpp45.ru/wp-content/themes/akpp-kurgan/inc/crm/templates/licenses.php on line 145
+[13-Sep-2026 10:00:43 UTC] [AKPP45 FATAL] Uncaught Error: Undefined constant AKPP_License::ADDON_WHITELIST in /home/akpp/htdocs/akpp45.ru/wp-content/themes/akpp-kurgan/inc/crm/templates/licenses.php:145
+Stack trace:
+#0 /home/akpp/htdocs/akpp45.ru/wp-content/themes/akpp-kurgan/inc/crm/class-akpp-license.php(254): include()
+#1 /home/akpp/htdocs/akpp45.ru/wp-includes/class-wp-hook.php(353): AKPP_License->render_panel()
+#2 /home/akpp/htdocs/akpp45.ru/wp-includes/class-wp-hook.php(377): WP_Hook->apply_filters()
+#3 /home/akpp/htdocs/akpp45.ru/wp-includes/plugin.php(523): WP_Hook->do_action()
+#4 /home/akpp/htdocs/akpp45.ru/wp-admin/admin.php(264): do_action()
+#5 {main}
+  thrown in /home/akpp/htdocs/akpp45.ru/wp-content/themes/akpp-kurgan/inc/crm/templates/licenses.php on line 145
+[13-Sep-2026 10:00:43 UTC] PHP Fatal error:  Uncaught Error: Undefined constant AKPP_License::ADDON_WHITELIST in /home/akpp/htdocs/akpp45.ru/wp-content/themes/akpp-kurgan/inc/crm/templates/licenses.php:145
+Stack trace:
+#0 /home/akpp/htdocs/akpp45.ru/wp-content/themes/akpp-kurgan/inc/crm/class-akpp-license.php(254): include()
+#1 /home/akpp/htdocs/akpp45.ru/wp-includes/class-wp-hook.php(353): AKPP_License->render_panel()
+#2 /home/akpp/htdocs/akpp45.ru/wp-includes/class-wp-hook.php(377): WP_Hook->apply_filters()
+#3 /home/akpp/htdocs/akpp45.ru/wp-includes/plugin.php(523): WP_Hook->do_action()
+#4 /home/akpp/htdocs/akpp45.ru/wp-admin/admin.php(264): do_action()
+#5 {main}
+  thrown in /home/akpp/htdocs/akpp45.ru/wp-content/themes/akpp-kurgan/inc/crm/templates/licenses.php on line 145
+[13-Sep-2026 10:00:43 UTC] [AKPP45 FATAL] Uncaught Error: Undefined constant AKPP_License::ADDON_WHITELIST in /home/akpp/htdocs/akpp45.ru/wp-content/themes/akpp-kurgan/inc/crm/templates/licenses.php:145
+Stack trace:
+#0 /home/akpp/htdocs/akpp45.ru/wp-content/themes/akpp-kurgan/inc/crm/class-akpp-license.php(254): include()
+#1 /home/akpp/htdocs/akpp45.ru/wp-includes/class-wp-hook.php(353): AKPP_License->render_panel()
+#2 /home/akpp/htdocs/akpp45.ru/wp-includes/class-wp-hook.php(377): WP_Hook->apply_filters()
+#3 /home/akpp/htdocs/akpp45.ru/wp-includes/plugin.php(523): WP_Hook->do_action()
+#4 /home/akpp/htdocs/akpp45.ru/wp-admin/admin.php(264): do_action()
+#5 {main}
+  thrown in /home/akpp/htdocs/akpp45.ru/wp-content/themes/akpp-kurgan/inc/crm/templates/licenses.php on line 145
+[13-Sep-2026 10:01:22 UTC] PHP Fatal error:  Uncaught Error: Undefined constant AKPP_License::ADDON_WHITELIST in /home/akpp/htdocs/akpp45.ru/wp-content/themes/akpp-kurgan/inc/crm/templates/licenses.php:145
+Stack trace:
+#0 /home/akpp/htdocs/akpp45.ru/wp-content/themes/akpp-kurgan/inc/crm/class-akpp-license.php(254): include()
+#1 /home/akpp/htdocs/akpp45.ru/wp-includes/class-wp-hook.php(353): AKPP_License->render_panel()
+#2 /home/akpp/htdocs/akpp45.ru/wp-includes/class-wp-hook.php(377): WP_Hook->apply_filters()
+#3 /home/akpp/htdocs/akpp45.ru/wp-includes/plugin.php(523): WP_Hook->do_action()
+#4 /home/akpp/htdocs/akpp45.ru/wp-admin/admin.php(264): do_action()
+#5 {main}
+  thrown in /home/akpp/htdocs/akpp45.ru/wp-content/themes/akpp-kurgan/inc/crm/templates/licenses.php on line 145
+[13-Sep-2026 10:01:22 UTC] [AKPP45 FATAL] Uncaught Error: Undefined constant AKPP_License::ADDON_WHITELIST in /home/akpp/htdocs/akpp45.ru/wp-content/themes/akpp-kurgan/inc/crm/templates/licenses.php:145
+Stack trace:
+#0 /home/akpp/htdocs/akpp45.ru/wp-content/themes/akpp-kurgan/inc/crm/class-akpp-license.php(254): include()
+#1 /home/akpp/htdocs/akpp45.ru/wp-includes/class-wp-hook.php(353): AKPP_License->render_panel()
+#2 /home/akpp/htdocs/akpp45.ru/wp-includes/class-wp-hook.php(377): WP_Hook->apply_filters()
+#3 /home/akpp/htdocs/akpp45.ru/wp-includes/plugin.php(523): WP_Hook->do_action()
+#4 /home/akpp/htdocs/akpp45.ru/wp-admin/admin.php(264): do_action()
+#5 {main}
+  thrown in /home/akpp/htdocs/akpp45.ru/wp-content/themes/akpp-kurgan/inc/crm/templates/licenses.php on line 145
+[13-Sep-2026 10:10:40 UTC] [AKPP Avito Cron] Ошибка синхронизации: Ошибка API при получении диалогов: Не указаны Client ID или Client Secret в настройках.
+[13-Sep-2026 10:25:31 UTC] [AKPP Avito Cron] Ошибка синхронизации: Ошибка API при получении диалогов: Не указаны Client ID или Client Secret в настройках.
+[13-Sep-2026 10:40:21 UTC] [AKPP Avito Cron] Ошибка синхронизации: Ошибка API при получении диалогов: Не указаны Client ID или Client Secret в настройках.
+[13-Sep-2026 10:57:13 UTC] [AKPP Avito Cron] Ошибка синхронизации: Ошибка API при получении диалогов: Не указаны Client ID или Client Secret в настройках.
+[13-Sep-2026 11:12:19 UTC] [AKPP Avito Cron] Ошибка синхронизации: Ошибка API при получении диалогов: Не указаны Client ID или Client Secret в настройках.
+[13-Sep-2026 11:27:31 UTC] [AKPP Avito Cron] Ошибка синхронизации: Ошибка API при получении диалогов: Не указаны Client ID или Client Secret в настройках.
+[13-Sep-2026 11:41:07 UTC] [AKPP Avito Cron] Ошибка синхронизации: Ошибка API при получении диалогов: Не указаны Client ID или Client Secret в настройках.
+[13-Sep-2026 11:55:20 UTC] [AKPP Avito Cron] Ошибка синхронизации: Ошибка API при получении диалогов: Не указаны Client ID или Client Secret в настройках.
+[13-Sep-2026 11:59:41 UTC] PHP Fatal error:  Uncaught TypeError: call_user_func_array(): Argument #1 ($callback) must be a valid callback, function "akpp_drom_render_page" not found or invalid function name in /home/akpp/htdocs/akpp45.ru/wp-includes/class-wp-hook.php:353
+Stack trace:
+#0 /home/akpp/htdocs/akpp45.ru/wp-includes/class-wp-hook.php(377): WP_Hook->apply_filters()
+#1 /home/akpp/htdocs/akpp45.ru/wp-includes/plugin.php(523): WP_Hook->do_action()
+#2 /home/akpp/htdocs/akpp45.ru/wp-admin/admin.php(264): do_action()
+#3 {main}
+  thrown in /home/akpp/htdocs/akpp45.ru/wp-includes/class-wp-hook.php on line 353
+[13-Sep-2026 11:59:41 UTC] [AKPP45 FATAL] Uncaught TypeError: call_user_func_array(): Argument #1 ($callback) must be a valid callback, function "akpp_drom_render_page" not found or invalid function name in /home/akpp/htdocs/akpp45.ru/wp-includes/class-wp-hook.php:353
+Stack trace:
+#0 /home/akpp/htdocs/akpp45.ru/wp-includes/class-wp-hook.php(377): WP_Hook->apply_filters()
+#1 /home/akpp/htdocs/akpp45.ru/wp-includes/plugin.php(523): WP_Hook->do_action()
+#2 /home/akpp/htdocs/akpp45.ru/wp-admin/admin.php(264): do_action()
+#3 {main}
+  thrown in /home/akpp/htdocs/akpp45.ru/wp-includes/class-wp-hook.php on line 353
+[13-Sep-2026 11:59:46 UTC] PHP Fatal error:  Uncaught TypeError: call_user_func_array(): Argument #1 ($callback) must be a valid callback, function "akpp_drom_render_page" not found or invalid function name in /home/akpp/htdocs/akpp45.ru/wp-includes/class-wp-hook.php:353
+Stack trace:
+#0 /home/akpp/htdocs/akpp45.ru/wp-includes/class-wp-hook.php(377): WP_Hook->apply_filters()
+#1 /home/akpp/htdocs/akpp45.ru/wp-includes/plugin.php(523): WP_Hook->do_action()
+#2 /home/akpp/htdocs/akpp45.ru/wp-admin/admin.php(264): do_action()
+#3 {main}
+  thrown in /home/akpp/htdocs/akpp45.ru/wp-includes/class-wp-hook.php on line 353
+[13-Sep-2026 11:59:46 UTC] [AKPP45 FATAL] Uncaught TypeError: call_user_func_array(): Argument #1 ($callback) must be a valid callback, function "akpp_drom_render_page" not found or invalid function name in /home/akpp/htdocs/akpp45.ru/wp-includes/class-wp-hook.php:353
+Stack trace:
+#0 /home/akpp/htdocs/akpp45.ru/wp-includes/class-wp-hook.php(377): WP_Hook->apply_filters()
+#1 /home/akpp/htdocs/akpp45.ru/wp-includes/plugin.php(523): WP_Hook->do_action()
+#2 /home/akpp/htdocs/akpp45.ru/wp-admin/admin.php(264): do_action()
+#3 {main}
+  thrown in /home/akpp/htdocs/akpp45.ru/wp-includes/class-wp-hook.php on line 353
+[13-Sep-2026 12:02:26 UTC] PHP Fatal error:  Cannot redeclare function akpp_drom_render_page() (previously declared in /home/akpp/htdocs/akpp45.ru/wp-content/themes/akpp-kurgan/inc/crm/class-akpp-drom.php:135) in /home/akpp/htdocs/akpp45.ru/wp-content/themes/akpp-kurgan/inc/crm/class-akpp-drom.php on line 135
+[13-Sep-2026 12:10:58 UTC] [AKPP Avito Cron] Ошибка синхронизации: Ошибка API при получении диалогов: Не указаны Client ID или Client Secret в настройках.
+[13-Sep-2026 12:26:30 UTC] PHP Fatal error:  Uncaught Error: Call to undefined method AKPP_Avito_API::get_dialogs() in /home/akpp/htdocs/akpp45.ru/wp-content/themes/akpp-kurgan/inc/crm/class-avito-cron.php:91
+Stack trace:
+#0 /home/akpp/htdocs/akpp45.ru/wp-includes/class-wp-hook.php(353): AKPP_Avito_Cron->run_sync()
+#1 /home/akpp/htdocs/akpp45.ru/wp-includes/class-wp-hook.php(377): WP_Hook->apply_filters()
+#2 /home/akpp/htdocs/akpp45.ru/wp-includes/plugin.php(571): WP_Hook->do_action()
+#3 /home/akpp/htdocs/akpp45.ru/wp-cron.php(191): do_action_ref_array()
+#4 {main}
+  thrown in /home/akpp/htdocs/akpp45.ru/wp-content/themes/akpp-kurgan/inc/crm/class-avito-cron.php on line 91
+[13-Sep-2026 12:26:30 UTC] [AKPP45 FATAL] Uncaught Error: Call to undefined method AKPP_Avito_API::get_dialogs() in /home/akpp/htdocs/akpp45.ru/wp-content/themes/akpp-kurgan/inc/crm/class-avito-cron.php:91
+Stack trace:
+#0 /home/akpp/htdocs/akpp45.ru/wp-includes/class-wp-hook.php(353): AKPP_Avito_Cron->run_sync()
+#1 /home/akpp/htdocs/akpp45.ru/wp-includes/class-wp-hook.php(377): WP_Hook->apply_filters()
+#2 /home/akpp/htdocs/akpp45.ru/wp-includes/plugin.php(571): WP_Hook->do_action()
+#3 /home/akpp/htdocs/akpp45.ru/wp-cron.php(191): do_action_ref_array()
+#4 {main}
+  thrown in /home/akpp/htdocs/akpp45.ru/wp-content/themes/akpp-kurgan/inc/crm/class-avito-cron.php on line 91
+[13-Sep-2026 12:27:28 UTC] PHP Fatal error:  Uncaught Error: Class "AKPP_Avito_Messenger" not found in phar:///usr/bin/wp/vendor/wp-cli/eval-command/src/Eval_Command.php(39) : eval()'d code:1
+Stack trace:
+#0 phar:///usr/bin/wp/vendor/wp-cli/eval-command/src/Eval_Command.php(39): eval()
+#1 [internal function]: Eval_Command->__invoke()
+#2 phar:///usr/bin/wp/vendor/wp-cli/wp-cli/php/WP_CLI/Dispatcher/CommandFactory.php(100): call_user_func()
+#3 [internal function]: WP_CLI\Dispatcher\CommandFactory::{closure:WP_CLI\Dispatcher\CommandFactory::create_subcommand():97}()
+#4 phar:///usr/bin/wp/vendor/wp-cli/wp-cli/php/WP_CLI/Dispatcher/Subcommand.php(497): call_user_func()
+#5 phar:///usr/bin/wp/vendor/wp-cli/wp-cli/php/WP_CLI/Runner.php(470): WP_CLI\Dispatcher\Subcommand->invoke()
+#6 phar:///usr/bin/wp/vendor/wp-cli/wp-cli/php/WP_CLI/Runner.php(493): WP_CLI\Runner->run_command()
+#7 phar:///usr/bin/wp/vendor/wp-cli/wp-cli/php/WP_CLI/Runner.php(136): WP_CLI\Runner->run_command_and_exit()
+#8 phar:///usr/bin/wp/vendor/wp-cli/wp-cli/php/WP_CLI/Runner.php(1228): WP_CLI\Runner->do_early_invoke()
+#9 phar:///usr/bin/wp/vendor/wp-cli/wp-cli/php/WP_CLI/Bootstrap/LaunchRunner.php(28): WP_CLI\Runner->start()
+#10 phar:///usr/bin/wp/vendor/wp-cli/wp-cli/php/bootstrap.php(84): WP_CLI\Bootstrap\LaunchRunner->process()
+#11 phar:///usr/bin/wp/vendor/wp-cli/wp-cli/php/wp-cli.php(35): WP_CLI\bootstrap()
+#12 phar:///usr/bin/wp/php/boot-phar.php(20): include('...')
+#13 /usr/bin/wp(4): include('...')
+#14 {main}
+  thrown in phar:///usr/bin/wp/vendor/wp-cli/eval-command/src/Eval_Command.php(39) : eval()'d code on line 1
+[13-Sep-2026 12:30:29 UTC] PHP Fatal error:  Uncaught ReflectionException: Class "AKPP_Avito_Messenger" does not exist in phar:///usr/bin/wp/vendor/wp-cli/eval-command/src/Eval_Command.php(39) : eval()'d code:1
+Stack trace:
+#0 phar:///usr/bin/wp/vendor/wp-cli/eval-command/src/Eval_Command.php(39) : eval()'d code(1): ReflectionClass->__construct()
+#1 phar:///usr/bin/wp/vendor/wp-cli/eval-command/src/Eval_Command.php(39): eval()
+#2 [internal function]: Eval_Command->__invoke()
+#3 phar:///usr/bin/wp/vendor/wp-cli/wp-cli/php/WP_CLI/Dispatcher/CommandFactory.php(100): call_user_func()
+#4 [internal function]: WP_CLI\Dispatcher\CommandFactory::{closure:WP_CLI\Dispatcher\CommandFactory::create_subcommand():97}()
+#5 phar:///usr/bin/wp/vendor/wp-cli/wp-cli/php/WP_CLI/Dispatcher/Subcommand.php(497): call_user_func()
+#6 phar:///usr/bin/wp/vendor/wp-cli/wp-cli/php/WP_CLI/Runner.php(470): WP_CLI\Dispatcher\Subcommand->invoke()
+#7 phar:///usr/bin/wp/vendor/wp-cli/wp-cli/php/WP_CLI/Runner.php(493): WP_CLI\Runner->run_command()
+#8 phar:///usr/bin/wp/vendor/wp-cli/wp-cli/php/WP_CLI/Runner.php(136): WP_CLI\Runner->run_command_and_exit()
+#9 phar:///usr/bin/wp/vendor/wp-cli/wp-cli/php/WP_CLI/Runner.php(1228): WP_CLI\Runner->do_early_invoke()
+#10 phar:///usr/bin/wp/vendor/wp-cli/wp-cli/php/WP_CLI/Bootstrap/LaunchRunner.php(28): WP_CLI\Runner->start()
+#11 phar:///usr/bin/wp/vendor/wp-cli/wp-cli/php/bootstrap.php(84): WP_CLI\Bootstrap\LaunchRunner->process()
+#12 phar:///usr/bin/wp/vendor/wp-cli/wp-cli/php/wp-cli.php(35): WP_CLI\bootstrap()
+#13 phar:///usr/bin/wp/php/boot-phar.php(20): include('...')
+#14 /usr/bin/wp(4): include('...')
+#15 {main}
+  thrown in phar:///usr/bin/wp/vendor/wp-cli/eval-command/src/Eval_Command.php(39) : eval()'d code on line 1
+[13-Sep-2026 12:30:30 UTC] PHP Fatal error:  Uncaught Error: Class "AKPP_Avito_Messenger" not found in phar:///usr/bin/wp/vendor/wp-cli/eval-command/src/Eval_Command.php(39) : eval()'d code:1
+Stack trace:
+#0 phar:///usr/bin/wp/vendor/wp-cli/eval-command/src/Eval_Command.php(39): eval()
+#1 [internal function]: Eval_Command->__invoke()
+#2 phar:///usr/bin/wp/vendor/wp-cli/wp-cli/php/WP_CLI/Dispatcher/CommandFactory.php(100): call_user_func()
+#3 [internal function]: WP_CLI\Dispatcher\CommandFactory::{closure:WP_CLI\Dispatcher\CommandFactory::create_subcommand():97}()
+#4 phar:///usr/bin/wp/vendor/wp-cli/wp-cli/php/WP_CLI/Dispatcher/Subcommand.php(497): call_user_func()
+#5 phar:///usr/bin/wp/vendor/wp-cli/wp-cli/php/WP_CLI/Runner.php(470): WP_CLI\Dispatcher\Subcommand->invoke()
+#6 phar:///usr/bin/wp/vendor/wp-cli/wp-cli/php/WP_CLI/Runner.php(493): WP_CLI\Runner->run_command()
+#7 phar:///usr/bin/wp/vendor/wp-cli/wp-cli/php/WP_CLI/Runner.php(136): WP_CLI\Runner->run_command_and_exit()
+#8 phar:///usr/bin/wp/vendor/wp-cli/wp-cli/php/WP_CLI/Runner.php(1228): WP_CLI\Runner->do_early_invoke()
+#9 phar:///usr/bin/wp/vendor/wp-cli/wp-cli/php/WP_CLI/Bootstrap/LaunchRunner.php(28): WP_CLI\Runner->start()
+#10 phar:///usr/bin/wp/vendor/wp-cli/wp-cli/php/bootstrap.php(84): WP_CLI\Bootstrap\LaunchRunner->process()
+#11 phar:///usr/bin/wp/vendor/wp-cli/wp-cli/php/wp-cli.php(35): WP_CLI\bootstrap()
+#12 phar:///usr/bin/wp/php/boot-phar.php(20): include('...')
+#13 /usr/bin/wp(4): include('...')
+#14 {main}
+  thrown in phar:///usr/bin/wp/vendor/wp-cli/eval-command/src/Eval_Command.php(39) : eval()'d code on line 1
+[13-Sep-2026 12:30:30 UTC] [AKPP45 FATAL] Uncaught Error: Class "AKPP_Avito_Messenger" not found in phar:///usr/bin/wp/vendor/wp-cli/eval-command/src/Eval_Command.php(39) : eval()'d code:1
+Stack trace:
+#0 phar:///usr/bin/wp/vendor/wp-cli/eval-command/src/Eval_Command.php(39): eval()
+#1 [internal function]: Eval_Command->__invoke()
+#2 phar:///usr/bin/wp/vendor/wp-cli/wp-cli/php/WP_CLI/Dispatcher/CommandFactory.php(100): call_user_func()
+#3 [internal function]: WP_CLI\Dispatcher\CommandFactory::{closure:WP_CLI\Dispatcher\CommandFactory::create_subcommand():97}()
+#4 phar:///usr/bin/wp/vendor/wp-cli/wp-cli/php/WP_CLI/Dispatcher/Subcommand.php(497): call_user_func()
+#5 phar:///usr/bin/wp/vendor/wp-cli/wp-cli/php/WP_CLI/Runner.php(470): WP_CLI\Dispatcher\Subcommand->invoke()
+#6 phar:///usr/bin/wp/vendor/wp-cli/wp-cli/php/WP_CLI/Runner.php(493): WP_CLI\Runner->run_command()
+#7 phar:///usr/bin/wp/vendor/wp-cli/wp-cli/php/WP_CLI/Runner.php(136): WP_CLI\Runner->run_command_and_exit()
+#8 phar:///usr/bin/wp/vendor/wp-cli/wp-cli/php/WP_CLI/Runner.php(1228): WP_CLI\Runner->do_early_invoke()
+#9 phar:///usr/bin/wp/vendor/wp-cli/wp-cli/php/WP_CLI/Bootstrap/LaunchRunner.php(28): WP_CLI\Runner->start()
+#10 phar:///usr/bin/wp/vendor/wp-cli/wp-cli/php/bootstrap.php(84): WP_CLI\Bootstrap\LaunchRunner->process()
+#11 phar:///usr/bin/wp/vendor/wp-cli/wp-cli/php/wp-cli.php(35): WP_CLI\bootstrap()
+#12 phar:///usr/bin/wp/php/boot-phar.php(20): include('...')
+#13 /usr/bin/wp(4): include('...')
+#14 {main}
+  thrown in phar:///usr/bin/wp/vendor/wp-cli/eval-command/src/Eval_Command.php(39) : eval()'d code on line 1
+[13-Sep-2026 12:32:20 UTC] PHP Fatal error:  Uncaught Error: Class "AKPP_Avito_Messenger" not found in phar:///usr/bin/wp/vendor/wp-cli/eval-command/src/Eval_Command.php(39) : eval()'d code:1
+Stack trace:
+#0 phar:///usr/bin/wp/vendor/wp-cli/eval-command/src/Eval_Command.php(39): eval()
+#1 [internal function]: Eval_Command->__invoke()
+#2 phar:///usr/bin/wp/vendor/wp-cli/wp-cli/php/WP_CLI/Dispatcher/CommandFactory.php(100): call_user_func()
+#3 [internal function]: WP_CLI\Dispatcher\CommandFactory::{closure:WP_CLI\Dispatcher\CommandFactory::create_subcommand():97}()
+#4 phar:///usr/bin/wp/vendor/wp-cli/wp-cli/php/WP_CLI/Dispatcher/Subcommand.php(497): call_user_func()
+#5 phar:///usr/bin/wp/vendor/wp-cli/wp-cli/php/WP_CLI/Runner.php(470): WP_CLI\Dispatcher\Subcommand->invoke()
+#6 phar:///usr/bin/wp/vendor/wp-cli/wp-cli/php/WP_CLI/Runner.php(493): WP_CLI\Runner->run_command()
+#7 phar:///usr/bin/wp/vendor/wp-cli/wp-cli/php/WP_CLI/Runner.php(136): WP_CLI\Runner->run_command_and_exit()
+#8 phar:///usr/bin/wp/vendor/wp-cli/wp-cli/php/WP_CLI/Runner.php(1228): WP_CLI\Runner->do_early_invoke()
+#9 phar:///usr/bin/wp/vendor/wp-cli/wp-cli/php/WP_CLI/Bootstrap/LaunchRunner.php(28): WP_CLI\Runner->start()
+#10 phar:///usr/bin/wp/vendor/wp-cli/wp-cli/php/bootstrap.php(84): WP_CLI\Bootstrap\LaunchRunner->process()
+#11 phar:///usr/bin/wp/vendor/wp-cli/wp-cli/php/wp-cli.php(35): WP_CLI\bootstrap()
+#12 phar:///usr/bin/wp/php/boot-phar.php(20): include('...')
+#13 /usr/bin/wp(4): include('...')
+#14 {main}
+  thrown in phar:///usr/bin/wp/vendor/wp-cli/eval-command/src/Eval_Command.php(39) : eval()'d code on line 1
+[13-Sep-2026 12:34:18 UTC] PHP Fatal error:  Uncaught Error: Class "AKPP_Avito_Messenger" not found in phar:///usr/bin/wp/vendor/wp-cli/eval-command/src/Eval_Command.php(39) : eval()'d code:1
+Stack trace:
+#0 phar:///usr/bin/wp/vendor/wp-cli/eval-command/src/Eval_Command.php(39): eval()
+#1 [internal function]: Eval_Command->__invoke()
+#2 phar:///usr/bin/wp/vendor/wp-cli/wp-cli/php/WP_CLI/Dispatcher/CommandFactory.php(100): call_user_func()
+#3 [internal function]: WP_CLI\Dispatcher\CommandFactory::{closure:WP_CLI\Dispatcher\CommandFactory::create_subcommand():97}()
+#4 phar:///usr/bin/wp/vendor/wp-cli/wp-cli/php/WP_CLI/Dispatcher/Subcommand.php(497): call_user_func()
+#5 phar:///usr/bin/wp/vendor/wp-cli/wp-cli/php/WP_CLI/Runner.php(470): WP_CLI\Dispatcher\Subcommand->invoke()
+#6 phar:///usr/bin/wp/vendor/wp-cli/wp-cli/php/WP_CLI/Runner.php(493): WP_CLI\Runner->run_command()
+#7 phar:///usr/bin/wp/vendor/wp-cli/wp-cli/php/WP_CLI/Runner.php(136): WP_CLI\Runner->run_command_and_exit()
+#8 phar:///usr/bin/wp/vendor/wp-cli/wp-cli/php/WP_CLI/Runner.php(1228): WP_CLI\Runner->do_early_invoke()
+#9 phar:///usr/bin/wp/vendor/wp-cli/wp-cli/php/WP_CLI/Bootstrap/LaunchRunner.php(28): WP_CLI\Runner->start()
+#10 phar:///usr/bin/wp/vendor/wp-cli/wp-cli/php/bootstrap.php(84): WP_CLI\Bootstrap\LaunchRunner->process()
+#11 phar:///usr/bin/wp/vendor/wp-cli/wp-cli/php/wp-cli.php(35): WP_CLI\bootstrap()
+#12 phar:///usr/bin/wp/php/boot-phar.php(20): include('...')
+#13 /usr/bin/wp(4): include('...')
+#14 {main}
+  thrown in phar:///usr/bin/wp/vendor/wp-cli/eval-command/src/Eval_Command.php(39) : eval()'d code on line 1
+[13-Sep-2026 12:35:50 UTC] PHP Notice:  Функция wpdb::prepare вызвана <strong>неправильно</strong>. Аргумент запроса метода wpdb::prepare() должен содержать описатель преобразований. Дополнительную информацию можно найти на странице <a href="https://developer.wordpress.org/advanced-administration/debug/debug-wordpress/">&laquo;Отладка в WordPress&raquo;</a>. (Это сообщение было добавлено в версии 3.9.0.) in /home/akpp/htdocs/akpp45.ru/wp-includes/functions.php on line 6260
+[13-Sep-2026 12:36:23 UTC] PHP Notice:  Функция wpdb::prepare вызвана <strong>неправильно</strong>. Аргумент запроса метода wpdb::prepare() должен содержать описатель преобразований. Дополнительную информацию можно найти на странице <a href="https://developer.wordpress.org/advanced-administration/debug/debug-wordpress/">&laquo;Отладка в WordPress&raquo;</a>. (Это сообщение было добавлено в версии 3.9.0.) in /home/akpp/htdocs/akpp45.ru/wp-includes/functions.php on line 6260
+[13-Sep-2026 12:36:49 UTC] PHP Warning:  Undefined variable $service_filter in /home/akpp/htdocs/akpp45.ru/wp-content/themes/akpp-kurgan/inc/crm/tables/class-deals-table.php on line 284
+[13-Sep-2026 12:36:49 UTC] PHP Warning:  Undefined variable $service_filter in /home/akpp/htdocs/akpp45.ru/wp-content/themes/akpp-kurgan/inc/crm/tables/class-deals-table.php on line 285
+[13-Sep-2026 12:36:49 UTC] PHP Warning:  Undefined variable $service_filter in /home/akpp/htdocs/akpp45.ru/wp-content/themes/akpp-kurgan/inc/crm/tables/class-deals-table.php on line 286
+[13-Sep-2026 12:36:49 UTC] PHP Warning:  Undefined variable $service_filter in /home/akpp/htdocs/akpp45.ru/wp-content/themes/akpp-kurgan/inc/crm/tables/class-deals-table.php on line 287
+[13-Sep-2026 12:36:49 UTC] PHP Warning:  Undefined variable $service_filter in /home/akpp/htdocs/akpp45.ru/wp-content/themes/akpp-kurgan/inc/crm/tables/class-deals-table.php on line 288
+[13-Sep-2026 12:36:49 UTC] PHP Warning:  Undefined variable $service_filter in /home/akpp/htdocs/akpp45.ru/wp-content/themes/akpp-kurgan/inc/crm/tables/class-deals-table.php on line 289
+[13-Sep-2026 12:36:49 UTC] PHP Warning:  Undefined variable $service_filter in /home/akpp/htdocs/akpp45.ru/wp-content/themes/akpp-kurgan/inc/crm/tables/class-deals-table.php on line 290
+[13-Sep-2026 12:40:59 UTC] [AKPP Avito Cron] sync error: Не указаны Client ID или Client Secret в настройках Avito.
+[13-Sep-2026 12:55:31 UTC] [AKPP Avito Cron] sync error: Не указаны Client ID или Client Secret в настройках Avito.
+[13-Sep-2026 13:10:40 UTC] [AKPP Avito Cron] sync error: Не указаны Client ID или Client Secret в настройках Avito.
+[13-Sep-2026 13:20:08 UTC] [AKPP DEALS] Ошибка: 
+[13-Sep-2026 13:26:03 UTC] [AKPP Avito Cron] sync error: Не указаны Client ID или Client Secret в настройках Avito.
+[13-Sep-2026 13:40:49 UTC] [AKPP Avito Cron] sync error: Не указаны Client ID или Client Secret в настройках Avito.
+[13-Sep-2026 13:56:59 UTC] [AKPP Avito Cron] sync error: Не указаны Client ID или Client Secret в настройках Avito.
+[13-Sep-2026 14:11:05 UTC] [AKPP Avito Cron] sync error: Не указаны Client ID или Client Secret в настройках Avito.
+[13-Sep-2026 14:29:40 UTC] [AKPP Avito Cron] sync error: Не указаны Client ID или Client Secret в настройках Avito.
+[13-Sep-2026 15:03:20 UTC] Automatic updates starting...
+[13-Sep-2026 15:03:20 UTC]   Automatic plugin updates starting...
+[13-Sep-2026 15:03:20 UTC]   Automatic plugin updates complete.
+[13-Sep-2026 15:03:20 UTC] Automatic updates complete.
+[14-Sep-2026 03:58:30 UTC] Automatic updates starting...
+[14-Sep-2026 03:58:30 UTC]   Automatic plugin updates starting...
+[14-Sep-2026 03:58:30 UTC]   Automatic plugin updates complete.
+[14-Sep-2026 03:58:31 UTC] Automatic updates complete.
+[14-Sep-2026 14:59:10 UTC] Automatic updates starting...
+[14-Sep-2026 14:59:10 UTC]   Automatic plugin updates starting...
+[14-Sep-2026 14:59:10 UTC]   Automatic plugin updates complete.
+[14-Sep-2026 14:59:11 UTC] Automatic updates complete.
+[15-Sep-2026 03:00:32 UTC] Automatic updates starting...
+[15-Sep-2026 03:00:32 UTC]   Automatic plugin updates starting...
+[15-Sep-2026 03:00:32 UTC]   Automatic plugin updates complete.
+[15-Sep-2026 03:00:33 UTC] Automatic updates complete.
+[15-Sep-2026 14:59:42 UTC] Automatic updates starting...
+[15-Sep-2026 14:59:43 UTC]   Automatic plugin updates starting...
+[15-Sep-2026 14:59:43 UTC]   Automatic plugin updates complete.
+[15-Sep-2026 14:59:43 UTC] Automatic updates complete.
+[16-Sep-2026 02:59:51 UTC] Automatic updates starting...
+[16-Sep-2026 02:59:51 UTC]   Automatic plugin updates starting...
+[16-Sep-2026 02:59:51 UTC]   Automatic plugin updates complete.
+[16-Sep-2026 02:59:52 UTC] Automatic updates complete.
+[16-Sep-2026 15:12:52 UTC] Automatic updates starting...
+[16-Sep-2026 15:12:53 UTC]   Automatic plugin updates starting...
+[16-Sep-2026 15:12:53 UTC]   Automatic plugin updates complete.
+[16-Sep-2026 15:12:53 UTC] Automatic updates complete.
+[17-Sep-2026 03:17:59 UTC] Automatic updates starting...
+[17-Sep-2026 03:18:00 UTC]   Automatic plugin updates starting...
+[17-Sep-2026 03:18:00 UTC]   Automatic plugin updates complete.
+[17-Sep-2026 03:18:00 UTC] Automatic updates complete.
+[17-Sep-2026 15:18:21 UTC] Automatic updates starting...
+[17-Sep-2026 15:18:21 UTC]   Automatic plugin updates starting...
+[17-Sep-2026 15:18:21 UTC]   Automatic plugin updates complete.
+[17-Sep-2026 15:18:22 UTC] Automatic updates complete.
+[17-Sep-2026 16:33:49 UTC] Automatic updates starting...
+[17-Sep-2026 16:33:49 UTC]   Automatic plugin updates starting...
+[17-Sep-2026 16:33:49 UTC]   Automatic plugin updates complete.
+[17-Sep-2026 16:33:49 UTC] Automatic updates complete.
+[17-Sep-2026 17:47:34 UTC] Automatic updates starting...
+[17-Sep-2026 17:47:34 UTC]   Automatic plugin updates starting...
+[17-Sep-2026 17:47:34 UTC]   Automatic plugin updates complete.
+[17-Sep-2026 17:47:34 UTC] Automatic updates complete.
+[17-Sep-2026 19:01:15 UTC] Automatic updates starting...
+[17-Sep-2026 19:01:15 UTC]   Automatic plugin updates starting...
+[17-Sep-2026 19:01:15 UTC]   Automatic plugin updates complete.
+[17-Sep-2026 19:01:15 UTC] Automatic updates complete.
+[17-Sep-2026 20:15:28 UTC] Automatic updates starting...
+[17-Sep-2026 20:15:28 UTC]   Automatic plugin updates starting...
+[17-Sep-2026 20:15:28 UTC]   Automatic plugin updates complete.
+[17-Sep-2026 20:15:28 UTC] Automatic updates complete.
+[18-Sep-2026 03:08:52 UTC] Automatic updates starting...
+[18-Sep-2026 03:08:52 UTC]   Automatic plugin updates starting...
+[18-Sep-2026 03:08:52 UTC]   Automatic plugin updates complete.
+[18-Sep-2026 03:08:53 UTC] Automatic updates complete.
+[18-Sep-2026 15:05:07 UTC] Automatic updates starting...
+[18-Sep-2026 15:05:08 UTC]   Automatic plugin updates starting...
+[18-Sep-2026 15:05:08 UTC]   Automatic plugin updates complete.
+[18-Sep-2026 15:05:08 UTC] Automatic updates complete.
+[19-Sep-2026 03:28:36 UTC] Automatic updates starting...
+[19-Sep-2026 03:28:36 UTC]   Automatic plugin updates starting...
+[19-Sep-2026 03:28:36 UTC]   Automatic plugin updates complete.
+[19-Sep-2026 03:28:37 UTC] Automatic updates complete.
+[19-Sep-2026 15:06:03 UTC] Automatic updates starting...
+[19-Sep-2026 15:06:03 UTC]   Automatic plugin updates starting...
+[19-Sep-2026 15:06:03 UTC]   Automatic plugin updates complete.
+[19-Sep-2026 15:06:04 UTC] Automatic updates complete.
+[20-Sep-2026 03:35:38 UTC] Automatic updates starting...
+[20-Sep-2026 03:35:38 UTC]   Automatic plugin updates starting...
+[20-Sep-2026 03:35:38 UTC]   Automatic plugin updates complete.
+[20-Sep-2026 03:35:39 UTC] Automatic updates complete.
+[20-Sep-2026 15:01:20 UTC] Automatic updates starting...
+[20-Sep-2026 15:01:21 UTC]   Automatic plugin updates starting...
+[20-Sep-2026 15:01:21 UTC]   Automatic plugin updates complete.
+[20-Sep-2026 15:01:21 UTC] Automatic updates complete.
+[21-Sep-2026 03:02:10 UTC] Automatic updates starting...
+[21-Sep-2026 03:02:10 UTC]   Automatic plugin updates starting...
+[21-Sep-2026 03:02:10 UTC]   Automatic plugin updates complete.
+[21-Sep-2026 03:02:11 UTC] Automatic updates complete.
+[21-Sep-2026 14:59:47 UTC] Automatic updates starting...
+[21-Sep-2026 14:59:47 UTC]   Automatic plugin updates starting...
+[21-Sep-2026 14:59:47 UTC]   Automatic plugin updates complete.
+[21-Sep-2026 14:59:48 UTC] Automatic updates complete.
+[22-Sep-2026 03:01:34 UTC] Automatic updates starting...
+[22-Sep-2026 03:01:34 UTC]   Automatic plugin updates starting...
+[22-Sep-2026 03:01:34 UTC]   Automatic plugin updates complete.
+[22-Sep-2026 03:01:35 UTC] Automatic updates complete.
+[22-Sep-2026 15:02:42 UTC] Automatic updates starting...
+[22-Sep-2026 15:02:43 UTC]   Automatic plugin updates starting...
+[22-Sep-2026 15:02:43 UTC]   Automatic plugin updates complete.
+[22-Sep-2026 15:02:43 UTC] Automatic updates complete.
+[23-Sep-2026 03:07:56 UTC] Automatic updates starting...
+[23-Sep-2026 03:07:57 UTC]   Automatic plugin updates starting...
+[23-Sep-2026 03:07:57 UTC]   Automatic plugin updates complete.
+[23-Sep-2026 03:07:57 UTC] Automatic updates complete.
+[23-Sep-2026 15:04:17 UTC] Automatic updates starting...
+[23-Sep-2026 15:04:17 UTC]   Automatic plugin updates starting...
+[23-Sep-2026 15:04:17 UTC]   Automatic plugin updates complete.
+[23-Sep-2026 15:04:18 UTC] Automatic updates complete.
+[24-Sep-2026 02:59:41 UTC] Automatic updates starting...
+[24-Sep-2026 02:59:41 UTC]   Automatic plugin updates starting...
+[24-Sep-2026 02:59:41 UTC]   Automatic plugin updates complete.
+[24-Sep-2026 02:59:42 UTC] Automatic updates complete.
+[24-Sep-2026 15:00:52 UTC] Automatic updates starting...
+[24-Sep-2026 15:00:53 UTC]   Automatic plugin updates starting...
+[24-Sep-2026 15:00:53 UTC]   Automatic plugin updates complete.
+[24-Sep-2026 15:00:53 UTC] Automatic updates complete.
+[25-Sep-2026 02:59:18 UTC] Automatic updates starting...
+[25-Sep-2026 02:59:18 UTC]   Automatic plugin updates starting...
+[25-Sep-2026 02:59:18 UTC]   Automatic plugin updates complete.
+[25-Sep-2026 02:59:19 UTC] Automatic updates complete.
+[25-Sep-2026 15:02:42 UTC] Automatic updates starting...
+[25-Sep-2026 15:02:42 UTC]   Automatic plugin updates starting...
+[25-Sep-2026 15:02:42 UTC]   Automatic plugin updates complete.
+[25-Sep-2026 15:02:43 UTC] Automatic updates complete.
+[26-Sep-2026 03:00:17 UTC] Automatic updates starting...
+[26-Sep-2026 03:00:17 UTC]   Automatic plugin updates starting...
+[26-Sep-2026 03:00:17 UTC]   Automatic plugin updates complete.
+[26-Sep-2026 03:00:18 UTC] Automatic updates complete.
+[26-Sep-2026 15:09:47 UTC] Automatic updates starting...
+[26-Sep-2026 15:09:48 UTC]   Automatic plugin updates starting...
+[26-Sep-2026 15:09:48 UTC]   Automatic plugin updates complete.
+[26-Sep-2026 15:09:48 UTC] Automatic updates complete.
+[27-Sep-2026 03:08:42 UTC] Automatic updates starting...
+[27-Sep-2026 03:08:43 UTC]   Automatic plugin updates starting...
+[27-Sep-2026 03:08:43 UTC]   Automatic plugin updates complete.
+[27-Sep-2026 03:08:43 UTC] Automatic updates complete.
+[27-Sep-2026 15:04:59 UTC] Automatic updates starting...
+[27-Sep-2026 15:05:00 UTC]   Automatic plugin updates starting...
+[27-Sep-2026 15:05:00 UTC]   Automatic plugin updates complete.
+[27-Sep-2026 15:05:00 UTC] Automatic updates complete.
+[28-Sep-2026 03:01:42 UTC] Automatic updates starting...
+[28-Sep-2026 03:01:42 UTC]   Automatic plugin updates starting...
+[28-Sep-2026 03:01:42 UTC]   Automatic plugin updates complete.
+[28-Sep-2026 03:01:43 UTC] Automatic updates complete.
+[28-Sep-2026 15:07:06 UTC] Automatic updates starting...
+[28-Sep-2026 15:07:07 UTC]   Automatic plugin updates starting...
+[28-Sep-2026 15:07:07 UTC]   Automatic plugin updates complete.
+[28-Sep-2026 15:07:07 UTC] Automatic updates complete.
+[29-Sep-2026 03:10:17 UTC] Automatic updates starting...
+[29-Sep-2026 03:10:17 UTC]   Automatic plugin updates starting...
+[29-Sep-2026 03:10:17 UTC]   Automatic plugin updates complete.
+[29-Sep-2026 03:10:18 UTC] Automatic updates complete.
+[29-Sep-2026 15:00:24 UTC] Automatic updates starting...
+[29-Sep-2026 15:00:25 UTC]   Automatic plugin updates starting...
+[29-Sep-2026 15:00:25 UTC]   Automatic plugin updates complete.
+[29-Sep-2026 15:00:25 UTC] Automatic updates complete.
+[30-Sep-2026 03:23:40 UTC] Automatic updates starting...
+[30-Sep-2026 03:23:40 UTC]   Automatic plugin updates starting...
+[30-Sep-2026 03:23:40 UTC]   Automatic plugin updates complete.
+[30-Sep-2026 03:23:41 UTC] Automatic updates complete.
+[30-Sep-2026 14:59:10 UTC] Automatic updates starting...
+[30-Sep-2026 14:59:11 UTC]   Automatic plugin updates starting...
+[30-Sep-2026 14:59:11 UTC]   Automatic plugin updates complete.
+[30-Sep-2026 14:59:11 UTC] Automatic updates complete.
+[01-Oct-2026 03:04:38 UTC] Automatic updates starting...
+[01-Oct-2026 03:04:39 UTC]   Automatic plugin updates starting...
+[01-Oct-2026 03:04:39 UTC]   Automatic plugin updates complete.
+[01-Oct-2026 03:04:39 UTC] Automatic updates complete.
+[01-Oct-2026 14:59:51 UTC] Automatic updates starting...
+[01-Oct-2026 14:59:52 UTC]   Automatic plugin updates starting...
+[01-Oct-2026 14:59:52 UTC]   Automatic plugin updates complete.
+[01-Oct-2026 14:59:53 UTC] Automatic updates complete.
+[02-Oct-2026 03:09:20 UTC] Automatic updates starting...
+[02-Oct-2026 03:09:20 UTC]   Automatic plugin updates starting...
+[02-Oct-2026 03:09:20 UTC]   Automatic plugin updates complete.
+[02-Oct-2026 03:09:21 UTC] Automatic updates complete.
+[02-Oct-2026 15:07:15 UTC] Automatic updates starting...
+[02-Oct-2026 15:07:15 UTC]   Automatic plugin updates starting...
+[02-Oct-2026 15:07:15 UTC]   Automatic plugin updates complete.
+[02-Oct-2026 15:07:16 UTC] Automatic updates complete.
+[03-Oct-2026 03:09:56 UTC] Automatic updates starting...
+[03-Oct-2026 03:09:56 UTC]   Automatic plugin updates starting...
+[03-Oct-2026 03:09:56 UTC]   Automatic plugin updates complete.
+[03-Oct-2026 03:09:57 UTC] Automatic updates complete.
+[03-Oct-2026 15:06:32 UTC] Automatic updates starting...
+[03-Oct-2026 15:06:33 UTC]   Automatic plugin updates starting...
+[03-Oct-2026 15:06:33 UTC]   Automatic plugin updates complete.
+[03-Oct-2026 15:06:33 UTC] Automatic updates complete.
+[04-Oct-2026 03:21:38 UTC] Automatic updates starting...
+[04-Oct-2026 03:21:39 UTC]   Automatic plugin updates starting...
+[04-Oct-2026 03:21:39 UTC]   Automatic plugin updates complete.
+[04-Oct-2026 03:21:39 UTC] Automatic updates complete.
+[04-Oct-2026 15:14:00 UTC] Automatic updates starting...
+[04-Oct-2026 15:14:00 UTC]   Automatic plugin updates starting...
+[04-Oct-2026 15:14:00 UTC]   Automatic plugin updates complete.
+[04-Oct-2026 15:14:01 UTC] Automatic updates complete.
+[05-Oct-2026 03:12:30 UTC] Automatic updates starting...
+[05-Oct-2026 03:12:31 UTC]   Automatic plugin updates starting...
+[05-Oct-2026 03:12:31 UTC]   Automatic plugin updates complete.
+[05-Oct-2026 03:12:31 UTC] Automatic updates complete.
+[05-Oct-2026 15:20:45 UTC] Automatic updates starting...
+[05-Oct-2026 15:20:46 UTC]   Automatic plugin updates starting...
+[05-Oct-2026 15:20:46 UTC]   Automatic plugin updates complete.
+[05-Oct-2026 15:20:46 UTC] Automatic updates complete.
+[05-Oct-2026 16:23:31 UTC] Automatic updates starting...
+[05-Oct-2026 16:23:31 UTC]   Automatic plugin updates starting...
+[05-Oct-2026 16:23:31 UTC]   Automatic plugin updates complete.
+[05-Oct-2026 16:23:31 UTC] Automatic updates complete.
+[05-Oct-2026 17:30:10 UTC] Automatic updates starting...
+[05-Oct-2026 17:30:10 UTC]   Automatic plugin updates starting...
+[05-Oct-2026 17:30:10 UTC]   Automatic plugin updates complete.
+[05-Oct-2026 17:30:12 UTC] Automatic updates complete.
+[05-Oct-2026 19:01:49 UTC] Automatic updates starting...
+[05-Oct-2026 19:01:49 UTC]   Automatic plugin updates starting...
+[05-Oct-2026 19:01:49 UTC]   Automatic plugin updates complete.
+[05-Oct-2026 19:01:49 UTC] Automatic updates complete.
+[05-Oct-2026 20:09:32 UTC] Automatic updates starting...
+[05-Oct-2026 20:09:32 UTC]   Automatic plugin updates starting...
+[05-Oct-2026 20:09:32 UTC]   Automatic plugin updates complete.
+[05-Oct-2026 20:09:32 UTC] Automatic updates complete.
+[05-Oct-2026 21:41:38 UTC] Automatic updates starting...
+[05-Oct-2026 21:41:38 UTC]   Automatic plugin updates starting...
+[05-Oct-2026 21:41:38 UTC]   Automatic plugin updates complete.
+[05-Oct-2026 21:41:38 UTC] Automatic updates complete.
+[05-Oct-2026 22:58:59 UTC] Automatic updates starting...
+[05-Oct-2026 22:58:59 UTC]   Automatic plugin updates starting...
+[05-Oct-2026 22:58:59 UTC]   Automatic plugin updates complete.
+[05-Oct-2026 22:59:00 UTC] Automatic updates complete.
+[06-Oct-2026 00:54:30 UTC] Automatic updates starting...
+[06-Oct-2026 00:54:30 UTC]   Automatic plugin updates starting...
+[06-Oct-2026 00:54:30 UTC]   Automatic plugin updates complete.
+[06-Oct-2026 00:54:30 UTC] Automatic updates complete.
+[06-Oct-2026 03:05:29 UTC] Automatic updates starting...
+[06-Oct-2026 03:05:30 UTC]   Automatic plugin updates starting...
+[06-Oct-2026 03:05:30 UTC]   Automatic plugin updates complete.
+[06-Oct-2026 03:05:30 UTC] Automatic updates complete.
+[06-Oct-2026 15:11:59 UTC] Automatic updates starting...
+[06-Oct-2026 15:12:00 UTC]   Automatic plugin updates starting...
+[06-Oct-2026 15:12:00 UTC]   Automatic plugin updates complete.
+[06-Oct-2026 15:12:00 UTC] Automatic updates complete.
+[06-Oct-2026 16:18:06 UTC] Automatic updates starting...
+[06-Oct-2026 16:18:06 UTC]   Automatic plugin updates starting...
+[06-Oct-2026 16:18:06 UTC]   Automatic plugin updates complete.
+[06-Oct-2026 16:18:06 UTC] Automatic updates complete.
+[06-Oct-2026 17:23:58 UTC] Automatic updates starting...
+[06-Oct-2026 17:23:58 UTC]   Automatic plugin updates starting...
+[06-Oct-2026 17:23:58 UTC]   Automatic plugin updates complete.
+[06-Oct-2026 17:23:59 UTC] Automatic updates complete.
+[06-Oct-2026 18:27:21 UTC] Automatic updates starting...
+[06-Oct-2026 18:27:21 UTC]   Automatic plugin updates starting...
+[06-Oct-2026 18:27:21 UTC]   Automatic plugin updates complete.
+[06-Oct-2026 18:27:21 UTC] Automatic updates complete.
+[07-Oct-2026 03:16:29 UTC] Automatic updates starting...
+[07-Oct-2026 03:16:29 UTC]   Automatic plugin updates starting...
+[07-Oct-2026 03:16:29 UTC]   Automatic plugin updates complete.
+[07-Oct-2026 03:16:30 UTC] Automatic updates complete.
+[07-Oct-2026 15:02:15 UTC] Automatic updates starting...
+[07-Oct-2026 15:02:17 UTC]   Automatic plugin updates starting...
+[07-Oct-2026 15:02:17 UTC]   Automatic plugin updates complete.
+[07-Oct-2026 15:02:18 UTC] Automatic updates complete.
+[08-Oct-2026 03:06:11 UTC] Automatic updates starting...
+[08-Oct-2026 03:06:11 UTC]   Automatic plugin updates starting...
+[08-Oct-2026 03:06:11 UTC]   Automatic plugin updates complete.
+[08-Oct-2026 03:06:12 UTC] Automatic updates complete.
+[08-Oct-2026 15:09:17 UTC] Automatic updates starting...
+[08-Oct-2026 15:09:18 UTC]   Automatic plugin updates starting...
+[08-Oct-2026 15:09:18 UTC]   Automatic plugin updates complete.
+[08-Oct-2026 15:09:18 UTC] Automatic updates complete.
+[09-Oct-2026 03:17:39 UTC] Automatic updates starting...
+[09-Oct-2026 03:17:40 UTC]   Automatic plugin updates starting...
+[09-Oct-2026 03:17:40 UTC]   Automatic plugin updates complete.
+[09-Oct-2026 03:17:40 UTC] Automatic updates complete.
+[09-Oct-2026 15:05:08 UTC] Automatic updates starting...
+[09-Oct-2026 15:05:09 UTC]   Automatic plugin updates starting...
+[09-Oct-2026 15:05:09 UTC]   Automatic plugin updates complete.
+[09-Oct-2026 15:05:09 UTC] Automatic updates complete.
+[10-Oct-2026 03:01:51 UTC] Automatic updates starting...
+[10-Oct-2026 03:01:52 UTC]   Automatic plugin updates starting...
+[10-Oct-2026 03:01:52 UTC]   Automatic plugin updates complete.
+[10-Oct-2026 03:01:52 UTC] Automatic updates complete.
+[10-Oct-2026 11:02:41 UTC] PHP Warning:  translations_api(): Произошла непредвиденная ошибка. Возможно, что-то не так с сайтом WordPress.org или с настройками вашего сервера. Если проблема не решится, обратитесь на <a href="https://ru.wordpress.org/support/forums/">форумы поддержки</a>. (Не удалось установить защищённое соединение с WordPress.org. Пожалуйста, свяжитесь с администратором сервера.) in /home/akpp/htdocs/akpp45.ru/wp-includes/functions.php on line 6260
+[10-Oct-2026 15:16:06 UTC] Automatic updates starting...
+[10-Oct-2026 15:16:07 UTC]   Automatic plugin updates starting...
+[10-Oct-2026 15:16:07 UTC]   Automatic plugin updates complete.
+[10-Oct-2026 15:16:08 UTC] Automatic updates complete.
+[11-Oct-2026 03:04:15 UTC] Automatic updates starting...
+[11-Oct-2026 03:04:16 UTC]   Automatic plugin updates starting...
+[11-Oct-2026 03:04:16 UTC]   Automatic plugin updates complete.
+[11-Oct-2026 03:04:17 UTC] Automatic updates complete.
+[11-Oct-2026 15:03:24 UTC] Automatic updates starting...
+[11-Oct-2026 15:03:24 UTC]   Automatic plugin updates starting...
+[11-Oct-2026 15:03:24 UTC]   Automatic plugin updates complete.
+[11-Oct-2026 15:03:25 UTC] Automatic updates complete.
+[12-Oct-2026 03:03:44 UTC] Automatic updates starting...
+[12-Oct-2026 03:03:45 UTC]   Automatic plugin updates starting...
+[12-Oct-2026 03:03:45 UTC]   Automatic plugin updates complete.
+[12-Oct-2026 03:03:45 UTC] Automatic updates complete.
+[12-Oct-2026 14:59:11 UTC] Automatic updates starting...
+[12-Oct-2026 14:59:11 UTC]   Automatic plugin updates starting...
+[12-Oct-2026 14:59:11 UTC]   Automatic plugin updates complete.
+[12-Oct-2026 14:59:12 UTC] Automatic updates complete.
+[12-Oct-2026 15:46:59 UTC] WordPress database error Unknown column 'created_at' in 'where clause' for query DELETE FROM wp_akpp_vin_cache WHERE created_at < DATE_SUB(NOW(), INTERVAL 90 DAY) made by do_action_ref_array('akpp_cleanup_old_data'), WP_Hook->do_action, WP_Hook->apply_filters, AKPP_Cron_Tasks->cleanup_old_data
+[12-Oct-2026 15:56:54 UTC] WordPress database error Unknown column 'title' in 'where clause' for query DELETE FROM wp_akpp_leads WHERE title LIKE 'TEST_%' OR name LIKE 'TEST_%' OR phone = '+70000000000'
+[12-Oct-2026 15:56:54 UTC] WordPress database error Unknown column 'title' in 'where clause' for query DELETE FROM wp_akpp_deals WHERE title LIKE 'TEST_%'
+[12-Oct-2026 15:56:54 UTC] WordPress database error Unknown column 'message' in 'where clause' for query DELETE FROM wp_akpp_chat_messages WHERE message LIKE 'TEST_%'
+[12-Oct-2026 15:56:54 UTC] WordPress database error Unknown column 'note' in 'where clause' for query DELETE FROM wp_akpp_attendance WHERE note LIKE 'TEST_%'
+[12-Oct-2026 15:56:56 UTC] WordPress database error Unknown column 'title' in 'field list' for query INSERT INTO `wp_akpp_leads` (`title`, `name`, `phone`, `email`, `source`, `status`) VALUES ('TEST Лид: ремонт АКПП A541E', 'TEST Клиент Иванов', '+70000000000', 'test_client@smoke.local', 'smoke-test', 'new') made by AKPP_DB->add_lead
+[12-Oct-2026 15:56:56 UTC] WordPress database error Unknown column 'title' in 'field list' for query INSERT INTO `wp_akpp_leads` (`title`, `name`, `phone`, `email`, `source`, `status`, `created_at`) VALUES ('TEST Лид: ремонт АКПП A541E', 'TEST Клиент Иванов', '+70000000000', 'test_client@smoke.local', 'smoke-test', 'new', '2026-10-12 15:56:56')
+[12-Oct-2026 15:56:56 UTC] WordPress database error Unknown column 'title' in 'field list' for query INSERT INTO `wp_akpp_deals` (`title`, `lead_id`, `client_id`, `status`, `amount`, `created_at`) VALUES ('TEST Сделка из лида: ремонт A541E', '0', '0', 'new', '45000', '2026-10-12 15:56:56')
+[12-Oct-2026 15:56:56 UTC] PHP Warning:  session_start(): Session cannot be started after headers have already been sent in /home/akpp/htdocs/akpp45.ru/wp-content/themes/akpp-kurgan/inc/crm/class-akpp-shop.php on line 235
+[12-Oct-2026 15:56:56 UTC] PHP Warning:  session_start(): Session cannot be started after headers have already been sent in /home/akpp/htdocs/akpp45.ru/wp-content/themes/akpp-kurgan/inc/crm/class-akpp-shop.php on line 235
+[12-Oct-2026 15:56:56 UTC] PHP Warning:  Array to string conversion in /home/akpp/htdocs/akpp45.ru/wp-content/themes/akpp-kurgan/tests/full-journey-test.php on line 200
+[12-Oct-2026 15:56:56 UTC] PHP Notice:  Функция wpdb::prepare вызвана <strong>неправильно</strong>. Неподдерживаемый тип значения (array). Дополнительную информацию можно найти на странице <a href="https://developer.wordpress.org/advanced-administration/debug/debug-wordpress/">&laquo;Отладка в WordPress&raquo;</a>. (Это сообщение было добавлено в версии 4.8.2.) in /home/akpp/htdocs/akpp45.ru/wp-includes/functions.php on line 6260
+[12-Oct-2026 15:56:56 UTC] PHP Notice:  Функция wpdb::prepare вызвана <strong>неправильно</strong>. Неподдерживаемый тип значения (array). Дополнительную информацию можно найти на странице <a href="https://developer.wordpress.org/advanced-administration/debug/debug-wordpress/">&laquo;Отладка в WordPress&raquo;</a>. (Это сообщение было добавлено в версии 4.8.2.) in /home/akpp/htdocs/akpp45.ru/wp-includes/functions.php on line 6260
+[12-Oct-2026 15:56:56 UTC] PHP Notice:  Функция wpdb::prepare вызвана <strong>неправильно</strong>. Неподдерживаемый тип значения (array). Дополнительную информацию можно найти на странице <a href="https://developer.wordpress.org/advanced-administration/debug/debug-wordpress/">&laquo;Отладка в WordPress&raquo;</a>. (Это сообщение было добавлено в версии 4.8.2.) in /home/akpp/htdocs/akpp45.ru/wp-includes/functions.php on line 6260
+[12-Oct-2026 15:56:56 UTC] PHP Notice:  Функция wpdb::prepare вызвана <strong>неправильно</strong>. Неподдерживаемый тип значения (array). Дополнительную информацию можно найти на странице <a href="https://developer.wordpress.org/advanced-administration/debug/debug-wordpress/">&laquo;Отладка в WordPress&raquo;</a>. (Это сообщение было добавлено в версии 4.8.2.) in /home/akpp/htdocs/akpp45.ru/wp-includes/functions.php on line 6260
+[12-Oct-2026 15:56:56 UTC] PHP Notice:  Функция wpdb::prepare вызвана <strong>неправильно</strong>. Неподдерживаемый тип значения (array). Дополнительную информацию можно найти на странице <a href="https://developer.wordpress.org/advanced-administration/debug/debug-wordpress/">&laquo;Отладка в WordPress&raquo;</a>. (Это сообщение было добавлено в версии 4.8.2.) in /home/akpp/htdocs/akpp45.ru/wp-includes/functions.php on line 6260
+[12-Oct-2026 15:56:56 UTC] PHP Notice:  Функция wpdb::prepare вызвана <strong>неправильно</strong>. Неподдерживаемый тип значения (array). Дополнительную информацию можно найти на странице <a href="https://developer.wordpress.org/advanced-administration/debug/debug-wordpress/">&laquo;Отладка в WordPress&raquo;</a>. (Это сообщение было добавлено в версии 4.8.2.) in /home/akpp/htdocs/akpp45.ru/wp-includes/functions.php on line 6260
+[12-Oct-2026 15:56:56 UTC] PHP Notice:  Функция wpdb::prepare вызвана <strong>неправильно</strong>. Неподдерживаемый тип значения (array). Дополнительную информацию можно найти на странице <a href="https://developer.wordpress.org/advanced-administration/debug/debug-wordpress/">&laquo;Отладка в WordPress&raquo;</a>. (Это сообщение было добавлено в версии 4.8.2.) in /home/akpp/htdocs/akpp45.ru/wp-includes/functions.php on line 6260
+[12-Oct-2026 15:56:56 UTC] PHP Notice:  Функция wpdb::prepare вызвана <strong>неправильно</strong>. В запросе ожидался только один описатель преобразований, но обнаружен массив из множества описателей. Дополнительную информацию можно найти на странице <a href="https://developer.wordpress.org/advanced-administration/debug/debug-wordpress/">&laquo;Отладка в WordPress&raquo;</a>. (Это сообщение было добавлено в версии 4.9.0.) in /home/akpp/htdocs/akpp45.ru/wp-includes/functions.php on line 6260
+[12-Oct-2026 15:56:56 UTC] WordPress database error Unknown column 'source_url' in 'field list' for query INSERT INTO `wp_akpp_parser_items` (`title`, `content`, `content_type`, `source_url`, `status`, `created_at`) VALUES ('TEST объявление: АКПП Toyota A541E', 'TEST: контрактная коробка из Японии, пробег 84 тыс. км', 'avito', 'https://smoke.local/test', 'pending', '2026-10-12 15:56:56')
+[12-Oct-2026 15:56:56 UTC] WordPress database error Unknown column 'note' in 'field list' for query INSERT INTO `wp_akpp_attendance` (`note`, `created_at`) VALUES ('TEST: смена', '2026-10-12 15:56:56')
+[12-Oct-2026 15:56:58 UTC] WordPress database error Unknown column 'title' in 'where clause' for query DELETE FROM wp_akpp_leads WHERE title LIKE 'TEST_%' OR name LIKE 'TEST_%' OR phone = '+70000000000'
+[12-Oct-2026 15:56:58 UTC] WordPress database error Unknown column 'title' in 'where clause' for query DELETE FROM wp_akpp_deals WHERE title LIKE 'TEST_%'
+[12-Oct-2026 15:56:58 UTC] WordPress database error Unknown column 'message' in 'where clause' for query DELETE FROM wp_akpp_chat_messages WHERE message LIKE 'TEST_%'
+[12-Oct-2026 15:56:58 UTC] WordPress database error Unknown column 'note' in 'where clause' for query DELETE FROM wp_akpp_attendance WHERE note LIKE 'TEST_%'
+[12-Oct-2026 15:57:01 UTC] WordPress database error Unknown column 'title' in 'field list' for query INSERT INTO `wp_akpp_leads` (`title`, `name`, `phone`, `email`, `source`, `status`) VALUES ('TEST Лид: ремонт АКПП A541E', 'TEST Клиент Иванов', '+70000000000', 'test_client@smoke.local', 'smoke-test', 'new') made by AKPP_DB->add_lead
+[12-Oct-2026 15:57:01 UTC] WordPress database error Unknown column 'title' in 'field list' for query INSERT INTO `wp_akpp_leads` (`title`, `name`, `phone`, `email`, `source`, `status`, `created_at`) VALUES ('TEST Лид: ремонт АКПП A541E', 'TEST Клиент Иванов', '+70000000000', 'test_client@smoke.local', 'smoke-test', 'new', '2026-10-12 15:57:01')
+[12-Oct-2026 15:57:01 UTC] WordPress database error Unknown column 'title' in 'field list' for query INSERT INTO `wp_akpp_deals` (`title`, `lead_id`, `client_id`, `status`, `amount`, `created_at`) VALUES ('TEST Сделка из лида: ремонт A541E', '0', '0', 'new', '45000', '2026-10-12 15:57:01')
+[12-Oct-2026 15:57:01 UTC] PHP Warning:  session_start(): Session cannot be started after headers have already been sent in /home/akpp/htdocs/akpp45.ru/wp-content/themes/akpp-kurgan/inc/crm/class-akpp-shop.php on line 235
+[12-Oct-2026 15:57:01 UTC] PHP Warning:  session_start(): Session cannot be started after headers have already been sent in /home/akpp/htdocs/akpp45.ru/wp-content/themes/akpp-kurgan/inc/crm/class-akpp-shop.php on line 235
+[12-Oct-2026 15:57:01 UTC] PHP Warning:  Array to string conversion in /home/akpp/htdocs/akpp45.ru/wp-content/themes/akpp-kurgan/tests/full-journey-test.php on line 200
+[12-Oct-2026 15:57:01 UTC] PHP Notice:  Функция wpdb::prepare вызвана <strong>неправильно</strong>. Неподдерживаемый тип значения (array). Дополнительную информацию можно найти на странице <a href="https://developer.wordpress.org/advanced-administration/debug/debug-wordpress/">&laquo;Отладка в WordPress&raquo;</a>. (Это сообщение было добавлено в версии 4.8.2.) in /home/akpp/htdocs/akpp45.ru/wp-includes/functions.php on line 6260
+[12-Oct-2026 15:57:01 UTC] PHP Notice:  Функция wpdb::prepare вызвана <strong>неправильно</strong>. Неподдерживаемый тип значения (array). Дополнительную информацию можно найти на странице <a href="https://developer.wordpress.org/advanced-administration/debug/debug-wordpress/">&laquo;Отладка в WordPress&raquo;</a>. (Это сообщение было добавлено в версии 4.8.2.) in /home/akpp/htdocs/akpp45.ru/wp-includes/functions.php on line 6260
+[12-Oct-2026 15:57:01 UTC] PHP Notice:  Функция wpdb::prepare вызвана <strong>неправильно</strong>. Неподдерживаемый тип значения (array). Дополнительную информацию можно найти на странице <a href="https://developer.wordpress.org/advanced-administration/debug/debug-wordpress/">&laquo;Отладка в WordPress&raquo;</a>. (Это сообщение было добавлено в версии 4.8.2.) in /home/akpp/htdocs/akpp45.ru/wp-includes/functions.php on line 6260
+[12-Oct-2026 15:57:01 UTC] PHP Notice:  Функция wpdb::prepare вызвана <strong>неправильно</strong>. Неподдерживаемый тип значения (array). Дополнительную информацию можно найти на странице <a href="https://developer.wordpress.org/advanced-administration/debug/debug-wordpress/">&laquo;Отладка в WordPress&raquo;</a>. (Это сообщение было добавлено в версии 4.8.2.) in /home/akpp/htdocs/akpp45.ru/wp-includes/functions.php on line 6260
+[12-Oct-2026 15:57:01 UTC] PHP Notice:  Функция wpdb::prepare вызвана <strong>неправильно</strong>. Неподдерживаемый тип значения (array). Дополнительную информацию можно найти на странице <a href="https://developer.wordpress.org/advanced-administration/debug/debug-wordpress/">&laquo;Отладка в WordPress&raquo;</a>. (Это сообщение было добавлено в версии 4.8.2.) in /home/akpp/htdocs/akpp45.ru/wp-includes/functions.php on line 6260
+[12-Oct-2026 15:57:01 UTC] PHP Notice:  Функция wpdb::prepare вызвана <strong>неправильно</strong>. Неподдерживаемый тип значения (array). Дополнительную информацию можно найти на странице <a href="https://developer.wordpress.org/advanced-administration/debug/debug-wordpress/">&laquo;Отладка в WordPress&raquo;</a>. (Это сообщение было добавлено в версии 4.8.2.) in /home/akpp/htdocs/akpp45.ru/wp-includes/functions.php on line 6260
+[12-Oct-2026 15:57:01 UTC] PHP Notice:  Функция wpdb::prepare вызвана <strong>неправильно</strong>. Неподдерживаемый тип значения (array). Дополнительную информацию можно найти на странице <a href="https://developer.wordpress.org/advanced-administration/debug/debug-wordpress/">&laquo;Отладка в WordPress&raquo;</a>. (Это сообщение было добавлено в версии 4.8.2.) in /home/akpp/htdocs/akpp45.ru/wp-includes/functions.php on line 6260
+[12-Oct-2026 15:57:01 UTC] PHP Notice:  Функция wpdb::prepare вызвана <strong>неправильно</strong>. В запросе ожидался только один описатель преобразований, но обнаружен массив из множества описателей. Дополнительную информацию можно найти на странице <a href="https://developer.wordpress.org/advanced-administration/debug/debug-wordpress/">&laquo;Отладка в WordPress&raquo;</a>. (Это сообщение было добавлено в версии 4.9.0.) in /home/akpp/htdocs/akpp45.ru/wp-includes/functions.php on line 6260
+[12-Oct-2026 15:57:01 UTC] WordPress database error Unknown column 'source_url' in 'field list' for query INSERT INTO `wp_akpp_parser_items` (`title`, `content`, `content_type`, `source_url`, `status`, `created_at`) VALUES ('TEST объявление: АКПП Toyota A541E', 'TEST: контрактная коробка из Японии, пробег 84 тыс. км', 'avito', 'https://smoke.local/test', 'pending', '2026-10-12 15:57:01')
+[12-Oct-2026 15:57:01 UTC] WordPress database error Unknown column 'note' in 'field list' for query INSERT INTO `wp_akpp_attendance` (`note`, `created_at`) VALUES ('TEST: смена', '2026-10-12 15:57:01')
+[12-Oct-2026 15:57:20 UTC] PHP Warning:  Undefined variable $service_filter in /home/akpp/htdocs/akpp45.ru/wp-content/themes/akpp-kurgan/inc/crm/tables/class-deals-table.php on line 284
+[12-Oct-2026 15:57:20 UTC] PHP Warning:  Undefined variable $service_filter in /home/akpp/htdocs/akpp45.ru/wp-content/themes/akpp-kurgan/inc/crm/tables/class-deals-table.php on line 285
+[12-Oct-2026 15:57:20 UTC] PHP Warning:  Undefined variable $service_filter in /home/akpp/htdocs/akpp45.ru/wp-content/themes/akpp-kurgan/inc/crm/tables/class-deals-table.php on line 286
+[12-Oct-2026 15:57:20 UTC] PHP Warning:  Undefined variable $service_filter in /home/akpp/htdocs/akpp45.ru/wp-content/themes/akpp-kurgan/inc/crm/tables/class-deals-table.php on line 287
+[12-Oct-2026 15:57:20 UTC] PHP Warning:  Undefined variable $service_filter in /home/akpp/htdocs/akpp45.ru/wp-content/themes/akpp-kurgan/inc/crm/tables/class-deals-table.php on line 288
+[12-Oct-2026 15:57:20 UTC] PHP Warning:  Undefined variable $service_filter in /home/akpp/htdocs/akpp45.ru/wp-content/themes/akpp-kurgan/inc/crm/tables/class-deals-table.php on line 289
+[12-Oct-2026 15:57:20 UTC] PHP Warning:  Undefined variable $service_filter in /home/akpp/htdocs/akpp45.ru/wp-content/themes/akpp-kurgan/inc/crm/tables/class-deals-table.php on line 290
+[12-Oct-2026 15:59:18 UTC] WordPress database error Unknown column 'title' in 'field list' for query INSERT INTO `wp_akpp_leads` (`title`, `name`, `phone`, `status`) VALUES ('TEST диагн', 'TEST', '+70000000000', 'new') made by include('phar:///usr/bin/wp/php/boot-phar.php'), include('phar:///usr/bin/wp/vendor/wp-cli/wp-cli/php/wp-cli.php'), WP_CLI\bootstrap, WP_CLI\Bootstrap\LaunchRunner->process, WP_CLI\Runner->start, WP_CLI\Runner->do_early_invoke, WP_CLI\Runner->run_command_and_exit, WP_CLI\Runner->run_command, WP_CLI\Dispatcher\Subcommand->invoke, call_user_func, WP_CLI\Dispatcher\CommandFactory::{closure:WP_CLI\Dispatcher\CommandFactory::create_subcommand():97}, call_user_func, Eval_Command->__invoke, eval, AKPP_DB->add_lead
+[12-Oct-2026 15:59:18 UTC] WordPress database error Unknown column 'title' in 'field list' for query INSERT INTO `wp_akpp_deals` (`title`, `status`, `amount`) VALUES ('TEST диагн', 'new', '0') made by include('phar:///usr/bin/wp/php/boot-phar.php'), include('phar:///usr/bin/wp/vendor/wp-cli/wp-cli/php/wp-cli.php'), WP_CLI\bootstrap, WP_CLI\Bootstrap\LaunchRunner->process, WP_CLI\Runner->start, WP_CLI\Runner->do_early_invoke, WP_CLI\Runner->run_command_and_exit, WP_CLI\Runner->run_command, WP_CLI\Dispatcher\Subcommand->invoke, call_user_func, WP_CLI\Dispatcher\CommandFactory::{closure:WP_CLI\Dispatcher\CommandFactory::create_subcommand():97}, call_user_func, Eval_Command->__invoke, eval, AKPP_DB->add_deal
+[12-Oct-2026 15:59:18 UTC] PHP Warning:  session_start(): Session cannot be started after headers have already been sent in /home/akpp/htdocs/akpp45.ru/wp-content/themes/akpp-kurgan/inc/crm/class-akpp-shop.php on line 235
+[12-Oct-2026 15:59:18 UTC] PHP Warning:  session_start(): Session cannot be started after headers have already been sent in /home/akpp/htdocs/akpp45.ru/wp-content/themes/akpp-kurgan/inc/crm/class-akpp-shop.php on line 235
+[12-Oct-2026 15:59:20 UTC] WordPress database error Unknown column 'title' in 'where clause' for query DELETE FROM wp_akpp_leads WHERE title LIKE 'TEST_%' OR name LIKE 'TEST_%' OR phone = '+70000000000'
+[12-Oct-2026 15:59:20 UTC] WordPress database error Unknown column 'title' in 'where clause' for query DELETE FROM wp_akpp_deals WHERE title LIKE 'TEST_%'
+[12-Oct-2026 15:59:20 UTC] WordPress database error Unknown column 'message' in 'where clause' for query DELETE FROM wp_akpp_chat_messages WHERE message LIKE 'TEST_%'
+[12-Oct-2026 15:59:20 UTC] WordPress database error Unknown column 'note' in 'where clause' for query DELETE FROM wp_akpp_attendance WHERE note LIKE 'TEST_%'
+[12-Oct-2026 15:59:24 UTC] WordPress database error Unknown column 'title' in 'field list' for query INSERT INTO `wp_akpp_leads` (`title`, `name`, `phone`, `email`, `source`, `status`) VALUES ('TEST Лид: ремонт АКПП A541E', 'TEST Клиент Иванов', '+70000000000', 'test_client@smoke.local', 'smoke-test', 'new') made by AKPP_DB->add_lead
+[12-Oct-2026 15:59:24 UTC] WordPress database error Unknown column 'title' in 'field list' for query INSERT INTO `wp_akpp_leads` (`title`, `name`, `phone`, `email`, `source`, `status`, `created_at`) VALUES ('TEST Лид: ремонт АКПП A541E', 'TEST Клиент Иванов', '+70000000000', 'test_client@smoke.local', 'smoke-test', 'new', '2026-10-12 15:59:24')
+[12-Oct-2026 15:59:24 UTC] WordPress database error Unknown column 'title' in 'field list' for query INSERT INTO `wp_akpp_deals` (`title`, `lead_id`, `client_id`, `status`, `amount`, `created_at`) VALUES ('TEST Сделка из лида: ремонт A541E', '0', '0', 'new', '45000', '2026-10-12 15:59:24')
+[12-Oct-2026 15:59:24 UTC] PHP Warning:  session_start(): Session cannot be started after headers have already been sent in /home/akpp/htdocs/akpp45.ru/wp-content/themes/akpp-kurgan/inc/crm/class-akpp-shop.php on line 235
+[12-Oct-2026 15:59:24 UTC] PHP Warning:  session_start(): Session cannot be started after headers have already been sent in /home/akpp/htdocs/akpp45.ru/wp-content/themes/akpp-kurgan/inc/crm/class-akpp-shop.php on line 235
+[12-Oct-2026 15:59:24 UTC] WordPress database error Unknown column 'decoded_data' in 'field list' for query SELECT decoded_data FROM wp_akpp_vin_cache 
+            WHERE vin = '1HGCM82633A004352' AND created_at > DATE_SUB(NOW(), INTERVAL 2592000 SECOND) made by AKPP_VIN_Decoder->decode, AKPP_VIN_Decoder->get_from_cache
+[12-Oct-2026 15:59:24 UTC] WordPress database error Unknown column 'decoded_data' in 'field list' for query INSERT INTO `wp_akpp_vin_cache` (`vin`, `decoded_data`, `created_at`) VALUES ('1HGCM82633A004352', '{\"vin\":\"1HGCM82633A004352\",\"make\":\"HONDA\",\"model\":\"Accord\",\"year\":2003,\"manufacturer\":\"AMERICAN HONDA MOTOR CO., INC.\",\"plant_country\":\"UNITED STATES (USA)\",\"plant_state\":\"OHIO\",\"body_class\":\"Coupe\",\"drive_type\":\"\",\"engine_cylinders\":\"6\",\"engine_model\":\"J30A4\",\"fuel_type\":\"Gasoline\",\"transmission_style\":\"Automatic\",\"market\":\"japan\"}', '2026-10-12 15:59:24') made by AKPP_VIN_Decoder->decode, AKPP_VIN_Decoder->save_to_cache
+[12-Oct-2026 15:59:24 UTC] WordPress database error Unknown column 'source_url' in 'field list' for query INSERT INTO `wp_akpp_parser_items` (`title`, `content`, `content_type`, `source_url`, `status`, `created_at`) VALUES ('TEST объявление: АКПП Toyota A541E', 'TEST: контрактная коробка из Японии, пробег 84 тыс. км', 'avito', 'https://smoke.local/test', 'pending', '2026-10-12 15:59:24')
+[12-Oct-2026 15:59:24 UTC] WordPress database error Unknown column 'note' in 'field list' for query INSERT INTO `wp_akpp_attendance` (`note`, `created_at`) VALUES ('TEST: смена', '2026-10-12 15:59:24')
+[12-Oct-2026 15:59:26 UTC] WordPress database error Unknown column 'title' in 'where clause' for query DELETE FROM wp_akpp_leads WHERE title LIKE 'TEST_%' OR name LIKE 'TEST_%' OR phone = '+70000000000'
+[12-Oct-2026 15:59:26 UTC] WordPress database error Unknown column 'title' in 'where clause' for query DELETE FROM wp_akpp_deals WHERE title LIKE 'TEST_%'
+[12-Oct-2026 15:59:26 UTC] WordPress database error Unknown column 'message' in 'where clause' for query DELETE FROM wp_akpp_chat_messages WHERE message LIKE 'TEST_%'
+[12-Oct-2026 15:59:26 UTC] WordPress database error Unknown column 'note' in 'where clause' for query DELETE FROM wp_akpp_attendance WHERE note LIKE 'TEST_%'
+[12-Oct-2026 15:59:29 UTC] WordPress database error Unknown column 'title' in 'field list' for query INSERT INTO `wp_akpp_leads` (`title`, `name`, `phone`, `email`, `source`, `status`) VALUES ('TEST Лид: ремонт АКПП A541E', 'TEST Клиент Иванов', '+70000000000', 'test_client@smoke.local', 'smoke-test', 'new') made by AKPP_DB->add_lead
+[12-Oct-2026 15:59:29 UTC] WordPress database error Unknown column 'title' in 'field list' for query INSERT INTO `wp_akpp_leads` (`title`, `name`, `phone`, `email`, `source`, `status`, `created_at`) VALUES ('TEST Лид: ремонт АКПП A541E', 'TEST Клиент Иванов', '+70000000000', 'test_client@smoke.local', 'smoke-test', 'new', '2026-10-12 15:59:29')
+[12-Oct-2026 15:59:29 UTC] WordPress database error Unknown column 'title' in 'field list' for query INSERT INTO `wp_akpp_deals` (`title`, `lead_id`, `client_id`, `status`, `amount`, `created_at`) VALUES ('TEST Сделка из лида: ремонт A541E', '0', '0', 'new', '45000', '2026-10-12 15:59:29')
+[12-Oct-2026 15:59:29 UTC] PHP Warning:  session_start(): Session cannot be started after headers have already been sent in /home/akpp/htdocs/akpp45.ru/wp-content/themes/akpp-kurgan/inc/crm/class-akpp-shop.php on line 235
+[12-Oct-2026 15:59:29 UTC] PHP Warning:  session_start(): Session cannot be started after headers have already been sent in /home/akpp/htdocs/akpp45.ru/wp-content/themes/akpp-kurgan/inc/crm/class-akpp-shop.php on line 235
+[12-Oct-2026 15:59:29 UTC] WordPress database error Unknown column 'decoded_data' in 'field list' for query SELECT decoded_data FROM wp_akpp_vin_cache 
+            WHERE vin = '1HGCM82633A004352' AND created_at > DATE_SUB(NOW(), INTERVAL 2592000 SECOND) made by AKPP_VIN_Decoder->decode, AKPP_VIN_Decoder->get_from_cache
+[12-Oct-2026 15:59:29 UTC] WordPress database error Unknown column 'decoded_data' in 'field list' for query INSERT INTO `wp_akpp_vin_cache` (`vin`, `decoded_data`, `created_at`) VALUES ('1HGCM82633A004352', '{\"vin\":\"1HGCM82633A004352\",\"make\":\"HONDA\",\"model\":\"Accord\",\"year\":2003,\"manufacturer\":\"AMERICAN HONDA MOTOR CO., INC.\",\"plant_country\":\"UNITED STATES (USA)\",\"plant_state\":\"OHIO\",\"body_class\":\"Coupe\",\"drive_type\":\"\",\"engine_cylinders\":\"6\",\"engine_model\":\"J30A4\",\"fuel_type\":\"Gasoline\",\"transmission_style\":\"Automatic\",\"market\":\"japan\"}', '2026-10-12 15:59:29') made by AKPP_VIN_Decoder->decode, AKPP_VIN_Decoder->save_to_cache
+[12-Oct-2026 15:59:29 UTC] WordPress database error Unknown column 'source_url' in 'field list' for query INSERT INTO `wp_akpp_parser_items` (`title`, `content`, `content_type`, `source_url`, `status`, `created_at`) VALUES ('TEST объявление: АКПП Toyota A541E', 'TEST: контрактная коробка из Японии, пробег 84 тыс. км', 'avito', 'https://smoke.local/test', 'pending', '2026-10-12 15:59:29')
+[12-Oct-2026 15:59:29 UTC] WordPress database error Unknown column 'note' in 'field list' for query INSERT INTO `wp_akpp_attendance` (`note`, `created_at`) VALUES ('TEST: смена', '2026-10-12 15:59:29')
+[12-Oct-2026 16:00:08 UTC] PHP Warning:  Undefined variable $service_filter in /home/akpp/htdocs/akpp45.ru/wp-content/themes/akpp-kurgan/inc/crm/tables/class-deals-table.php on line 284
+[12-Oct-2026 16:00:08 UTC] PHP Warning:  Undefined variable $service_filter in /home/akpp/htdocs/akpp45.ru/wp-content/themes/akpp-kurgan/inc/crm/tables/class-deals-table.php on line 285
+[12-Oct-2026 16:00:08 UTC] PHP Warning:  Undefined variable $service_filter in /home/akpp/htdocs/akpp45.ru/wp-content/themes/akpp-kurgan/inc/crm/tables/class-deals-table.php on line 286
+[12-Oct-2026 16:00:08 UTC] PHP Warning:  Undefined variable $service_filter in /home/akpp/htdocs/akpp45.ru/wp-content/themes/akpp-kurgan/inc/crm/tables/class-deals-table.php on line 287
+[12-Oct-2026 16:00:08 UTC] PHP Warning:  Undefined variable $service_filter in /home/akpp/htdocs/akpp45.ru/wp-content/themes/akpp-kurgan/inc/crm/tables/class-deals-table.php on line 288
+[12-Oct-2026 16:00:08 UTC] PHP Warning:  Undefined variable $service_filter in /home/akpp/htdocs/akpp45.ru/wp-content/themes/akpp-kurgan/inc/crm/tables/class-deals-table.php on line 289
+[12-Oct-2026 16:00:08 UTC] PHP Warning:  Undefined variable $service_filter in /home/akpp/htdocs/akpp45.ru/wp-content/themes/akpp-kurgan/inc/crm/tables/class-deals-table.php on line 290
+[12-Oct-2026 16:07:36 UTC] WordPress database error Cannot add or update a child row: a foreign key constraint fails (`akpp45`.`wp_akpp_deals`, CONSTRAINT `fk_deals_client` FOREIGN KEY (`client_id`) REFERENCES `wp_akpp_site_users` (`id`) ON DELETE CASCADE) for query INSERT INTO `wp_akpp_deals` (`client_id`, `employee_id`, `make`, `model`, `year`, `vin`, `problem_description`, `service_category`, `status`, `work_cost`, `work_hours`, `standard_hours`, `hourly_rate`, `calculation_type`, `total_amount`, `created_at`, `updated_at`) VALUES ('0', '0', 'Toyota', 'Camry', '2003', '1HGCM82633A004352', 'TEST: ремонт АКПП', 'repair', 'new', '45000', '8', '8', '5625', 'fixed', '45000', '2026-10-12 16:07:36', '2026-10-12 16:07:36') made by ins_auto
+[12-Oct-2026 16:07:36 UTC] PHP Warning:  session_start(): Session cannot be started after headers have already been sent in /home/akpp/htdocs/akpp45.ru/wp-content/themes/akpp-kurgan/inc/crm/class-akpp-shop.php on line 235
+[12-Oct-2026 16:07:36 UTC] PHP Warning:  session_start(): Session cannot be started after headers have already been sent in /home/akpp/htdocs/akpp45.ru/wp-content/themes/akpp-kurgan/inc/crm/class-akpp-shop.php on line 235
+[12-Oct-2026 16:07:36 UTC] WordPress database error Unknown column 'decoded_data' in 'field list' for query SELECT decoded_data FROM wp_akpp_vin_cache 
+            WHERE vin = '1HGCM82633A004352' AND created_at > DATE_SUB(NOW(), INTERVAL 2592000 SECOND) made by AKPP_VIN_Decoder->decode, AKPP_VIN_Decoder->get_from_cache
+[12-Oct-2026 16:07:36 UTC] WordPress database error Unknown column 'decoded_data' in 'field list' for query INSERT INTO `wp_akpp_vin_cache` (`vin`, `decoded_data`, `created_at`) VALUES ('1HGCM82633A004352', '{\"vin\":\"1HGCM82633A004352\",\"make\":\"HONDA\",\"model\":\"Accord\",\"year\":2003,\"manufacturer\":\"AMERICAN HONDA MOTOR CO., INC.\",\"plant_country\":\"UNITED STATES (USA)\",\"plant_state\":\"OHIO\",\"body_class\":\"Coupe\",\"drive_type\":\"\",\"engine_cylinders\":\"6\",\"engine_model\":\"J30A4\",\"fuel_type\":\"Gasoline\",\"transmission_style\":\"Automatic\",\"market\":\"japan\"}', '2026-10-12 16:07:36') made by AKPP_VIN_Decoder->decode, AKPP_VIN_Decoder->save_to_cache
+[12-Oct-2026 16:07:40 UTC] WordPress database error Cannot add or update a child row: a foreign key constraint fails (`akpp45`.`wp_akpp_deals`, CONSTRAINT `fk_deals_client` FOREIGN KEY (`client_id`) REFERENCES `wp_akpp_site_users` (`id`) ON DELETE CASCADE) for query INSERT INTO `wp_akpp_deals` (`client_id`, `employee_id`, `make`, `model`, `year`, `vin`, `problem_description`, `service_category`, `status`, `work_cost`, `work_hours`, `standard_hours`, `hourly_rate`, `calculation_type`, `total_amount`, `created_at`, `updated_at`) VALUES ('0', '0', 'Toyota', 'Camry', '2003', '1HGCM82633A004352', 'TEST: ремонт АКПП', 'repair', 'new', '45000', '8', '8', '5625', 'fixed', '45000', '2026-10-12 16:07:40', '2026-10-12 16:07:40') made by ins_auto
+[12-Oct-2026 16:07:40 UTC] PHP Warning:  session_start(): Session cannot be started after headers have already been sent in /home/akpp/htdocs/akpp45.ru/wp-content/themes/akpp-kurgan/inc/crm/class-akpp-shop.php on line 235
+[12-Oct-2026 16:07:40 UTC] PHP Warning:  session_start(): Session cannot be started after headers have already been sent in /home/akpp/htdocs/akpp45.ru/wp-content/themes/akpp-kurgan/inc/crm/class-akpp-shop.php on line 235
+[12-Oct-2026 16:07:40 UTC] WordPress database error Unknown column 'decoded_data' in 'field list' for query SELECT decoded_data FROM wp_akpp_vin_cache 
+            WHERE vin = '1HGCM82633A004352' AND created_at > DATE_SUB(NOW(), INTERVAL 2592000 SECOND) made by AKPP_VIN_Decoder->decode, AKPP_VIN_Decoder->get_from_cache
+[12-Oct-2026 16:07:41 UTC] WordPress database error Unknown column 'decoded_data' in 'field list' for query INSERT INTO `wp_akpp_vin_cache` (`vin`, `decoded_data`, `created_at`) VALUES ('1HGCM82633A004352', '{\"vin\":\"1HGCM82633A004352\",\"make\":\"HONDA\",\"model\":\"Accord\",\"year\":2003,\"manufacturer\":\"AMERICAN HONDA MOTOR CO., INC.\",\"plant_country\":\"UNITED STATES (USA)\",\"plant_state\":\"OHIO\",\"body_class\":\"Coupe\",\"drive_type\":\"\",\"engine_cylinders\":\"6\",\"engine_model\":\"J30A4\",\"fuel_type\":\"Gasoline\",\"transmission_style\":\"Automatic\",\"market\":\"japan\"}', '2026-10-12 16:07:41') made by AKPP_VIN_Decoder->decode, AKPP_VIN_Decoder->save_to_cache
+[12-Oct-2026 16:07:44 UTC] PHP Warning:  Undefined variable $service_filter in /home/akpp/htdocs/akpp45.ru/wp-content/themes/akpp-kurgan/inc/crm/tables/class-deals-table.php on line 284
+[12-Oct-2026 16:07:44 UTC] PHP Warning:  Undefined variable $service_filter in /home/akpp/htdocs/akpp45.ru/wp-content/themes/akpp-kurgan/inc/crm/tables/class-deals-table.php on line 285
+[12-Oct-2026 16:07:44 UTC] PHP Warning:  Undefined variable $service_filter in /home/akpp/htdocs/akpp45.ru/wp-content/themes/akpp-kurgan/inc/crm/tables/class-deals-table.php on line 286
+[12-Oct-2026 16:07:44 UTC] PHP Warning:  Undefined variable $service_filter in /home/akpp/htdocs/akpp45.ru/wp-content/themes/akpp-kurgan/inc/crm/tables/class-deals-table.php on line 287
+[12-Oct-2026 16:07:44 UTC] PHP Warning:  Undefined variable $service_filter in /home/akpp/htdocs/akpp45.ru/wp-content/themes/akpp-kurgan/inc/crm/tables/class-deals-table.php on line 288
+[12-Oct-2026 16:07:44 UTC] PHP Warning:  Undefined variable $service_filter in /home/akpp/htdocs/akpp45.ru/wp-content/themes/akpp-kurgan/inc/crm/tables/class-deals-table.php on line 289
+[12-Oct-2026 16:07:44 UTC] PHP Warning:  Undefined variable $service_filter in /home/akpp/htdocs/akpp45.ru/wp-content/themes/akpp-kurgan/inc/crm/tables/class-deals-table.php on line 290
+[12-Oct-2026 16:07:48 UTC] PHP Warning:  Undefined variable $service_filter in /home/akpp/htdocs/akpp45.ru/wp-content/themes/akpp-kurgan/inc/crm/tables/class-deals-table.php on line 284
+[12-Oct-2026 16:07:48 UTC] PHP Warning:  Undefined variable $service_filter in /home/akpp/htdocs/akpp45.ru/wp-content/themes/akpp-kurgan/inc/crm/tables/class-deals-table.php on line 285
+[12-Oct-2026 16:07:48 UTC] PHP Warning:  Undefined variable $service_filter in /home/akpp/htdocs/akpp45.ru/wp-content/themes/akpp-kurgan/inc/crm/tables/class-deals-table.php on line 286
+[12-Oct-2026 16:07:48 UTC] PHP Warning:  Undefined variable $service_filter in /home/akpp/htdocs/akpp45.ru/wp-content/themes/akpp-kurgan/inc/crm/tables/class-deals-table.php on line 287
+[12-Oct-2026 16:07:48 UTC] PHP Warning:  Undefined variable $service_filter in /home/akpp/htdocs/akpp45.ru/wp-content/themes/akpp-kurgan/inc/crm/tables/class-deals-table.php on line 288
+[12-Oct-2026 16:07:48 UTC] PHP Warning:  Undefined variable $service_filter in /home/akpp/htdocs/akpp45.ru/wp-content/themes/akpp-kurgan/inc/crm/tables/class-deals-table.php on line 289
+[12-Oct-2026 16:07:48 UTC] PHP Warning:  Undefined variable $service_filter in /home/akpp/htdocs/akpp45.ru/wp-content/themes/akpp-kurgan/inc/crm/tables/class-deals-table.php on line 290
+[12-Oct-2026 16:09:01 UTC] PHP Notice:  Функция wpdb::prepare вызвана <strong>неправильно</strong>. Аргумент запроса метода wpdb::prepare() должен содержать описатель преобразований. Дополнительную информацию можно найти на странице <a href="https://developer.wordpress.org/advanced-administration/debug/debug-wordpress/">&laquo;Отладка в WordPress&raquo;</a>. (Это сообщение было добавлено в версии 3.9.0.) in /home/akpp/htdocs/akpp45.ru/wp-includes/functions.php on line 6260
+[12-Oct-2026 16:14:58 UTC] WordPress database error Unknown column 'menu_item_title' in 'where clause' for query SELECT ID FROM wp_posts WHERE post_type="nav_menu_item" AND menu_item_title LIKE "%Авито%" OR menu_item_title LIKE "%Telegram%" OR menu_item_title LIKE "%2GIS%" made by include('phar:///usr/bin/wp/php/boot-phar.php'), include('phar:///usr/bin/wp/vendor/wp-cli/wp-cli/php/wp-cli.php'), WP_CLI\bootstrap, WP_CLI\Bootstrap\LaunchRunner->process, WP_CLI\Runner->start, WP_CLI\Runner->do_early_invoke, WP_CLI\Runner->run_command_and_exit, WP_CLI\Runner->run_command, WP_CLI\Dispatcher\Subcommand->invoke, call_user_func, WP_CLI\Dispatcher\CommandFactory::{closure:WP_CLI\Dispatcher\CommandFactory::create_subcommand():97}, call_user_func, Eval_Command->__invoke, eval
+[12-Oct-2026 16:29:29 UTC] WordPress database error Unknown column 'menu_item_title' in 'where clause' for query SELECT ID FROM wp_posts WHERE post_type="nav_menu_item" AND (menu_item_title LIKE "%Авито%" OR menu_item_title LIKE "%Telegram%" OR menu_item_title LIKE "%2GIS%") made by include('phar:///usr/bin/wp/php/boot-phar.php'), include('phar:///usr/bin/wp/vendor/wp-cli/wp-cli/php/wp-cli.php'), WP_CLI\bootstrap, WP_CLI\Bootstrap\LaunchRunner->process, WP_CLI\Runner->start, WP_CLI\Runner->do_early_invoke, WP_CLI\Runner->run_command_and_exit, WP_CLI\Runner->run_command, WP_CLI\Dispatcher\Subcommand->invoke, call_user_func, WP_CLI\Dispatcher\CommandFactory::{closure:WP_CLI\Dispatcher\CommandFactory::create_subcommand():97}, call_user_func, Eval_Command->__invoke, eval
+[12-Oct-2026 16:29:31 UTC] PHP Fatal error:  Uncaught Error: Call to undefined function get_menu_page_position() in phar:///usr/bin/wp/vendor/wp-cli/eval-command/src/Eval_Command.php(39) : eval()'d code:1
+Stack trace:
+#0 phar:///usr/bin/wp/vendor/wp-cli/eval-command/src/Eval_Command.php(39): eval()
+#1 [internal function]: Eval_Command->__invoke()
+#2 phar:///usr/bin/wp/vendor/wp-cli/wp-cli/php/WP_CLI/Dispatcher/CommandFactory.php(100): call_user_func()
+#3 [internal function]: WP_CLI\Dispatcher\CommandFactory::{closure:WP_CLI\Dispatcher\CommandFactory::create_subcommand():97}()
+#4 phar:///usr/bin/wp/vendor/wp-cli/wp-cli/php/WP_CLI/Dispatcher/Subcommand.php(497): call_user_func()
+#5 phar:///usr/bin/wp/vendor/wp-cli/wp-cli/php/WP_CLI/Runner.php(470): WP_CLI\Dispatcher\Subcommand->invoke()
+#6 phar:///usr/bin/wp/vendor/wp-cli/wp-cli/php/WP_CLI/Runner.php(493): WP_CLI\Runner->run_command()
+#7 phar:///usr/bin/wp/vendor/wp-cli/wp-cli/php/WP_CLI/Runner.php(136): WP_CLI\Runner->run_command_and_exit()
+#8 phar:///usr/bin/wp/vendor/wp-cli/wp-cli/php/WP_CLI/Runner.php(1228): WP_CLI\Runner->do_early_invoke()
+#9 phar:///usr/bin/wp/vendor/wp-cli/wp-cli/php/WP_CLI/Bootstrap/LaunchRunner.php(28): WP_CLI\Runner->start()
+#10 phar:///usr/bin/wp/vendor/wp-cli/wp-cli/php/bootstrap.php(84): WP_CLI\Bootstrap\LaunchRunner->process()
+#11 phar:///usr/bin/wp/vendor/wp-cli/wp-cli/php/wp-cli.php(35): WP_CLI\bootstrap()
+#12 phar:///usr/bin/wp/php/boot-phar.php(20): include('...')
+#13 /usr/bin/wp(4): include('...')
+#14 {main}
+  thrown in phar:///usr/bin/wp/vendor/wp-cli/eval-command/src/Eval_Command.php(39) : eval()'d code on line 1
+[12-Oct-2026 16:29:31 UTC] [AKPP45 FATAL] Uncaught Error: Call to undefined function get_menu_page_position() in phar:///usr/bin/wp/vendor/wp-cli/eval-command/src/Eval_Command.php(39) : eval()'d code:1
+Stack trace:
+#0 phar:///usr/bin/wp/vendor/wp-cli/eval-command/src/Eval_Command.php(39): eval()
+#1 [internal function]: Eval_Command->__invoke()
+#2 phar:///usr/bin/wp/vendor/wp-cli/wp-cli/php/WP_CLI/Dispatcher/CommandFactory.php(100): call_user_func()
+#3 [internal function]: WP_CLI\Dispatcher\CommandFactory::{closure:WP_CLI\Dispatcher\CommandFactory::create_subcommand():97}()
+#4 phar:///usr/bin/wp/vendor/wp-cli/wp-cli/php/WP_CLI/Dispatcher/Subcommand.php(497): call_user_func()
+#5 phar:///usr/bin/wp/vendor/wp-cli/wp-cli/php/WP_CLI/Runner.php(470): WP_CLI\Dispatcher\Subcommand->invoke()
+#6 phar:///usr/bin/wp/vendor/wp-cli/wp-cli/php/WP_CLI/Runner.php(493): WP_CLI\Runner->run_command()
+#7 phar:///usr/bin/wp/vendor/wp-cli/wp-cli/php/WP_CLI/Runner.php(136): WP_CLI\Runner->run_command_and_exit()
+#8 phar:///usr/bin/wp/vendor/wp-cli/wp-cli/php/WP_CLI/Runner.php(1228): WP_CLI\Runner->do_early_invoke()
+#9 phar:///usr/bin/wp/vendor/wp-cli/wp-cli/php/WP_CLI/Bootstrap/LaunchRunner.php(28): WP_CLI\Runner->start()
+#10 phar:///usr/bin/wp/vendor/wp-cli/wp-cli/php/bootstrap.php(84): WP_CLI\Bootstrap\LaunchRunner->process()
+#11 phar:///usr/bin/wp/vendor/wp-cli/wp-cli/php/wp-cli.php(35): WP_CLI\bootstrap()
+#12 phar:///usr/bin/wp/php/boot-phar.php(20): include('...')
+#13 /usr/bin/wp(4): include('...')
+#14 {main}
+  thrown in phar:///usr/bin/wp/vendor/wp-cli/eval-command/src/Eval_Command.php(39) : eval()'d code on line 1
+[12-Oct-2026 16:30:10 UTC] PHP Warning:  Undefined array key "enabled" in /home/akpp/htdocs/akpp45.ru/wp-content/themes/akpp-kurgan/inc/crm/class-akpp-mail.php on line 25
+[12-Oct-2026 16:30:10 UTC] PHP Warning:  Undefined array key "enabled" in /home/akpp/htdocs/akpp45.ru/wp-content/themes/akpp-kurgan/inc/crm/class-akpp-mail.php on line 25
+[12-Oct-2026 16:30:10 UTC] PHP Warning:  Undefined array key "enabled" in /home/akpp/htdocs/akpp45.ru/wp-content/themes/akpp-kurgan/inc/crm/class-akpp-mail.php on line 25
+[12-Oct-2026 16:30:10 UTC] PHP Warning:  Undefined array key "enabled" in /home/akpp/htdocs/akpp45.ru/wp-content/themes/akpp-kurgan/inc/crm/class-akpp-mail.php on line 25
+[12-Oct-2026 16:46:11 UTC] PHP Parse error:  Unmatched ')' in phar:///usr/bin/wp/vendor/wp-cli/eval-command/src/Eval_Command.php(39) : eval()'d code on line 1
+[12-Oct-2026 16:46:22 UTC] WordPress database error Table 'akpp45.wp_akpp_mail_queue' doesn't exist for query SELECT COUNT(*) FROM wp_akpp_mail_queue WHERE status='pending' made by do_action('toplevel_page_akpp-mail'), WP_Hook->do_action, WP_Hook->apply_filters, AKPP_Mail->render
+[12-Oct-2026 16:46:22 UTC] WordPress database error Table 'akpp45.wp_akpp_mail_queue' doesn't exist for query SELECT COUNT(*) FROM wp_akpp_mail_queue WHERE status='sent' made by do_action('toplevel_page_akpp-mail'), WP_Hook->do_action, WP_Hook->apply_filters, AKPP_Mail->render
+[12-Oct-2026 16:46:22 UTC] WordPress database error Table 'akpp45.wp_akpp_mail_queue' doesn't exist for query SELECT COUNT(*) FROM wp_akpp_mail_queue WHERE status='failed' made by do_action('toplevel_page_akpp-mail'), WP_Hook->do_action, WP_Hook->apply_filters, AKPP_Mail->render
+[12-Oct-2026 17:04:33 UTC] PHP Fatal error:  Uncaught Error: Call to undefined function get_menu_page_position() in phar:///usr/bin/wp/vendor/wp-cli/eval-command/src/Eval_Command.php(39) : eval()'d code:1
+Stack trace:
+#0 phar:///usr/bin/wp/vendor/wp-cli/eval-command/src/Eval_Command.php(39): eval()
+#1 [internal function]: Eval_Command->__invoke()
+#2 phar:///usr/bin/wp/vendor/wp-cli/wp-cli/php/WP_CLI/Dispatcher/CommandFactory.php(100): call_user_func()
+#3 [internal function]: WP_CLI\Dispatcher\CommandFactory::{closure:WP_CLI\Dispatcher\CommandFactory::create_subcommand():97}()
+#4 phar:///usr/bin/wp/vendor/wp-cli/wp-cli/php/WP_CLI/Dispatcher/Subcommand.php(497): call_user_func()
+#5 phar:///usr/bin/wp/vendor/wp-cli/wp-cli/php/WP_CLI/Runner.php(470): WP_CLI\Dispatcher\Subcommand->invoke()
+#6 phar:///usr/bin/wp/vendor/wp-cli/wp-cli/php/WP_CLI/Runner.php(493): WP_CLI\Runner->run_command()
+#7 phar:///usr/bin/wp/vendor/wp-cli/wp-cli/php/WP_CLI/Runner.php(136): WP_CLI\Runner->run_command_and_exit()
+#8 phar:///usr/bin/wp/vendor/wp-cli/wp-cli/php/WP_CLI/Runner.php(1228): WP_CLI\Runner->do_early_invoke()
+#9 phar:///usr/bin/wp/vendor/wp-cli/wp-cli/php/WP_CLI/Bootstrap/LaunchRunner.php(28): WP_CLI\Runner->start()
+#10 phar:///usr/bin/wp/vendor/wp-cli/wp-cli/php/bootstrap.php(84): WP_CLI\Bootstrap\LaunchRunner->process()
+#11 phar:///usr/bin/wp/vendor/wp-cli/wp-cli/php/wp-cli.php(35): WP_CLI\bootstrap()
+#12 phar:///usr/bin/wp/php/boot-phar.php(20): include('...')
+#13 /usr/bin/wp(4): include('...')
+#14 {main}
+  thrown in phar:///usr/bin/wp/vendor/wp-cli/eval-command/src/Eval_Command.php(39) : eval()'d code on line 1
+[12-Oct-2026 17:04:33 UTC] [AKPP45 FATAL] Uncaught Error: Call to undefined function get_menu_page_position() in phar:///usr/bin/wp/vendor/wp-cli/eval-command/src/Eval_Command.php(39) : eval()'d code:1
+Stack trace:
+#0 phar:///usr/bin/wp/vendor/wp-cli/eval-command/src/Eval_Command.php(39): eval()
+#1 [internal function]: Eval_Command->__invoke()
+#2 phar:///usr/bin/wp/vendor/wp-cli/wp-cli/php/WP_CLI/Dispatcher/CommandFactory.php(100): call_user_func()
+#3 [internal function]: WP_CLI\Dispatcher\CommandFactory::{closure:WP_CLI\Dispatcher\CommandFactory::create_subcommand():97}()
+#4 phar:///usr/bin/wp/vendor/wp-cli/wp-cli/php/WP_CLI/Dispatcher/Subcommand.php(497): call_user_func()
+#5 phar:///usr/bin/wp/vendor/wp-cli/wp-cli/php/WP_CLI/Runner.php(470): WP_CLI\Dispatcher\Subcommand->invoke()
+#6 phar:///usr/bin/wp/vendor/wp-cli/wp-cli/php/WP_CLI/Runner.php(493): WP_CLI\Runner->run_command()
+#7 phar:///usr/bin/wp/vendor/wp-cli/wp-cli/php/WP_CLI/Runner.php(136): WP_CLI\Runner->run_command_and_exit()
+#8 phar:///usr/bin/wp/vendor/wp-cli/wp-cli/php/WP_CLI/Runner.php(1228): WP_CLI\Runner->do_early_invoke()
+#9 phar:///usr/bin/wp/vendor/wp-cli/wp-cli/php/WP_CLI/Bootstrap/LaunchRunner.php(28): WP_CLI\Runner->start()
+#10 phar:///usr/bin/wp/vendor/wp-cli/wp-cli/php/bootstrap.php(84): WP_CLI\Bootstrap\LaunchRunner->process()
+#11 phar:///usr/bin/wp/vendor/wp-cli/wp-cli/php/wp-cli.php(35): WP_CLI\bootstrap()
+#12 phar:///usr/bin/wp/php/boot-phar.php(20): include('...')
+#13 /usr/bin/wp(4): include('...')
+#14 {main}
+  thrown in phar:///usr/bin/wp/vendor/wp-cli/eval-command/src/Eval_Command.php(39) : eval()'d code on line 1
+[17-Oct-2026 12:42:30 UTC] PHP Warning:  Constant WP_DEBUG already defined in /home/akpp/htdocs/akpp45.ru/wp-config.php on line 40
+[17-Oct-2026 12:42:30 UTC] PHP Warning:  Constant WP_DEBUG_LOG already defined in /home/akpp/htdocs/akpp45.ru/wp-config.php on line 41
+[17-Oct-2026 12:42:30 UTC] PHP Warning:  Constant WP_DEBUG_DISPLAY already defined in /home/akpp/htdocs/akpp45.ru/wp-config.php on line 42
+[17-Oct-2026 12:42:31 UTC] PHP Warning:  Constant WP_DEBUG already defined in /home/akpp/htdocs/akpp45.ru/wp-config.php on line 40
+[17-Oct-2026 12:42:31 UTC] PHP Warning:  Constant WP_DEBUG_LOG already defined in /home/akpp/htdocs/akpp45.ru/wp-config.php on line 41
+[17-Oct-2026 12:42:31 UTC] PHP Warning:  Constant WP_DEBUG_DISPLAY already defined in /home/akpp/htdocs/akpp45.ru/wp-config.php on line 42
+[17-Oct-2026 12:42:31 UTC] PHP Warning:  Constant WP_DEBUG already defined in /home/akpp/htdocs/akpp45.ru/wp-config.php on line 40
+[17-Oct-2026 12:42:31 UTC] PHP Warning:  Constant WP_DEBUG_LOG already defined in /home/akpp/htdocs/akpp45.ru/wp-config.php on line 41
+[17-Oct-2026 12:42:31 UTC] PHP Warning:  Constant WP_DEBUG_DISPLAY already defined in /home/akpp/htdocs/akpp45.ru/wp-config.php on line 42
+[17-Oct-2026 12:42:33 UTC] Automatic updates starting...
+[17-Oct-2026 12:42:33 UTC]   Automatic plugin updates starting...
+[17-Oct-2026 12:42:33 UTC]   Automatic plugin updates complete.
+[17-Oct-2026 12:42:34 UTC] Automatic updates complete.
+[17-Oct-2026 12:42:35 UTC] WordPress database error Unknown column 'created_at' in 'WHERE' for query DELETE FROM wp_akpp_vin_cache WHERE created_at < DATE_SUB(NOW(), INTERVAL 90 DAY) made by do_action_ref_array('akpp_cleanup_old_data'), WP_Hook->do_action, WP_Hook->apply_filters, AKPP_Cron_Tasks->cleanup_old_data
+[17-Oct-2026 12:42:35 UTC] PHP Warning:  Constant WP_DEBUG already defined in /home/akpp/htdocs/akpp45.ru/wp-config.php on line 40
+[17-Oct-2026 12:42:35 UTC] PHP Warning:  Constant WP_DEBUG_LOG already defined in /home/akpp/htdocs/akpp45.ru/wp-config.php on line 41
+[17-Oct-2026 12:42:35 UTC] PHP Warning:  Constant WP_DEBUG_DISPLAY already defined in /home/akpp/htdocs/akpp45.ru/wp-config.php on line 42
+[17-Oct-2026 12:42:35 UTC] PHP Warning:  Constant WP_DEBUG already defined in /home/akpp/htdocs/akpp45.ru/wp-config.php on line 40
+[17-Oct-2026 12:42:35 UTC] PHP Warning:  Constant WP_DEBUG_LOG already defined in /home/akpp/htdocs/akpp45.ru/wp-config.php on line 41
+[17-Oct-2026 12:42:35 UTC] PHP Warning:  Constant WP_DEBUG_DISPLAY already defined in /home/akpp/htdocs/akpp45.ru/wp-config.php on line 42
+[17-Oct-2026 12:42:38 UTC] PHP Warning:  Constant WP_DEBUG already defined in /home/akpp/htdocs/akpp45.ru/wp-config.php on line 40
+[17-Oct-2026 12:42:38 UTC] PHP Warning:  Constant WP_DEBUG_LOG already defined in /home/akpp/htdocs/akpp45.ru/wp-config.php on line 41
+[17-Oct-2026 12:42:38 UTC] PHP Warning:  Constant WP_DEBUG_DISPLAY already defined in /home/akpp/htdocs/akpp45.ru/wp-config.php on line 42
+[17-Oct-2026 12:42:38 UTC] PHP Warning:  Constant WP_DEBUG already defined in /home/akpp/htdocs/akpp45.ru/wp-config.php on line 40
+[17-Oct-2026 12:42:38 UTC] PHP Warning:  Constant WP_DEBUG_LOG already defined in /home/akpp/htdocs/akpp45.ru/wp-config.php on line 41
+[17-Oct-2026 12:42:38 UTC] PHP Warning:  Constant WP_DEBUG_DISPLAY already defined in /home/akpp/htdocs/akpp45.ru/wp-config.php on line 42
+[17-Oct-2026 12:42:47 UTC] PHP Warning:  Constant WP_DEBUG already defined in /home/akpp/htdocs/akpp45.ru/wp-config.php on line 40
+[17-Oct-2026 12:42:47 UTC] PHP Warning:  Constant WP_DEBUG_LOG already defined in /home/akpp/htdocs/akpp45.ru/wp-config.php on line 41
+[17-Oct-2026 12:42:47 UTC] PHP Warning:  Constant WP_DEBUG_DISPLAY already defined in /home/akpp/htdocs/akpp45.ru/wp-config.php on line 42
+[17-Oct-2026 12:42:48 UTC] PHP Warning:  Constant WP_DEBUG already defined in /home/akpp/htdocs/akpp45.ru/wp-config.php on line 40
+[17-Oct-2026 12:42:48 UTC] PHP Warning:  Constant WP_DEBUG_LOG already defined in /home/akpp/htdocs/akpp45.ru/wp-config.php on line 41
+[17-Oct-2026 12:42:48 UTC] PHP Warning:  Constant WP_DEBUG_DISPLAY already defined in /home/akpp/htdocs/akpp45.ru/wp-config.php on line 42
+[17-Oct-2026 12:43:01 UTC] PHP Warning:  Constant WP_DEBUG already defined in /home/akpp/htdocs/akpp45.ru/wp-config.php on line 40
+[17-Oct-2026 12:43:01 UTC] PHP Warning:  Constant WP_DEBUG_LOG already defined in /home/akpp/htdocs/akpp45.ru/wp-config.php on line 41
+[17-Oct-2026 12:43:01 UTC] PHP Warning:  Constant WP_DEBUG_DISPLAY already defined in /home/akpp/htdocs/akpp45.ru/wp-config.php on line 42
+[17-Oct-2026 12:43:02 UTC] PHP Warning:  Constant WP_DEBUG already defined in /home/akpp/htdocs/akpp45.ru/wp-config.php on line 40
+[17-Oct-2026 12:43:02 UTC] PHP Warning:  Constant WP_DEBUG_LOG already defined in /home/akpp/htdocs/akpp45.ru/wp-config.php on line 41
+[17-Oct-2026 12:43:02 UTC] PHP Warning:  Constant WP_DEBUG_DISPLAY already defined in /home/akpp/htdocs/akpp45.ru/wp-config.php on line 42
+[17-Oct-2026 12:43:07 UTC] PHP Warning:  Constant WP_DEBUG already defined in /home/akpp/htdocs/akpp45.ru/wp-config.php on line 40
+[17-Oct-2026 12:43:07 UTC] PHP Warning:  Constant WP_DEBUG_LOG already defined in /home/akpp/htdocs/akpp45.ru/wp-config.php on line 41
+[17-Oct-2026 12:43:07 UTC] PHP Warning:  Constant WP_DEBUG_DISPLAY already defined in /home/akpp/htdocs/akpp45.ru/wp-config.php on line 42
+[17-Oct-2026 12:43:08 UTC] PHP Warning:  Constant WP_DEBUG already defined in /home/akpp/htdocs/akpp45.ru/wp-config.php on line 40
+[17-Oct-2026 12:43:08 UTC] PHP Warning:  Constant WP_DEBUG_LOG already defined in /home/akpp/htdocs/akpp45.ru/wp-config.php on line 41
+[17-Oct-2026 12:43:08 UTC] PHP Warning:  Constant WP_DEBUG_DISPLAY already defined in /home/akpp/htdocs/akpp45.ru/wp-config.php on line 42
+[17-Oct-2026 12:43:11 UTC] PHP Warning:  Constant WP_DEBUG already defined in /home/akpp/htdocs/akpp45.ru/wp-config.php on line 40
+[17-Oct-2026 12:43:11 UTC] PHP Warning:  Constant WP_DEBUG_LOG already defined in /home/akpp/htdocs/akpp45.ru/wp-config.php on line 41
+[17-Oct-2026 12:43:11 UTC] PHP Warning:  Constant WP_DEBUG_DISPLAY already defined in /home/akpp/htdocs/akpp45.ru/wp-config.php on line 42
+[17-Oct-2026 12:43:13 UTC] PHP Warning:  Constant WP_DEBUG already defined in /home/akpp/htdocs/akpp45.ru/wp-config.php on line 40
+[17-Oct-2026 12:43:13 UTC] PHP Warning:  Constant WP_DEBUG_LOG already defined in /home/akpp/htdocs/akpp45.ru/wp-config.php on line 41
+[17-Oct-2026 12:43:13 UTC] PHP Warning:  Constant WP_DEBUG_DISPLAY already defined in /home/akpp/htdocs/akpp45.ru/wp-config.php on line 42
+[17-Oct-2026 12:43:16 UTC] PHP Warning:  Constant WP_DEBUG already defined in /home/akpp/htdocs/akpp45.ru/wp-config.php on line 40
+[17-Oct-2026 12:43:16 UTC] PHP Warning:  Constant WP_DEBUG_LOG already defined in /home/akpp/htdocs/akpp45.ru/wp-config.php on line 41
+[17-Oct-2026 12:43:16 UTC] PHP Warning:  Constant WP_DEBUG_DISPLAY already defined in /home/akpp/htdocs/akpp45.ru/wp-config.php on line 42
+[17-Oct-2026 12:43:17 UTC] PHP Warning:  Constant WP_DEBUG already defined in /home/akpp/htdocs/akpp45.ru/wp-config.php on line 40
+[17-Oct-2026 12:43:17 UTC] PHP Warning:  Constant WP_DEBUG_LOG already defined in /home/akpp/htdocs/akpp45.ru/wp-config.php on line 41
+[17-Oct-2026 12:43:17 UTC] PHP Warning:  Constant WP_DEBUG_DISPLAY already defined in /home/akpp/htdocs/akpp45.ru/wp-config.php on line 42
+[17-Oct-2026 12:44:20 UTC] PHP Warning:  Constant WP_DEBUG already defined in /home/akpp/htdocs/akpp45.ru/wp-config.php on line 40
+[17-Oct-2026 12:44:20 UTC] PHP Warning:  Constant WP_DEBUG_LOG already defined in /home/akpp/htdocs/akpp45.ru/wp-config.php on line 41
+[17-Oct-2026 12:44:20 UTC] PHP Warning:  Constant WP_DEBUG_DISPLAY already defined in /home/akpp/htdocs/akpp45.ru/wp-config.php on line 42
+[17-Oct-2026 12:45:53 UTC] PHP Warning:  Constant WP_DEBUG already defined in /home/akpp/htdocs/akpp45.ru/wp-config.php on line 40
+[17-Oct-2026 12:45:53 UTC] PHP Warning:  Constant WP_DEBUG_LOG already defined in /home/akpp/htdocs/akpp45.ru/wp-config.php on line 41
+[17-Oct-2026 12:45:53 UTC] PHP Warning:  Constant WP_DEBUG_DISPLAY already defined in /home/akpp/htdocs/akpp45.ru/wp-config.php on line 42
+[17-Oct-2026 12:46:23 UTC] PHP Warning:  Constant WP_DEBUG already defined in /home/akpp/htdocs/akpp45.ru/wp-config.php on line 40
+[17-Oct-2026 12:46:23 UTC] PHP Warning:  Constant WP_DEBUG_LOG already defined in /home/akpp/htdocs/akpp45.ru/wp-config.php on line 41
+[17-Oct-2026 12:46:23 UTC] PHP Warning:  Constant WP_DEBUG_DISPLAY already defined in /home/akpp/htdocs/akpp45.ru/wp-config.php on line 42
+[17-Oct-2026 12:48:23 UTC] PHP Warning:  Constant WP_DEBUG already defined in /home/akpp/htdocs/akpp45.ru/wp-config.php on line 40
+[17-Oct-2026 12:48:23 UTC] PHP Warning:  Constant WP_DEBUG_LOG already defined in /home/akpp/htdocs/akpp45.ru/wp-config.php on line 41
+[17-Oct-2026 12:48:23 UTC] PHP Warning:  Constant WP_DEBUG_DISPLAY already defined in /home/akpp/htdocs/akpp45.ru/wp-config.php on line 42
+[17-Oct-2026 12:48:23 UTC] PHP Warning:  Constant WP_DEBUG already defined in /home/akpp/htdocs/akpp45.ru/wp-config.php on line 40
+[17-Oct-2026 12:48:23 UTC] PHP Warning:  Constant WP_DEBUG_LOG already defined in /home/akpp/htdocs/akpp45.ru/wp-config.php on line 41
+[17-Oct-2026 12:48:23 UTC] PHP Warning:  Constant WP_DEBUG_DISPLAY already defined in /home/akpp/htdocs/akpp45.ru/wp-config.php on line 42
+[17-Oct-2026 12:50:12 UTC] PHP Warning:  Constant WP_DEBUG already defined in /home/akpp/htdocs/akpp45.ru/wp-config.php on line 40
+[17-Oct-2026 12:50:12 UTC] PHP Warning:  Constant WP_DEBUG_LOG already defined in /home/akpp/htdocs/akpp45.ru/wp-config.php on line 41
+[17-Oct-2026 12:50:12 UTC] PHP Warning:  Constant WP_DEBUG_DISPLAY already defined in /home/akpp/htdocs/akpp45.ru/wp-config.php on line 42
+[17-Oct-2026 12:50:23 UTC] PHP Warning:  Constant WP_DEBUG already defined in /home/akpp/htdocs/akpp45.ru/wp-config.php on line 40
+[17-Oct-2026 12:50:23 UTC] PHP Warning:  Constant WP_DEBUG_LOG already defined in /home/akpp/htdocs/akpp45.ru/wp-config.php on line 41
+[17-Oct-2026 12:50:23 UTC] PHP Warning:  Constant WP_DEBUG_DISPLAY already defined in /home/akpp/htdocs/akpp45.ru/wp-config.php on line 42
+[17-Oct-2026 12:52:25 UTC] PHP Warning:  Constant WP_DEBUG already defined in /home/akpp/htdocs/akpp45.ru/wp-config.php on line 40
+[17-Oct-2026 12:52:25 UTC] PHP Warning:  Constant WP_DEBUG_LOG already defined in /home/akpp/htdocs/akpp45.ru/wp-config.php on line 41
+[17-Oct-2026 12:52:25 UTC] PHP Warning:  Constant WP_DEBUG_DISPLAY already defined in /home/akpp/htdocs/akpp45.ru/wp-config.php on line 42
+[17-Oct-2026 12:59:40 UTC] PHP Warning:  Constant WP_DEBUG already defined in /home/akpp/htdocs/akpp45.ru/wp-config.php on line 40
+[17-Oct-2026 12:59:40 UTC] PHP Warning:  Constant WP_DEBUG_LOG already defined in /home/akpp/htdocs/akpp45.ru/wp-config.php on line 41
+[17-Oct-2026 12:59:40 UTC] PHP Warning:  Constant WP_DEBUG_DISPLAY already defined in /home/akpp/htdocs/akpp45.ru/wp-config.php on line 42

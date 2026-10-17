@@ -24,8 +24,8 @@
         <!-- Логотип -->
         <div class="header-logo">
             <a href="<?php echo esc_url(home_url('/')); ?>" class="logo-link">
-                <span class="logo-text">АКПП<span class="accent">45</span></span>
-                <span class="logo-subtitle">Курган</span>
+                <span class="logo-text"><?php echo esc_html(get_option('akpp_brand_name', get_bloginfo('name'))); ?></span>
+                <span class="logo-subtitle"><?php echo esc_html(get_option('akpp_brand_city', '')); ?></span>
             </a>
         </div>
 
@@ -56,7 +56,7 @@
         <div class="header-actions">
             <a href="tel:<?php echo akpp_obf("+79638669996"); ?>" class="btn-phone" aria-label="Позвонить">
                 <span class="phone-icon">📞</span>
-                <span class="phone-text desktop-only"><?php echo akpp_obf("+7 (963) 866-99-96"); ?></span>
+                <span class="phone-text desktop-only"><?php echo akpp_obf((string) get_option('akpp_brand_phone', '')); ?></span>
             </a>
             
             <a href="https://t.me/<?php echo akpp_obf("akppkgn"); ?>" class="btn-telegram" target="_blank" rel="noopener">
@@ -129,7 +129,7 @@
         <!-- Контакты в мобильном меню -->
         <div class="mobile-contacts">
             <a href="tel:<?php echo akpp_obf("+79638669996"); ?>" class="mobile-contact-link" aria-label="Позвонить">
-                <span>📞</span> <?php echo akpp_obf("+7 (963) 866-99-96"); ?>
+                <span>📞</span> <?php echo akpp_obf((string) get_option('akpp_brand_phone', '')); ?>
             </a>
             <a href="https://t.me/<?php echo akpp_obf("akppkgn"); ?>" class="mobile-contact-link" target="_blank" rel="noopener">
                 <span>💬</span> <?php echo akpp_obf("@akppkgn"); ?>

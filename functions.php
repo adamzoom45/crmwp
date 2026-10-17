@@ -14,7 +14,7 @@ if (!defined('ABSPATH')) {
 // КОНСТАНТЫ ТЕМЫ
 // =============================================================================
 
-define('AKPP_THEME_VERSION', '5.1.0');
+define('AKPP_THEME_VERSION', '5.1.1');
 define('AKPP_THEME_DIR', get_template_directory());
 define('AKPP_THEME_URI', get_template_directory_uri());
 define('AKPP_CRM_DIR', AKPP_THEME_DIR . '/inc/crm');
@@ -843,3 +843,12 @@ add_action('admin_post_akpp_save_requisites', function () {
     wp_safe_redirect(admin_url('admin.php?page=akpp-crm-requisites&saved=1')); exit;
 });if (file_exists(get_template_directory() . '/inc/crm/class-akpp-updater.php')) { require_once get_template_directory() . '/inc/crm/class-akpp-updater.php'; } // akpp-updater-require
 if (file_exists(get_template_directory() . '/inc/akpp-tpl-data.php')) { require_once get_template_directory() . '/inc/akpp-tpl-data.php'; } // akpp-tpl-data-require
+require_once AKPP_CRM_PATH . 'class-akpp-telegram.php'; // TG отключён: no-op заглушка // tg-stub-require
+require_once AKPP_CRM_PATH . 'class-akpp-drom.php';
+require_once AKPP_CRM_PATH . 'class-akpp-cron-tasks.php';
+require_once AKPP_CRM_PATH . 'class-akpp-mail.php';
+// AKPP_Mail_Server::get_instance();
+// AKPP_Mail::get_instance(); // akpp-mail-init
+AKPP_Cron_Tasks::get_instance();
+
+add_shortcode('akpp_requisites', function () { return class_exists('AKPP_CRM') ? AKPP_CRM::get_instance()->shortcode_requisites() : ''; });
